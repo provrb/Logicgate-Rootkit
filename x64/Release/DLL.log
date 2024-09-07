@@ -1,0 +1,15 @@
+﻿  Assembling Source\mod_helpers.asm...
+  Assembling Source\syscalls.asm...
+  client.cpp
+  dllmain.cpp
+C:\Users\ethan\source\repos\DLL\DLL\Source\dllmain.cpp(18,47): warning C4081: expected ','; found 'newline'
+  procutils.cpp
+C:\Users\ethan\source\repos\DLL\DLL\Source\procutils.cpp(167,24): warning C4312: 'type cast': conversion from 'DWORD' to 'HANDLE' of greater size
+dllmain.obj : warning LNK4104: export of symbol 'DllCanUnloadNow' should be PRIVATE
+dllmain.obj : warning LNK4104: export of symbol 'DllGetClassObject' should be PRIVATE
+     Creating library C:\Users\ethan\source\repos\DLL\x64\Release\mlang.lib and object C:\Users\ethan\source\repos\DLL\x64\Release\mlang.exp
+  Generating code
+C:\Users\ethan\source\repos\DLL\DLL\Source\procutils.cpp(122): warning C4715: 'ProcessUtilities::Clean': not all control paths return a value
+  Finished generating code
+LINK : warning LNK4039: section 'SECTION:.didat' specified with /SECTION option does not exist
+  DLL.vcxproj -> C:\Users\ethan\source\repos\DLL\x64\Release\mlang.dll
