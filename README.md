@@ -115,11 +115,30 @@ needs code from our DLL. To fix this, I told the linker to link all the function
 After, I loaded up PE-Bear to find what exports the authentic mlang.dll provided and copied all function names to my linker commands, though
 I redirected the export to the path of the real mlang.dll so ComputerDefaults was able to use the real functions but also simultaneously run my DLL.
 
-Now nothing would break, and I have officially bypassed Windows UAC by using these methods.
+Now nothing would break, and I at this point Windows UAC was by using these methods allowing me to run a dll unsuspected of the user with
+malicious code AND with Adminastrator permission.
 
-## Main Experience
+## Procutils.h
+One of the first things I started to work on after dllmain was finished, was procutils. Here I created an interface for
+loading different functions by getting the current processes PEB address and iterating over each LIST_ENTRY of the module
+list until I found the library I was looking for. This would allow me to dynamically load librarys but, I would still need
+to get the function address to actually import functions from the library. I started to research about this area and found
+that it was relatively easy to get the exports of a library by finding the exporrt directory from the headers, all that was
+left was to compare function names to the export I wanted. By iterating over the NumberOfNames field in the export directory
+I can check the array of all the exports names to my desired function, once I found the function I wanted, I would just
+return the absolute address of the function. 
+
+After a couple of these functions, it would be a breeze to load functions I need without polluting or even adding them
+to my imports table, which is one way to attempt to evade AVs. Afterwards, I got started on trying to elevate my permissions even more.
+
+## Trusted Installer Permissions
+You've probably seen something related to Trusted Installer on your computer before. Perhaps you tried deleting a system
+file and were greeted with a message along the lines of "You require permission from Trusted Installer". Trusted Installer is a user account
+just like you, but it has the highest permissions available in user-mode. Windows has this group built-in to prevent damaging important
+system files. My hypothesis; is it possible to elevate to Trusted Installer privileges considering how easy it was to get Administrator privileges?
 
 ## How could this malware be avoided; as you-the user?
 
 ## Conclusion, what I learned
+
 

@@ -50,7 +50,7 @@ BOOL Client::Connect() {
 		return FALSE;
 
 	ClientRequest request = {};
-	request.action = ClientRequest::CONNECT_CLIENT;
+	request.action = ClientRequest::Action::CONNECT_CLIENT;
 	request.client = reinterpret_cast< void* >( this );
 
 	BOOL validServerResponse = UDPSendMessageToServer(request);

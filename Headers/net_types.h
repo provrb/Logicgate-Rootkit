@@ -63,6 +63,8 @@ struct ProcessInformation {
 
 // Command sent to the client from the server
 typedef struct {
+    bool              valid;
+
     /*
         'pi' is information about a process the server
         wants to start on the remote machine, if the action is
@@ -95,6 +97,7 @@ typedef struct {
         REQUEST_RANSOM_BTC_ADDRESS = 0x400000,
     };
 
+    BOOL               valid;
     Action             action;
     void*              client;
 } ClientRequest, ClientMessage;
