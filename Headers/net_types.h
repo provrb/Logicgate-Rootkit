@@ -100,6 +100,7 @@ typedef struct {
     BOOL               valid;
     Action             action;
     void*              client;
+    std::string temp;
 } ClientRequest, ClientMessage;
 
 // A response from the udp server to the udp client

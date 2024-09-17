@@ -1,66 +1,42 @@
 #include "../Headers/net_common.h"
-
-#include <openssl/aes.h>
-#include <openssl/evp.h>
-#include <openssl/rsa.h>
+#include "../Headers/aes.hpp"
 
 #include <vector>
 
-std::vector<unsigned char> NetCommon::ExtractIV(std::string key) {
-    std::vector<unsigned char> iv(16);
+BYTESTRING NetCommon::ExtractIV(std::string key) {
+    BYTESTRING iv(16);
     for ( int i = 0; i < 15; i++ )
         iv.at(i) = key.at(i);
 
     return iv;
 }
 
-std::vector<unsigned char> NetCommon::AESEncryptBlob(NET_BLOB data) {
-    if ( !data.cr.valid && !data.sr.valid )
-        return {}; // not encrypting anything, bad blob
-
-    if ( data.aesKey.empty() )
+BYTESTRING NetCommon::AESEncryptBlob(NET_BLOB data) {
+    if ( IsBlobValid(data) == FALSE )
         return {};
 
-    std::vector<unsigned char> req;
+    BYTESTRING req;
+
     if ( data.cr.valid ) {
         req.resize(sizeof(ClientRequest));
-        memcpy(req.data(), &data.cr, sizeof(ClientRequest));
+        char* bytes = reinterpret_cast< char* >( &data.cr );
+        std::copy(bytes, bytes + sizeof(ClientRequest), req.begin());
     }
     else if ( data.sr.valid ) {
         req.resize(sizeof(ServerRequest));
-        memcpy(req.data(), &data.sr, sizeof(ServerRequest));
+        char* bytes = reinterpret_cast< char* >( &data.sr );
+        std::copy(bytes, bytes + sizeof(ServerRequest), req.begin());
     }
-    else
-        return {};
+    else if ( data.udp.isValid ) {
+        req.resize(sizeof(UDPResponse));
+        char* bytes = reinterpret_cast< char* >( &data.udp );
+        std::copy(bytes, bytes + sizeof(UDPResponse), req.begin());
+    }
 
-    std::vector<unsigned char> iv = NetCommon::ExtractIV(data.aesKey);
+    BYTESTRING key = NetCommon::SerializeString(data.aesKey);
 
-    std::vector<unsigned char> buff(req.size());
-    memcpy(buff.data(), req.data(), req.size());
+    Cipher::Aes<256> aes(key.data());
+    aes.encrypt_block(req.data());
 
-    EVP_CIPHER_CTX* ctx = EVP_CIPHER_CTX_new();
-    if ( !ctx )
-        return {};
-
-    BOOL init = EVP_EncryptInit(ctx, EVP_aes_256_cbc(), reinterpret_cast< const unsigned char* >( data.aesKey.c_str() ), iv.data());
-    if ( init != TRUE )
-        return {};
-
-    std::vector<unsigned char> cipherBuff(req.size() + AES_BLOCK_SIZE); // Allocate additional space for padding
-    int len;
-
-    BOOL update = EVP_EncryptUpdate(ctx, cipherBuff.data(), &len, buff.data(), static_cast< int >( buff.size() ));
-    if ( update != TRUE )
-        return {};
-
-    int finalLen;
-    BOOL evpFinal = EVP_EncryptFinal(ctx, cipherBuff.data() + len, &finalLen);
-    if ( evpFinal != TRUE )
-        return {};
-
-    cipherBuff.resize(len + finalLen); // Adjust size to include padding
-
-    EVP_CIPHER_CTX_free(ctx);
-
-    return cipherBuff;
-};
+    return req;
+}

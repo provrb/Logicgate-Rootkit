@@ -25,6 +25,7 @@ namespace ProcessUtilities
 		typedef BOOL      (WINAPI *_CreateProcessWithTokenW)( HANDLE, DWORD, LPCWSTR, LPWSTR, DWORD, LPVOID, LPCWSTR, LPSTARTUPINFOW, LPPROCESS_INFORMATION );
 		typedef BOOL	  (WINAPI *_Process32FirstW)( HANDLE, LPPROCESSENTRY32W );
 		typedef BOOL      (WINAPI *_Process32NextW)( HANDLE, LPPROCESSENTRY32W );
+		typedef HMODULE	  (WINAPI* _LoadLibrary)( LPCSTR );
 	}
 	
 	namespace freqDLLS 
