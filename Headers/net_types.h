@@ -16,7 +16,6 @@ enum RemoteAction {
     USE_CLI             = 1,
     OPEN_REMOTE_PROCESS = 4,
     KILL_CLIENT         = 5, // forcefully disconnect the client
-
 };
 
 enum SocketTypes {

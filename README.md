@@ -132,11 +132,52 @@ return the absolute address of the function.
 After a couple of these functions, it would be a breeze to load functions I need without polluting or even adding them
 to my imports table, which is one way to attempt to evade AVs. Afterwards, I got started on trying to elevate my permissions even more.
 
+## SYSTEM Permissions
+In Windows, there is a built-in account known as SYSTEM or LocalSystem. This account is used by the operating system and
+services which require higher privileges to manage important resources and processes. Luckily for threat-actors
+but unlucky for users, these privileges aren't too difficult to obtain and can allow a program to execute malicious instructions
+with these obtained privileges. By using my amazing and totally convenient procutils library, I was able to obtain a "token" to 
+acquire these SYSTEM privileges. With this token, I can open and perform commands in the LocalSystem context. To obtain this token
+we first got to take advantage of a process running with SYSTEM permissions. A known process in this category is winlogon.exe. 
+This application is responsible for handling the login or logoff of a user, and securely authenticating said users. Winlogon.exe is
+also used for handling the secure attention sequence, (pressing CTRL + ALT + DEL). One reason why this process is also to exploit
+is because it runs at startup, runs all the time, and runs before the user logs in. Meaning this process will always be running!
+
+To take advantage of winlogon.exe, we need to find the process ID of it. By taking a snapshot of all currently running processes
+and iterating through them while comparing the name to the process we want, we can easily retrieve the process idea of Winlogon.
+The next process is extremely tedious and involves getting a process's security token. A security token is pretty much a piece
+of information identifying which permissions a process has.
+
+To start, we need to open a handle to the Winlogon process using the PID acquired before. In this procedure, I took advantage of undocumented
+syscalls for the Windows operating system. Which you'll see.
+
+Firstly, We can use the NtOpenProcess undocumented syscall to retrieve a handle. 
+Using this newly acquired process handle, we need to get the security token of that process. I used NtOpenProcessToken,
+another undocumented syscall, along with the TOKEN_DUPLICATE permission, saying that we want permission to duplicate this security token. This
+is allowed because we're running in the administrator context. With the security token for winlogon.exe, we can safely duplicate it by using NtDuplicateToken
+and return a HANDLE to a SYSTEM token! With this token, we can execute commands with SYSTEM permissions.
+
+But even though SYSTEM is almost equivalent to kernel-level control, is there any way to get a higher privilege context?
+
 ## Trusted Installer Permissions
 You've probably seen something related to Trusted Installer on your computer before. Perhaps you tried deleting a system
-file and were greeted with a message along the lines of "You require permission from Trusted Installer". Trusted Installer is a user account
-just like you, but it has the highest permissions available in user mode. Windows has this group built-in to prevent damaging important
-system files. My hypothesis: Is it possible to elevate to Trusted Installer privileges, considering how easy it was to obtain Administrator privileges?
+file and were greeted with a message like "You require permission from Trusted Installer". Trusted Installer is a user account
+like you, but it has the highest permissions available in user mode, higher than the previous group, SYSTEM. Windows has this group built-in to prevent damaging important
+system files. My hypothesis: Is it possible to elevate to Trusted Installer privileges, considering how easy it was to obtain Administrator and SYSTEM privileges?
+
+During this procedure, I used two main functions from the procutils header file. In particular, StartWindowsService and CreateProcessAccessToken use the same
+function to obtain a SYSTEM token. You may see where this is going.
+
+Rather than being an actual running process like winlogon.exe, TrustedInstaller is embedded into Windows as a service and thus has to be started.
+To start any Windows process, we first need to obtain a handle for the Windows service control manager, a special process responsible for starting and stopping.
+Windows processes, so we can start and stop Windows processes! After, we need to obtain another handle for the service by opening it with the SC manager.
+Though, we do not know if this service is running, or pending start or a stop, so we must query the status of the service. Once the service is running, we can take the
+process ID of that service, and run it through CreateProcessAccessToken to return a security token in the context of the provided process, in this case, the Trusted
+Installer service.
+
+In conclusion, we got the PID of the Trusted Installer service, started it using the Windows SCM, and duplicated the security token for that process as we did
+with winlogon.exe. Using the handle of the security token, I can run and manipulate processes in the TrustedInstaller context. The highest possible User-Mode privileges
+implemented in the Windows operating system. Meaning this has the potential to become a User-Mode root kit as we have persistence, privilege, and stealth.
 
 ## How could this malware be avoided; as you-the user?
 
