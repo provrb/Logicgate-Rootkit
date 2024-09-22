@@ -5,7 +5,6 @@
 #include "net_types.h"
 #include "obfuscate.h"
 #include "net_common.h"
-#include "aes.hpp"
 
 #include <memory>
 #include <algorithm>
@@ -42,18 +41,12 @@ public:
     }
 
 protected:
-
-    /*
-        Load all dynamically loaded wsa functions
-    */
-    VOID          LoadWSAFunctions();
-
     /*
         Identify whether the client class has loaded wsa
         and a defined type of socket in 'type'
     */
     BOOL          SocketReady(SocketTypes type) const;
-   
+
     /*
         Decrypt a byte string received from a socket 
         and cast it to whatever type Data is.
@@ -84,35 +77,12 @@ protected:
     */
     BOOL          UDPSendMessageToServer(ClientMessage message);
 
-    // Function pointers
-    typedef SOCKET ( WINAPI* _socket)       ( int af, int type, int protocol );
-    typedef int    ( WINAPI* _WSAStartup )  ( WORD wVersionRequired, LPWSADATA lpWSAData );
-    typedef int    ( WINAPI* _closesocket ) ( SOCKET s );
-    typedef int    ( WINAPI* _WSACleanup )  ( void );
-    typedef int    ( WINAPI* _bind )        ( SOCKET s, const sockaddr* addr, int namelen );
-    typedef int    ( WINAPI* _sendto )      ( SOCKET s, const char* buf, int len, int flags, const sockaddr* addr, int tolen );
-    typedef int    ( WINAPI* _send )        ( SOCKET s, const char* buff, int len, int flags );
-    typedef int    ( WINAPI* _recv )        ( SOCKET s, char* buf, int len, int flags );
-    typedef int    ( WINAPI* _recvfrom )    ( SOCKET s, char* buf, int len, int flags, sockaddr* from, int* fromlen );
-    typedef int    ( WINAPI* _connect )     ( SOCKET s, const sockaddr* addr, int namelen );
-
-    // Dynamically loaded functions from the winsock library
-    _socket       CreateSocket    = nullptr;
-    _WSAStartup   StartWSA        = nullptr;
-    _WSACleanup   CleanWSA        = nullptr;
-    _closesocket  CloseSocket     = nullptr;
-    _bind         BindSocket      = nullptr;
-    _sendto       SendTo          = nullptr; 
-    _send         Send            = nullptr;
-    _recv         Receive         = nullptr;
-    _recvfrom     ReceiveFrom     = nullptr;
-    _connect      ConnectSocket   = nullptr; 
+    UDPResponse   UDPRecvMessageFromServer();
 
     // Further details on client
-    BOOL          WSAInitialized  = FALSE;
+    Server        ConnectedServer = {0};          // Information on the clients connected server
     SOCKET        UDPSocket       = INVALID_SOCKET;
     SOCKET        TCPSocket       = INVALID_SOCKET;
-    Server        ConnectedServer = { 0 };          // Information on the clients connected server
     long          ClientUID       = -1;             // UID is assigned by the server. Used to perform commands on one client
     std::string   EncryptionKey;                    // Public encryption key for RSA, ENCRYPT AND DECRYPT KEY FOR AES
 };

