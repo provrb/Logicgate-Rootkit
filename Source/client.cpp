@@ -65,10 +65,7 @@ BOOL Client::SocketReady(SocketTypes type) const {
 }
 
 BYTESTRING Client::EncryptClientRequest(ClientRequest req) const {
-	NET_BLOB blob;
-	blob.aesKey = this->EncryptionKey;
-	blob.cr = req;
-
+	NET_BLOB blob = NetCommon::RequestToBlob(req, this->EncryptionKey);
 	BYTESTRING buff = NetCommon::AESEncryptBlob(blob);
 
 	return buff;
