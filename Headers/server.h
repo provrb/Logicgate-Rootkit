@@ -1,11 +1,10 @@
-#ifndef _SERVER_H_
-#define _SERVER_H_
+#ifndef _SERVER_INTERFACE_H_
+#define _SERVER_INTERFACE_H_
 
-#include "net_types.h"
 #include "net_common.h"
 #include "client.h"
 
-using ClientData = std::tuple<Client, std::string, std::string>:
+using ClientData = std::tuple<Client, std::string, std::string>;
 
 class ServerInterface
 {
@@ -14,7 +13,7 @@ public:
 
 	BOOL          TCPSendMessageToClient(long cuid, ServerCommand req);
 	BOOL          TCPSendMessageToClients(ServerCommand req);
-	ClientRequest DecryptClientRequest(BYTESTRING req);
+	ClientRequest DecryptClientRequest(long cuid, BYTESTRING req);
 	BYTESTRING    EncryptServerRequest(ServerRequest req);
 
 	/*
@@ -26,6 +25,10 @@ public:
 	BOOL          UDPSendMessageToClient(long cuid, UDPMessage message);
 	BOOL          AddToClientList();
 	
+	inline ClientData GetClientData(long cuid) {
+		return GetClientList()[cuid];
+	}
+
 	inline std::unordered_map<long, ClientData> GetClientList() {
 		return this->ClientList;
 	}

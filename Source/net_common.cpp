@@ -32,13 +32,13 @@ void NetCommon::LoadWSAFunctions() {
         WSAInitialized = TRUE;
 }
 
-BYTESTRING NetCommon::ExtractIV(std::string key) {
-    BYTESTRING iv(16);
-    for ( int i = 0; i < 15; i++ )
-        iv.at(i) = key.at(i);
-
-    return iv;
-}
+//BYTESTRING NetCommon::ExtractIV(std::string key) {
+//    BYTESTRING iv(16);
+//    for ( int i = 0; i < 15; i++ )
+//        iv.at(i) = key.at(i);
+//
+//    return iv;
+//}
 
 BYTESTRING NetCommon::AESEncryptBlob(NET_BLOB data) {
     if ( IsBlobValid(data) == FALSE )

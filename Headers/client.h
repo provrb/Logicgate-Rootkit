@@ -40,26 +40,13 @@ public:
         if ( this->EncryptionKey.empty() ) this->EncryptionKey = key;
     }
 
-protected:
     /*
         Identify whether the client class has loaded wsa
         and a defined type of socket in 'type'
     */
     BOOL          SocketReady(SocketTypes type) const;
 
-    /*
-        Decrypt a byte string received from a socket 
-        and cast it to whatever type Data is.
-
-        Note: please be careful using this and make sure
-        the data sent is supposed to be casted to the type 'Data'
-        or else your values will be garbage
-    */
-    template <typename Data>
-    Data DecryptInternetData(BYTESTRING string) {
-        NetCommon::DecryptByteString(string, this->EncryptionKey);
-        return *reinterpret_cast<Data*>(string.data());
-    }
+protected:
 
     /*
         Send a message to the main tcp server

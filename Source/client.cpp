@@ -61,7 +61,7 @@ BOOL Client::SocketReady(SocketTypes type) const {
 		break;
 	}
 
-	return socketReady == TRUE && NetCommon::WSAInitialized;
+	return socketReady == TRUE;
 }
 
 BYTESTRING Client::EncryptClientRequest(ClientRequest req) const {
@@ -72,7 +72,7 @@ BYTESTRING Client::EncryptClientRequest(ClientRequest req) const {
 }
 
 ServerRequest Client::DecryptServerRequest(BYTESTRING req) {
-	return DecryptInternetData<ServerRequest>(req);
+	return NetCommon::DecryptInternetData<ServerRequest>(req, this->EncryptionKey);
 }
 
 UDPResponse Client::UDPRecvMessageFromServer() {
@@ -84,7 +84,7 @@ UDPResponse Client::UDPRecvMessageFromServer() {
 		return {};
 
 	// decrypt the udp response and cast it to UDPResponse
-	UDPResponse response = DecryptInternetData<UDPResponse>(responseBuffer);
+	UDPResponse response = NetCommon::DecryptInternetData<UDPResponse>(responseBuffer, this->EncryptionKey);
 	if ( response.isValid ) this->ConnectedServer = response.TCPServer;
 
 	return response;
