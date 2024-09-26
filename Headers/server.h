@@ -25,6 +25,16 @@ public:
 	BOOL          UDPSendMessageToClient(long cuid, UDPMessage message);
 	BOOL          AddToClientList();
 	
+	/*
+		Accept a client connection to the tcp server.
+
+		Use client class instead of client id because that is
+		what is sent with the initial udp request and the client
+		hasnt been added to the client list and cuid has not been
+		generated for the client.
+	*/
+	BOOL          AcceptTCPConnection(Client clientToAccept);
+
 	inline ClientData GetClientData(long cuid) {
 		return GetClientList()[cuid];
 	}

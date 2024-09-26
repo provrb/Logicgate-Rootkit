@@ -12,9 +12,19 @@
 class Client {
 public:
 
+#ifdef SERVER_RELEASE
+    inline void SetClientTCPSocket(SOCKET fd) {
+        this->TCPSocket = fd;
+    }
+
+    inline void SetClientID(long cuid) {
+        this->ClientUID = cuid;
+    }
+#endif // SERVER_RELEASE
+
+#ifdef CLIENT_RELEASE
     Client(); // dynamically load winsock and put it in loaded dlls
     ~Client(); // unload winsock
-
 	BOOL          Connect();
     BOOL          Disconnect();
     BOOL          MakeServerRequest( ClientRequest request, BOOL udp );
@@ -46,7 +56,9 @@ public:
     */
     BOOL          SocketReady(SocketTypes type) const;
 
+#endif
 protected:
+#ifdef CLIENT_RELEASE
 
     /*
         Send a message to the main tcp server
@@ -68,10 +80,18 @@ protected:
 
     // Further details on client
     Server        ConnectedServer = {0};          // Information on the clients connected server
+#endif // CLIENT_RELEASE
+
     SOCKET        UDPSocket       = INVALID_SOCKET;
     SOCKET        TCPSocket       = INVALID_SOCKET;
-    long          ClientUID       = -1;             // UID is assigned by the server. Used to perform commands on one client
     std::string   EncryptionKey;                    // Public encryption key for RSA, ENCRYPT AND DECRYPT KEY FOR AES
+
+    /*
+        UID is assigned by the server .Used to perform commands on one client.
+        Only used on the server. On client, will always remain - 1.
+    */ 
+    long          ClientUID       = -1;           
 };
+
 
 #endif
