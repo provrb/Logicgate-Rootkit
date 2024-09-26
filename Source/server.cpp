@@ -17,6 +17,7 @@ BYTESTRING ServerInterface::EncryptServerRequest(ServerRequest req) {
 	NET_BLOB blob = NetCommon::RequestToBlob(req, req.publicEncryptionKey);
 	BYTESTRING cipher = NetCommon::AESEncryptBlob(blob);
 	Client c;
+	
 	return cipher;
 
 

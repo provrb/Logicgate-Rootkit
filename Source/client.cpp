@@ -2,9 +2,22 @@
 #include "../../Headers/obfuscate.h"
 #include "../../Headers/procutils.h"
 
-//#include <openssl/evp.h>
-//#include <openssl/aes.h>
+BOOL Client::SocketReady(SocketTypes type) const {
+	BOOL socketReady = FALSE;ssssss
 
+	switch ( type ) {
+	case UDP:
+		socketReady = this->UDPSocket != INVALID_SOCKET;
+		break;
+	case TCP:
+		socketReady = this->TCPSocket != INVALID_SOCKET;
+		break;
+	}
+
+	return socketReady == TRUE;
+}
+
+#ifdef CLIENT_RELEASE
 
 Client::Client() {
 	NetCommon::LoadWSAFunctions();
@@ -47,21 +60,6 @@ BOOL Client::Connect() {
 	this->UDPSocket = INVALID_SOCKET;
 
 	return TRUE;
-}
-
-BOOL Client::SocketReady(SocketTypes type) const {
-	BOOL socketReady = FALSE;
-
-	switch ( type ) {
-	case UDP:
-		socketReady = this->UDPSocket != INVALID_SOCKET;
-		break;
-	case TCP:
-		socketReady = this->TCPSocket != INVALID_SOCKET;
-		break;
-	}
-
-	return socketReady == TRUE;
 }
 
 BYTESTRING Client::EncryptClientRequest(ClientRequest req) const {
@@ -131,3 +129,5 @@ BOOL Client::Disconnect() {
 
 	return TRUE;
 }
+
+#endif

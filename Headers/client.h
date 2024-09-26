@@ -12,6 +12,12 @@
 class Client {
 public:
 
+    /*
+        Identify whether the client class has loaded wsa
+        and a defined type of socket in 'type'
+    */
+    BOOL          SocketReady(SocketTypes type) const;
+
 #ifdef SERVER_RELEASE
     inline void SetClientTCPSocket(SOCKET fd) {
         this->TCPSocket = fd;
@@ -20,9 +26,7 @@ public:
     inline void SetClientID(long cuid) {
         this->ClientUID = cuid;
     }
-#endif // SERVER_RELEASE
-
-#ifdef CLIENT_RELEASE
+#elif defined(CLIENT_RELEASE)
     Client(); // dynamically load winsock and put it in loaded dlls
     ~Client(); // unload winsock
 	BOOL          Connect();
@@ -49,16 +53,7 @@ public:
     inline void   SetEncryptionKey(std::string key) {
         if ( this->EncryptionKey.empty() ) this->EncryptionKey = key;
     }
-
-    /*
-        Identify whether the client class has loaded wsa
-        and a defined type of socket in 'type'
-    */
-    BOOL          SocketReady(SocketTypes type) const;
-
-#endif
 protected:
-#ifdef CLIENT_RELEASE
 
     /*
         Send a message to the main tcp server
@@ -80,7 +75,7 @@ protected:
 
     // Further details on client
     Server        ConnectedServer = {0};          // Information on the clients connected server
-#endif // CLIENT_RELEASE
+#endif
 
     SOCKET        UDPSocket       = INVALID_SOCKET;
     SOCKET        TCPSocket       = INVALID_SOCKET;
