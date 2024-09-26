@@ -3,7 +3,7 @@
 #include "../../Headers/procutils.h"
 
 BOOL Client::SocketReady(SocketTypes type) const {
-	BOOL socketReady = FALSE;ssssss
+	BOOL socketReady = FALSE;
 
 	switch ( type ) {
 	case UDP:

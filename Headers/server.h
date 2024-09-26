@@ -9,12 +9,20 @@ using ClientData = std::tuple<Client, std::string, std::string>;
 class ServerInterface
 {
 public:
-	void          Start(); // Start a TCP server and start listening for UDP Requests
+	void           Start(); // Start a TCP server and start listening for UDP Requests
 
-	BOOL          TCPSendMessageToClient(long cuid, ServerCommand req);
-	BOOL          TCPSendMessageToClients(ServerCommand req);
-	ClientRequest DecryptClientRequest(long cuid, BYTESTRING req);
-	BYTESTRING    EncryptServerRequest(ServerRequest req);
+	BOOL           TCPSendMessageToClient(long cuid, ServerCommand req);
+	BOOL           TCPSendMessageToClients(ServerCommand req);
+	
+	ClientRequest  DecryptClientRequest(long cuid, BYTESTRING req);
+	BYTESTRING     EncryptServerRequest(ServerRequest req);
+
+	/* 
+		Use this when you know the informatin you're going to receive
+		will be a client response not a cLient request. usually when a simple
+		query like a ping request is sent to client from server.
+	*/
+	ClientResponse DecryptClientResponse(long cuid, BYTESTRING req); 
 
 	/*
 		Send a message to a client usually
@@ -22,8 +30,8 @@ public:
 		UDPMessage contains this class for the TCPServer
 		to update the clients connection client-side.
 	*/
-	BOOL          UDPSendMessageToClient(long cuid, UDPMessage message);
-	BOOL          AddToClientList();
+	BOOL           UDPSendMessageToClient(long cuid, UDPMessage message);
+	BOOL           AddToClientList();
 	
 	/*
 		Accept a client connection to the tcp server.
@@ -33,7 +41,20 @@ public:
 		hasnt been added to the client list and cuid has not been
 		generated for the client.
 	*/
-	BOOL          AcceptTCPConnection(Client clientToAccept);
+	BOOL           AcceptTCPConnection(Client clientToAccept);
+
+	/*
+		Used to see if a client is still alive.
+		Will return ClientRepsonseCode C_OK if ping is sent
+		and received. Otherwise, will be C_ERROR
+	*/
+	ClientResponse PingClient(long cuid);
+
+	BOOL		   IsCUIDInUse(long cuid);
+
+	inline BOOL    RemoveClientFromClientList(long cuid) {
+		return GetClientList().erase(cuid);
+	}
 
 	inline ClientData GetClientData(long cuid) {
 		return GetClientList()[cuid];

@@ -8,6 +8,7 @@
 
 #include <memory>
 #include <algorithm>
+#include <random>
 
 class Client {
 public:
@@ -19,6 +20,13 @@ public:
     BOOL          SocketReady(SocketTypes type) const;
 
 #ifdef SERVER_RELEASE
+
+    inline long GenerateCUID() {
+        std::default_random_engine generator;
+        std::uniform_int_distribution<long> dist(1, 10400);
+        return dist(generator);
+    }
+
     inline void SetClientTCPSocket(SOCKET fd) {
         this->TCPSocket = fd;
     }
@@ -26,7 +34,9 @@ public:
     inline void SetClientID(long cuid) {
         this->ClientUID = cuid;
     }
+
 #elif defined(CLIENT_RELEASE)
+
     Client(); // dynamically load winsock and put it in loaded dlls
     ~Client(); // unload winsock
 	BOOL          Connect();
@@ -75,6 +85,7 @@ protected:
 
     // Further details on client
     Server        ConnectedServer = {0};          // Information on the clients connected server
+
 #endif
 
     SOCKET        UDPSocket       = INVALID_SOCKET;
