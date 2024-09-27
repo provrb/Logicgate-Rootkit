@@ -4,6 +4,13 @@
 #include "net_common.h"
 #include "client.h"
 
+// Constants to get data from ClientData tuple when using std::get
+constexpr int CLIENT_CLASS    = 0;
+constexpr int PUBLIC_RSA_KEY  = 1;
+constexpr int AES_KEY         = 1; // AES Key is also public rsa key
+constexpr int PRIVATE_RSA_KEY = 2;
+
+// Client class, Public RSA Key, Private RSA Key
 using ClientData = std::tuple<Client, std::string, std::string>;
 
 class ServerInterface
@@ -50,14 +57,25 @@ public:
 	*/
 	ClientResponse PingClient(long cuid);
 
+	BOOL           ClientIsInClientList(long cuid);
+
 	BOOL		   IsCUIDInUse(long cuid);
+
+	BOOL           IsClientAlive(long cuid);
 
 	inline BOOL    RemoveClientFromClientList(long cuid) {
 		return GetClientList().erase(cuid);
 	}
 
 	inline ClientData GetClientData(long cuid) {
-		return GetClientList()[cuid];
+		try {
+			return GetClientList().at(cuid);
+		}
+		catch ( const std::out_of_range& ) {}
+
+		ClientData empty = { {}, "Client Doesn't Exist", "Client Doesn't Exist" };
+
+		return empty;
 	}
 
 	inline std::unordered_map<long, ClientData> GetClientList() {
@@ -77,6 +95,9 @@ protected:
 		from a client.
 	*/
 	BOOL           PerformUDPRequest(BYTESTRING req);
+
+	template <typename Data>
+	Data           DecryptClientData(BYTESTRING cipher, long cuid);
 
 	/*
 		Generate an RSA public and private key 
