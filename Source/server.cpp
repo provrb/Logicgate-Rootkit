@@ -27,21 +27,19 @@ Data ServerInterface::DecryptClientData(BYTESTRING cipher, long cuid) {
 	if ( !ClientIsInClientList(cuid) )
 		return {};
 
-	ClientData clientInfo = GetClientData(cuid);
-	std::string decryptionKey = std::get<>(clientInfo);
-
+	ClientData  clientInfo    = GetClientData(cuid);
+	std::string decryptionKey = std::get<AES_KEY>(clientInfo);
+	Data        decrypted     = NetCommon::DecryptInternetData<Data>(req, decryptionKey);
+	
+	return decrypted;
 }
 
 ClientRequest ServerInterface::DecryptClientRequest(long cuid, BYTESTRING req) {
-	if ( !ClientIsInClientList ) // Invalid client
-		return {};
+	return DecryptClientData<ClientRequest>(req, cuid); // return decrypted clientRequest struct
+}
 
-	ClientData clientInfo = GetClientData(cuid);
-
-	std::string   decryptionKey = std::get<AES_KEY>(clientInfo); // RSA Public Key. Used as AES Key when sending requests over sockets.
-	ClientRequest clientReq     = NetCommon::DecryptInternetData<ClientRequest>(req, decryptionKey);
-
-	return clientReq; // return decrypted clientRequest struct
+ClientResponse ServerInterface::DecryptClientResponse(long cuid, BYTESTRING resp) {
+	return DecryptClientData<ClientResponse>(resp, cuid);
 }
 
 BYTESTRING ServerInterface::EncryptServerRequest(ServerRequest req) {
@@ -49,13 +47,6 @@ BYTESTRING ServerInterface::EncryptServerRequest(ServerRequest req) {
 	BYTESTRING cipher = NetCommon::AESEncryptBlob(blob);
 
 	return cipher;
-}
-
-ClientResponse ServerInterface::DecryptClientResponse(long cuid, BYTESTRING resp) {
-	if ( !ClientIsInClientList(cuid) )
-		return {};
-
-	ClientData clientInfo = GetClientData(cuid);
 }
 
 BOOL ServerInterface::IsCUIDInUse(long cuid) {

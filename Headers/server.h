@@ -60,7 +60,7 @@ public:
 	BOOL           ClientIsInClientList(long cuid);
 
 	BOOL		   IsCUIDInUse(long cuid);
-
+	
 	BOOL           IsClientAlive(long cuid);
 
 	inline BOOL    RemoveClientFromClientList(long cuid) {
