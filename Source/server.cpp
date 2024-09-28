@@ -34,6 +34,8 @@ BOOL ServerInterface::PerformUDPRequest(BYTESTRING req) {
 			success = TRUE;
 		break;
 	}
+
+	return success;
 }
 
 ClientResponse ServerInterface::PingClient(long cuid) {
