@@ -7,7 +7,7 @@ BOOL ServerInterface::TCPSendMessageToClient(long cuid, ServerCommand req) {
 }
 
 ClientResponse ServerInterface::WaitForClientResponse(long cuid) {
-
+	return {};
 }
 
 ClientResponse ServerInterface::PingClient(long cuid) {
@@ -29,7 +29,16 @@ ClientResponse ServerInterface::PingClient(long cuid) {
 }
 
 BOOL ServerInterface::ClientIsInClientList(long cuid) {
-	return (std::get<AES_KEY>(GetClientData(cuid)) != "Client Doesn't Exist");
+	try {
+		ClientListMutex.lock();
+		ClientData cd = GetClientList().at(cuid);
+		ClientListMutex.unlock();
+	}
+	catch ( const std::out_of_range& ) {
+		ClientListMutex.unlock();
+		return FALSE;
+	}
+	return TRUE;
 }
 
 BOOL ServerInterface::AddToClientList(Client client) {
@@ -47,12 +56,12 @@ BOOL ServerInterface::AddToClientList(Client client) {
 }
 
 BOOL ServerInterface::IsClientAlive(long cuid) {
-	ClientData clientInfo = GetClientData(cuid);
-	Client client = std::get<CLIENT_CLASS>(clientInfo);
-
 	// Check if client is in ClientList and exists
 	if ( !ClientIsInClientList(cuid) )
 		return FALSE; // Client doesn't exist. Nothing returned from GetClientData
+
+	ClientData clientInfo = GetClientData(cuid);
+	Client client = std::get<CLIENT_CLASS>(clientInfo);
 
 	if ( client.SocketReady(TCP) == FALSE )
 		return FALSE; // socket not setup 
@@ -93,12 +102,13 @@ BYTESTRING ServerInterface::EncryptServerRequest(ServerRequest req) {
 
 BOOL ServerInterface::IsCUIDInUse(long cuid) {
 	try {
-		ClientData data = GetClientList().at(cuid);
-		Client     client = std::get<CLIENT_CLASS>(data);
+		// client isnt even in the client list
+		if ( !ClientIsInClientList(cuid) )
+			return FALSE;
 
 		if ( !IsClientAlive(cuid) ) {
-			if ( ClientIsInClientList(cuid) )
-				RemoveClientFromClientList(cuid);
+			// client is in the client list. remove them
+			RemoveClientFromClientList(cuid);
 			
 			return FALSE;
 		}
