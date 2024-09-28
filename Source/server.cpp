@@ -10,6 +10,15 @@ ClientResponse ServerInterface::WaitForClientResponse(long cuid) {
 	return {};
 }
 
+BOOL ServerInterface::UDPSendMessageToClient(long cuid, UDPMessage message) {
+	return TRUE;
+}
+
+long ServerInterface::AcceptTCPConnection(Client clientToAccept) {
+	return 0;
+}
+
+
 BOOL ServerInterface::PerformUDPRequest(BYTESTRING req) {
 	BOOL success = FALSE;
 	
