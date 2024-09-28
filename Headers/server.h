@@ -4,6 +4,9 @@
 #include "net_common.h"
 #include "client.h"
 
+#include <thread>
+#include <mutex>
+
 // Constants to get data from ClientData tuple when using std::get
 constexpr int CLIENT_CLASS    = 0;
 constexpr int PUBLIC_RSA_KEY  = 1;
@@ -21,8 +24,24 @@ public:
 	BOOL           TCPSendMessageToClient(long cuid, ServerCommand req);
 	BOOL           TCPSendMessageToClients(ServerCommand req);
 	
+	/*
+		A thread that receives clientRequests from each client that connects.
+
+		If the ExpectingResponse boolean is set to true, this means a
+		server function is waiting for a response from this client.
+		Cast to ClientResponse instead of a ClientRequest, otherwise
+		all received data is automatically interpreted as a ClientRequest.
+	*/
+	void           TCPReceiveMessagesFromClient(long cuid);
+
 	ClientRequest  DecryptClientRequest(long cuid, BYTESTRING req);
 	BYTESTRING     EncryptServerRequest(ServerRequest req);
+
+	/*
+		Wait for a single client response from a client
+
+	*/
+	ClientResponse WaitForClientResponse(long cuid);
 
 	/* 
 		Use this when you know the informatin you're going to receive
@@ -116,6 +135,7 @@ protected:
 		uniquely generated rsa key for all connected clients
 	*/
 	std::unordered_map<long, ClientData> ClientList;
+	std::mutex							 ClientListMutex; // concurrency
 
 private:
 	int sfd = -1; // server socket file descriptor
