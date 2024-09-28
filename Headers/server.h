@@ -40,6 +40,9 @@ public:
 	/*
 		Wait for a single client response from a client
 
+		Set the ExpectingResponse flag in the Client struct to true
+		telling TCPReceiveMessagesFromClient we want to cast the next
+		received response to a ClientResponse. Then revert ExpectingResponse
 	*/
 	ClientResponse WaitForClientResponse(long cuid);
 
@@ -81,28 +84,43 @@ public:
 	*/
 	ClientResponse PingClient(long cuid);
 
+	/*
+		Check if cuid is in ClientList. If not
+		return FALSE and catch std::out_of_range error.
+	*/
 	BOOL           ClientIsInClientList(long cuid);
 
+	/*
+		Check if the client is alive by pinging the client.
+		If the client is dead and the client is in ClientList,
+		remove them. Return false if client is dead, 
+	*/
 	BOOL		   IsCUIDInUse(long cuid);
 	
+	/*
+		Ping the client. Wait for a response code of C_OK.
+		Otherwise, client is dead.
+	*/
 	BOOL           IsClientAlive(long cuid);
 
 	inline BOOL    RemoveClientFromClientList(long cuid) {
-		return GetClientList().erase(cuid);
+		return GetClientList().erase(cuid); // doesnt throw an error if doesnt exist
 	}
 
-	inline ClientData GetClientData(long cuid) {
-		try {
-			return GetClientList().at(cuid);
-		}
-		catch ( const std::out_of_range& ) {}
+	/*
+		Get the client data from a client
+		in the client list using CUID.
+	*/
+	inline const ClientData GetClientData(long cuid) {
+		if ( !ClientIsInClientList(cuid) )
+			return {};
 
-		ClientData empty = { {}, "Client Doesn't Exist", "Client Doesn't Exist" };
-
-		return empty;
+		ClientListMutex.lock();
+		return GetClientList().at(cuid);
 	}
 
-	inline std::unordered_map<long, ClientData> GetClientList() {
+	inline std::unordered_map<long, ClientData>& GetClientList() {
+		std::lock_guard<std::mutex> lock(ClientListMutex);
 		return this->ClientList;
 	}
 
