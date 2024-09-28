@@ -4,6 +4,18 @@ BOOL ServerInterface::ClientIsInClientList(long cuid) {
 	return (std::get<AES_KEY>(GetClientData(cuid)) == "Client Doesn't Exist");
 }
 
+BOOL ServerInterface::AddToClientList(Client client) {
+	long cuid = -1;
+	
+	// generate a cuid that isnt in use
+	while ( cuid != -1 && IsCUIDInUse(cuid) )
+		cuid = client.GenerateCUID();
+
+	client.SetClientID(cuid);
+	
+
+}
+
 BOOL ServerInterface::IsClientAlive(long cuid) {
 	ClientData clientInfo = GetClientData(cuid);
 	Client client = std::get<CLIENT_CLASS>(clientInfo);

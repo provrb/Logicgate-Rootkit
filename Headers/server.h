@@ -38,7 +38,12 @@ public:
 		to update the clients connection client-side.
 	*/
 	BOOL           UDPSendMessageToClient(long cuid, UDPMessage message);
-	BOOL           AddToClientList();
+
+	/*
+		Insert Client into clientList, genearting a unique
+		CUID, and then adding to clientList
+	*/
+	BOOL           AddToClientList(Client client);
 	
 	/*
 		Accept a client connection to the tcp server.
