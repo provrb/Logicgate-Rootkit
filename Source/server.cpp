@@ -1,7 +1,35 @@
 #include "../Headers/server.h"
+#ifdef SERVER_RELEASE
+
+
+BOOL ServerInterface::TCPSendMessageToClient(long cuid, ServerCommand req) {
+	return TRUE;
+}
+
+ClientResponse ServerInterface::WaitForClientResponse(long cuid) {
+
+}
+
+ClientResponse ServerInterface::PingClient(long cuid) {
+	if ( !ClientIsInClientList(cuid) )
+		return {};
+
+	ClientData clientInfo = GetClientData(cuid);
+	Client     client     = std::get<CLIENT_CLASS>(clientInfo);
+	if ( !client.SocketReady(TCP) ) // socket isnt ready so cant ping.
+		return {};
+
+	// send the ping to the client over tcp
+	ServerCommand pingCommand = { true, {}, "", client.RSAPublicKey, PING_CLIENT};
+	BOOL sent = TCPSendMessageToClient(cuid, pingCommand);
+	if ( !sent )
+		return {};
+
+	return WaitForClientResponse(cuid);
+}
 
 BOOL ServerInterface::ClientIsInClientList(long cuid) {
-	return (std::get<AES_KEY>(GetClientData(cuid)) == "Client Doesn't Exist");
+	return (std::get<AES_KEY>(GetClientData(cuid)) != "Client Doesn't Exist");
 }
 
 BOOL ServerInterface::AddToClientList(Client client) {
@@ -13,7 +41,9 @@ BOOL ServerInterface::AddToClientList(Client client) {
 
 	client.SetClientID(cuid);
 	
-
+	ClientListMutex.lock();
+	this->ClientList[cuid] = std::make_tuple(client, client.RSAPublicKey, client.RSAPrivateKey);
+	ClientListMutex.unlock();
 }
 
 BOOL ServerInterface::IsClientAlive(long cuid) {
@@ -41,7 +71,7 @@ Data ServerInterface::DecryptClientData(BYTESTRING cipher, long cuid) {
 
 	ClientData  clientInfo    = GetClientData(cuid);
 	std::string decryptionKey = std::get<AES_KEY>(clientInfo);
-	Data        decrypted     = NetCommon::DecryptInternetData<Data>(req, decryptionKey);
+	Data        decrypted     = NetCommon::DecryptInternetData<Data>(cipher, decryptionKey);
 	
 	return decrypted;
 }
@@ -79,3 +109,5 @@ BOOL ServerInterface::IsCUIDInUse(long cuid) {
 
 	return TRUE;
 }
+
+#endif // SERVER_RELEASE
