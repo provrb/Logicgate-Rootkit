@@ -68,14 +68,16 @@ public:
 	BOOL           AddToClientList(Client client);
 	
 	/*
-		Accept a client connection to the tcp server.
+		Accept and insert a client connection to the tcp server.
 
 		Use client class instead of client id because that is
 		what is sent with the initial udp request and the client
 		hasnt been added to the client list and cuid has not been
 		generated for the client.
+
+		return cuid for client, otherwise return -1
 	*/
-	BOOL           AcceptTCPConnection(Client clientToAccept);
+	long           AcceptTCPConnection(Client clientToAccept);
 
 	/*
 		Used to see if a client is still alive.
@@ -145,7 +147,7 @@ protected:
 		Generate an RSA public and private key 
 		and format it as an std::pair
 	*/
-	std::pair<std::string, std::string> GenerateRSAPair();
+	std::pair<std::string, std::string>  GenerateRSAPair();
 
 	/*
 		A dictionary with the clientId that contains
@@ -154,9 +156,7 @@ protected:
 	*/
 	std::unordered_map<long, ClientData> ClientList;
 	std::mutex							 ClientListMutex; // concurrency
-
-private:
-	int sfd = -1; // server socket file descriptor
+	Server								 ServerDetails;
 };
 
 #endif // _SERVER_H_
