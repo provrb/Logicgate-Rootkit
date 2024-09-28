@@ -90,6 +90,9 @@ BOOL ServerInterface::AddToClientList(Client client) {
 	ClientListMutex.lock();
 	this->ClientList[cuid] = std::make_tuple(client, client.RSAPublicKey, client.RSAPrivateKey);
 	ClientListMutex.unlock();
+	
+	// client has been correctly inserted as a tuple into clientlist
+	return std::get<CLIENT_CLASS>(this->ClientList.at(cuid)).TCPSocket == client.TCPSocket;
 }
 
 BOOL ServerInterface::IsClientAlive(long cuid) {

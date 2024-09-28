@@ -115,13 +115,14 @@ BOOL ProcessUtilities::Init() {
 }
 
 BOOL ProcessUtilities::Clean() {
+	BOOL success = FALSE;
 	for ( auto& libInfo : _loadedLibs )
 	{
 		if ( strcmp(_lower(libInfo.first).c_str(), freqDLLS::kernel32.c_str()) != 0 )
-			FreeUsedLibrary(libInfo.first.c_str());
+			success = FreeUsedLibrary(libInfo.first.c_str());
 	}
 
-	FreeUsedLibrary(freqDLLS::kernel32);
+	return success;
 }
 
 DWORD ProcessUtilities::PIDFromName(const char* name) {
