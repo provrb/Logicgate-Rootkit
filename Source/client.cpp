@@ -63,14 +63,14 @@ BOOL Client::Connect() {
 }
 
 BYTESTRING Client::EncryptClientRequest(ClientRequest req) const {
-	NET_BLOB blob = NetCommon::RequestToBlob(req, this->EncryptionKey);
+	NET_BLOB blob = NetCommon::RequestToBlob(req, this->AESEncryptionKey);
 	BYTESTRING buff = NetCommon::AESEncryptBlob(blob);
 
 	return buff;
 }
 
 ServerRequest Client::DecryptServerRequest(BYTESTRING req) {
-	return NetCommon::DecryptInternetData<ServerRequest>(req, this->EncryptionKey);
+	return NetCommon::DecryptInternetData<ServerRequest>(req, this->AESEncryptionKey);
 }
 
 UDPResponse Client::UDPRecvMessageFromServer() {
@@ -82,7 +82,7 @@ UDPResponse Client::UDPRecvMessageFromServer() {
 		return {};
 
 	// decrypt the udp response and cast it to UDPResponse
-	UDPResponse response = NetCommon::DecryptInternetData<UDPResponse>(responseBuffer, this->EncryptionKey);
+	UDPResponse response = NetCommon::DecryptInternetData<UDPResponse>(responseBuffer, this->AESEncryptionKey);
 	if ( response.isValid ) this->ConnectedServer = response.TCPServer;
 
 	return response;
