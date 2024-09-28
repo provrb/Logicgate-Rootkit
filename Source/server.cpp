@@ -10,6 +10,32 @@ ClientResponse ServerInterface::WaitForClientResponse(long cuid) {
 	return {};
 }
 
+BOOL ServerInterface::PerformUDPRequest(BYTESTRING req) {
+	BOOL success = FALSE;
+	
+	// udp isnt encrypted, which is why we want to get out of udp as fast as possible
+	// only serialized as a bytestring to send over sockets
+	ClientMessage message = *reinterpret_cast< ClientMessage* >( req.data() );
+	if ( !message.valid )
+		return FALSE;
+
+	switch ( message.action ) {
+	case ClientMessage::CONNECT_CLIENT:
+		Client client = *reinterpret_cast< Client* >( message.client );
+		
+		long cuid = AcceptTCPConnection(client);
+		if ( cuid == -1 )
+			success = FALSE;
+		
+		UDPMessage response = {};
+		response.TCPServer = this->ServerDetails;
+		response.isValid = TRUE;
+		if ( UDPSendMessageToClient(cuid, response) )
+			success = TRUE;
+		break;
+	}
+}
+
 ClientResponse ServerInterface::PingClient(long cuid) {
 	if ( !ClientIsInClientList(cuid) )
 		return {};
