@@ -30,14 +30,26 @@ enum SocketTypes {
     Servers have a socket file descriptor which is used
     to send and receive information over sockets.
 */
-typedef struct {
+struct Server {
     int                sfd;      // Socket File Descriptor
     int                domain;   
     int                type;     // Communcation semmantic type. All servers are SOCK_STREAM
     int                protocol; // Server protocol. All server protocols will be 0.
     int                port;     
-    struct sockaddr_in addr;     // address struct with info on the server address
-} Server;
+    sockaddr_in        addr;     // address struct with info on the server address
+    BOOL               alive;    // is server on
+    
+    Server()
+        : sfd(-1), domain(-1), type(-1), protocol(0), port(-1), addr({0}), alive(FALSE)
+    {
+    }
+    
+    Server(int sfd, int domain, int type, int port, sockaddr_in addr) 
+        : sfd(sfd), domain(domain), type(type), protocol(0), port(port), addr(addr)
+    {
+
+    }
+};
 
 /*
     A struct representing a message sent from
