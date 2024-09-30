@@ -40,7 +40,8 @@ struct Server {
     BOOL               alive;    // is server on
     
     Server()
-        : sfd(-1), domain(-1), type(-1), protocol(0), port(-1), addr({0}), alive(FALSE)
+        : sfd(INVALID_SOCKET), domain(AF_INET),
+        type(-1), protocol(-1), port(-1), addr({0}), alive(FALSE)
     {
     }
     
