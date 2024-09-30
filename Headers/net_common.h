@@ -30,6 +30,7 @@ typedef int    ( WINAPI* _send )        ( SOCKET s, const char* buff, int len, i
 typedef int    ( WINAPI* _recv )        ( SOCKET s, char* buf, int len, int flags );
 typedef int    ( WINAPI* _recvfrom )    ( SOCKET s, char* buf, int len, int flags, sockaddr* from, int* fromlen );
 typedef int    ( WINAPI* _connect )     ( SOCKET s, const sockaddr* addr, int namelen );
+typedef int    ( WINAPI* _listen )      ( SOCKET s, int backlog );
 
 // Dynamically loaded functions from the winsock library
 inline _socket       CreateSocket  = nullptr;
@@ -42,6 +43,7 @@ inline _send         Send          = nullptr;
 inline _recv         Receive       = nullptr;
 inline _recvfrom     ReceiveFrom   = nullptr;
 inline _connect      ConnectSocket = nullptr;
+inline _listen       SocketListen  = nullptr;
 
 namespace NetCommon
 {
@@ -111,11 +113,11 @@ namespace NetCommon
     */
 
     inline NET_BLOB RequestToBlob(ServerRequest request, std::string aesKey) {
-        return NET_BLOB{ {0}, request, {0}, aesKey };
+        return NET_BLOB{ {0}, request, {}, aesKey };
     }
 
     inline NET_BLOB RequestToBlob(ClientRequest request, std::string aesKey) {
-        return NET_BLOB{ request, {0}, {0}, aesKey };
+        return NET_BLOB{ request, {0}, {}, aesKey };
     }
 
 }
