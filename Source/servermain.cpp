@@ -8,31 +8,14 @@
 #define ADDR "logicgate-test.ddns.net"
 
 int main() {
-    SOCKET ClientSocket = INVALID_SOCKET;
     struct sockaddr_in serverAddr;
 
     ServerInterface server(SocketTypes::TCP, 5454);
 
-    // Bind the socket
-
-    // Listen on the socket for incoming connections
-
-    SOCKET ListenSocket = server.GetServerDetails().sfd;
-
     // Accept a client socket
-    ClientSocket = accept(ListenSocket, nullptr, nullptr);
-    if ( ClientSocket == INVALID_SOCKET ) {
-        std::cerr << "Accept failed: " << WSAGetLastError() << std::endl;
-        closesocket(ListenSocket);
-        WSACleanup();
-        return 1;
-    }
+    SOCKET s = accept(server.GetServerDetails().sfd, nullptr, nullptr);
+    if ( s != INVALID_SOCKET )
+        std::cout << "Client connected!" << std::endl;
 
-    std::cout << "Client connected!" << std::endl;
-
-    // Cleanup
-    closesocket(ClientSocket);
-    closesocket(ListenSocket);
-    WSACleanup();
     return 0;
 }
