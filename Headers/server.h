@@ -19,7 +19,45 @@ using ClientData = std::tuple<Client, std::string, std::string>;
 class ServerInterface
 {
 public:
-	void           Start(); // Start a TCP server and start listening for UDP Requests
+
+	ServerInterface(SocketTypes serverType, int serverPort)  {
+		Server s = NewServerInstance(serverType, serverPort);
+		StartServer(s);
+	}
+
+	~ServerInterface() {
+		//if ( IsServerRunning(this->ServerDetails) )
+		//	ShutdownServer(this->ServerDetails);
+
+		CleanWSA();
+	}
+
+	/*
+		Binds, listens. accepts clients if tcp using
+		the 'Server' instances. Sets 
+	*/
+	inline BOOL StartServer(Server server) {
+		
+		// TODO: cleanup start server function. include
+		// error handling too since this is a server side function
+
+		BindSocket(server.sfd, ( sockaddr*)&server.addr, sizeof(server.addr));
+		SocketListen(server.sfd, SOMAXCONN);
+		this->ServerDetails = server;
+		return TRUE;
+	}
+
+	void		   ShutdownServer(Server server);
+
+	Server         NewServerInstance(SocketTypes serverType, int port); // Start a new server
+
+	inline BOOL    IsServerRunning(Server s) const {
+		return s.alive;
+	}
+
+	inline const Server GetServerDetails() const {
+		return this->ServerDetails;
+	}
 
 	BOOL           TCPSendMessageToClient(long cuid, ServerCommand req);
 	BOOL           TCPSendMessageToClients(ServerCommand req);
@@ -106,7 +144,7 @@ public:
 	BOOL           IsClientAlive(long cuid);
 
 	inline BOOL    RemoveClientFromClientList(long cuid) {
-		return GetClientList().erase(cuid); // doesnt throw an error if doesnt exist
+		return GetClientList().erase(cuid) == 1; // true if 1 element was erased
 	}
 
 	/*
