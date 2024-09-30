@@ -1,6 +1,37 @@
 #include "../Headers/server.h"
 #ifdef SERVER_RELEASE
 
+Server ServerInterface::NewServerInstance(SocketTypes serverType, int port) {
+	Server server = {};
+	
+	if ( !NetCommon::WSAInitialized )
+		NetCommon::LoadWSAFunctions();
+
+	// create socket for server type
+	// update server fields
+	if ( serverType == TCP ) {
+		server.sfd = CreateSocket(AF_INET, SOCK_STREAM, 0);
+		if ( server.sfd == INVALID_SOCKET )
+			return server;
+
+		server.type = SOCK_STREAM;
+	} else if ( serverType == UDP) {
+		server.sfd = CreateSocket(AF_INET, SOCK_DGRAM, IPPROTO_UDP);
+		if ( server.sfd == INVALID_SOCKET )
+			return server;
+
+		server.type = SOCK_DGRAM;
+	}
+
+	// update server fields
+	server.addr.sin_family	    = AF_INET;
+	server.addr.sin_addr.s_addr = INADDR_ANY; // servers shouldnt bind to any address
+	server.addr.sin_port        = htons(port);
+	server.port                 = port;
+
+	return server;
+}
+
 
 BOOL ServerInterface::TCPSendMessageToClient(long cuid, ServerCommand req) {
 	return TRUE;
@@ -13,11 +44,10 @@ ClientResponse ServerInterface::WaitForClientResponse(long cuid) {
 BOOL ServerInterface::UDPSendMessageToClient(long cuid, UDPMessage message) {
 	return TRUE;
 }
-
+	
 long ServerInterface::AcceptTCPConnection(Client clientToAccept) {
 	return 0;
 }
-
 
 BOOL ServerInterface::PerformUDPRequest(BYTESTRING req) {
 	BOOL success = FALSE;
