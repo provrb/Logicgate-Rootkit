@@ -25,7 +25,7 @@ public:
         The rsa private key used to decrypt encrypted files with 
         client public rsa key. only on server until e.g a ransom is paid
     */
-    std::string   RSAPrivateKey;
+    std::string     RSAPrivateKey;
 
     /*
         Implementation for event handling- to wait
@@ -37,7 +37,7 @@ public:
         that sets expecting response to true and consistantly checks recent client response
         against last client response, waiting for a new client response.
     */
-    BOOL ExpectingResponse; // Expecting a ClientResponse from a client not a clientREQUEST
+    BOOL           ExpectingResponse; // Expecting a ClientResponse from a client not a clientREQUEST
     ClientResponse RecentClientResponse;
     ClientResponse LastClientResponse;
 
@@ -69,9 +69,9 @@ public:
     }
 
 #elif defined(CLIENT_RELEASE)
-
     Client(); // dynamically load winsock and put it in loaded dlls
     ~Client(); // unload winsock
+
 	BOOL          Connect();
     BOOL          Disconnect();
     BOOL          MakeServerRequest( ClientRequest request, BOOL udp );
