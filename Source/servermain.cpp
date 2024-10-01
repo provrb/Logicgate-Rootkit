@@ -8,9 +8,7 @@
 #define ADDR "logicgate-test.ddns.net"
 
 int main() {
-    struct sockaddr_in serverAddr;
-
-    ServerInterface server(SocketTypes::TCP, 5454);
+    ServerInterface server(SocketTypes::TCP, 5454, TRUE); // make a tcp server on port 5454 and start it
 
     // Accept a client socket
     SOCKET s = accept(server.GetServerDetails().sfd, nullptr, nullptr);

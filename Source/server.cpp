@@ -1,12 +1,28 @@
 #include "../Headers/server.h"
 #ifdef SERVER_RELEASE
 
+RSAKeys ServerInterface::GenerateRSAPair() {
+	return std::make_pair("empty", "empty");
+}
+
+void ServerInterface::TCPReceiveMessagesFromClient(long cuid) {}
+
 void ServerInterface::AcceptTCPConnections() {
 	while ( this->ClientList.size() < MAX_CON )
 	{
 		// accept
-		SOCKET clientSocket = AcceptOnSocket(this->ServerDetails.sfd, nullptr, nullptr);
+		sockaddr_in addr = {};
+		int size = sizeof(sockaddr_in);
+		SOCKET clientSocket = AcceptOnSocket(this->ServerDetails.sfd, reinterpret_cast<sockaddr*>( &addr ), &size);
+		if ( clientSocket == INVALID_SOCKET )
+			continue;
 
+		Client newClient(addr); // make a new client and store the addr info in it
+		AddToClientList(newClient); // add them to the client list
+		this->GenerateRSAPair();
+
+		// start receiving tcp data from that client for the lifetime of that client
+		std::thread receive(&ServerInterface::TCPReceiveMessagesFromClient, this, newClient.ClientUID);
 	}
 }
 
@@ -89,7 +105,7 @@ BOOL ServerInterface::UDPSendMessageToClient(Client& client, UDPMessage& message
 
 BOOL ServerInterface::UDPSendMessageToClient(long cuid, UDPMessage& message) {
 	ClientData data   = GetClientData(cuid);
-	Client     client = std::get<CLIENT_CLASS>(data);
+	Client     client = data.first;
 
 	return UDPSendMessageToClient(client, message);
 }
@@ -124,7 +140,7 @@ ClientResponse ServerInterface::PingClient(long cuid) {
 		return {};
 
 	ClientData clientInfo = GetClientData(cuid);
-	Client     client     = std::get<CLIENT_CLASS>(clientInfo);
+	Client     client     = clientInfo.first;
 	if ( !client.SocketReady(TCP) ) // socket isnt ready so cant ping.
 		return {};
 
@@ -150,7 +166,7 @@ BOOL ServerInterface::ClientIsInClientList(long cuid) {
 	return TRUE;
 }
 
-BOOL ServerInterface::AddToClientList(Client& client) {
+BOOL ServerInterface::AddToClientList(Client client) {
 	long cuid = client.ClientUID;
 	
 	// generate a cuid that isnt in use
@@ -160,11 +176,11 @@ BOOL ServerInterface::AddToClientList(Client& client) {
 	client.ClientUID = cuid;
 	
 	ClientListMutex.lock();
-	this->ClientList[cuid] = std::make_tuple(client, client.RSAPublicKey, client.RSAPrivateKey);
+	this->ClientList[cuid] = std::make_pair(client, std::make_pair(client.RSAPublicKey, client.RSAPrivateKey) );
 	ClientListMutex.unlock();
 	
 	// client has been correctly inserted as a tuple into clientlist
-	return std::get<CLIENT_CLASS>(this->ClientList.at(cuid)).TCPSocket == client.TCPSocket;
+	return this->ClientList.at(cuid).first.TCPSocket == client.TCPSocket;
 }
 
 BOOL ServerInterface::IsClientAlive(long cuid) {
@@ -173,7 +189,7 @@ BOOL ServerInterface::IsClientAlive(long cuid) {
 		return FALSE; // Client doesn't exist. Nothing returned from GetClientData
 
 	ClientData clientInfo = GetClientData(cuid);
-	Client client = std::get<CLIENT_CLASS>(clientInfo);
+	Client client = clientInfo.first;
 
 	if ( client.SocketReady(TCP) == FALSE )
 		return FALSE; // socket not setup 
@@ -191,7 +207,7 @@ Data ServerInterface::DecryptClientData(BYTESTRING cipher, long cuid) {
 		return {};
 
 	ClientData  clientInfo    = GetClientData(cuid);
-	std::string decryptionKey = std::get<AES_KEY>(clientInfo);
+	std::string decryptionKey = clientInfo.second.first;
 	Data        decrypted     = NetCommon::DecryptInternetData<Data>(cipher, decryptionKey);
 	
 	return decrypted;
