@@ -2,7 +2,12 @@
 #ifdef SERVER_RELEASE
 
 void ServerInterface::AcceptTCPConnections() {
+	while ( this->ClientList.size() < MAX_CON )
+	{
+		// accept
+		SOCKET clientSocket = AcceptOnSocket(this->ServerDetails.sfd, nullptr, nullptr);
 
+	}
 }
 
 Server ServerInterface::NewServerInstance(SocketTypes serverType, int port) {
@@ -146,13 +151,13 @@ BOOL ServerInterface::ClientIsInClientList(long cuid) {
 }
 
 BOOL ServerInterface::AddToClientList(Client& client) {
-	long cuid = -1;
+	long cuid = client.ClientUID;
 	
 	// generate a cuid that isnt in use
-	while ( cuid != -1 && IsCUIDInUse(cuid) )
+	while ( cuid != -1 && ClientIsInClientList(cuid) ) // keep generating if cuid is in use
 		cuid = client.GenerateCUID();
 
-	client.SetClientID(cuid);
+	client.ClientUID = cuid;
 	
 	ClientListMutex.lock();
 	this->ClientList[cuid] = std::make_tuple(client, client.RSAPublicKey, client.RSAPrivateKey);
@@ -205,26 +210,6 @@ BYTESTRING ServerInterface::EncryptServerRequest(ServerRequest& req) {
 	BYTESTRING cipher = NetCommon::AESEncryptBlob(blob);
 
 	return cipher;
-}
-
-BOOL ServerInterface::IsCUIDInUse(long cuid) {
-	try {
-		// client isnt even in the client list
-		if ( !ClientIsInClientList(cuid) )
-			return FALSE;
-
-		if ( !IsClientAlive(cuid) ) {
-			// client is in the client list. remove them
-			RemoveClientFromClientList(cuid);
-			
-			return FALSE;
-		}
-	}
-	catch ( const std::out_of_range& ) {
-		return FALSE;
-	}
-
-	return TRUE;
 }
 
 #endif // SERVER_RELEASE
