@@ -18,7 +18,7 @@ void ServerInterface::AcceptTCPConnections() {
 			continue;
 
 		Client newClient(addr); // make a new client and store the addr info in it
-		this->GenerateRSAPair();
+		newClient.SetRSAKeys(this->GenerateRSAPair());
 		AddToClientList(newClient); // add them to the client list
 
 		// start receiving tcp data from that client for the lifetime of that client
