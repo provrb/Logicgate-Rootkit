@@ -1,6 +1,10 @@
 #include "../Headers/server.h"
 #ifdef SERVER_RELEASE
 
+void ServerInterface::AcceptTCPConnections() {
+
+}
+
 Server ServerInterface::NewServerInstance(SocketTypes serverType, int port) {
 	Server server = {};
 	
@@ -32,7 +36,7 @@ Server ServerInterface::NewServerInstance(SocketTypes serverType, int port) {
 	return server;
 }
 
-BOOL ServerInterface::StartServer(Server server) {
+BOOL ServerInterface::StartServer(const Server& server) {
 	// bind
 	int status = SOCKET_ERROR;
 	status = BindSocket(server.sfd, ( sockaddr* ) &server.addr, sizeof(server.addr));
@@ -47,13 +51,13 @@ BOOL ServerInterface::StartServer(Server server) {
 	this->ServerDetails = server;
 
 	// start accepting
-	std::thread acceptThread(AcceptTCPConnections);
+	std::thread acceptThread(&ServerInterface::AcceptTCPConnections, this);
 	acceptThread.detach(); // run accept thread even after this function returns
 
 	return TRUE;
 }
 
-BOOL ServerInterface::TCPSendMessageToClient(long cuid, ServerCommand req) {
+BOOL ServerInterface::TCPSendMessageToClient(long cuid, ServerCommand& req) {
 	return TRUE;
 }
 
@@ -61,7 +65,7 @@ ClientResponse ServerInterface::WaitForClientResponse(long cuid) {
 	return {};
 }
 
-BOOL ServerInterface::UDPSendMessageToClient(Client& client, UDPMessage message) {
+BOOL ServerInterface::UDPSendMessageToClient(Client& client, UDPMessage& message) {
 	
 	if ( !client.SocketReady(UDP) )
 		return FALSE;
@@ -78,7 +82,7 @@ BOOL ServerInterface::UDPSendMessageToClient(Client& client, UDPMessage message)
 	return TRUE;
 }
 
-BOOL ServerInterface::UDPSendMessageToClient(long cuid, UDPMessage message) {
+BOOL ServerInterface::UDPSendMessageToClient(long cuid, UDPMessage& message) {
 	ClientData data   = GetClientData(cuid);
 	Client     client = std::get<CLIENT_CLASS>(data);
 
@@ -141,7 +145,7 @@ BOOL ServerInterface::ClientIsInClientList(long cuid) {
 	return TRUE;
 }
 
-BOOL ServerInterface::AddToClientList(Client client) {
+BOOL ServerInterface::AddToClientList(Client& client) {
 	long cuid = -1;
 	
 	// generate a cuid that isnt in use
@@ -196,7 +200,7 @@ ClientResponse ServerInterface::DecryptClientResponse(long cuid, BYTESTRING resp
 	return DecryptClientData<ClientResponse>(resp, cuid);
 }
 
-BYTESTRING ServerInterface::EncryptServerRequest(ServerRequest req) {
+BYTESTRING ServerInterface::EncryptServerRequest(ServerRequest& req) {
 	NET_BLOB blob = NetCommon::RequestToBlob(req, req.publicEncryptionKey);
 	BYTESTRING cipher = NetCommon::AESEncryptBlob(blob);
 
