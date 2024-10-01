@@ -18,8 +18,8 @@ void ServerInterface::AcceptTCPConnections() {
 			continue;
 
 		Client newClient(addr); // make a new client and store the addr info in it
-		AddToClientList(newClient); // add them to the client list
 		this->GenerateRSAPair();
+		AddToClientList(newClient); // add them to the client list
 
 		// start receiving tcp data from that client for the lifetime of that client
 		std::thread receive(&ServerInterface::TCPReceiveMessagesFromClient, this, newClient.ClientUID);
