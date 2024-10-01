@@ -34,6 +34,11 @@ public:
         return dist(generator);
     }
 
+    inline void SetRSAKeys(std::pair<std::string, std::string> RSAKeys) {
+        this->RSAPublicKey = RSAKeys.first;
+        this->RSAPrivateKey = RSAKeys.second;
+    }
+
     /*
         UID is assigned by the server .Used to perform commands on one client.
         Only used on the server. On client, will always remain - 1.
