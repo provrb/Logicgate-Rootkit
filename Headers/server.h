@@ -7,11 +7,13 @@
 #include <thread>
 #include <mutex>
 
+#define MAX_CON 300 // max clients on a server
+
 // Constants to get data from ClientData tuple when using std::get
 constexpr int CLIENT_CLASS    = 0;
 constexpr int PUBLIC_RSA_KEY  = 1;
-constexpr int AES_KEY         = 1; // AES Key is also public rsa key
 constexpr int PRIVATE_RSA_KEY = 2;
+constexpr int AES_KEY         = 1; // AES Key is also public rsa key
 
 // Client class, Public RSA Key, Private RSA Key
 using ClientData = std::tuple<Client, std::string, std::string>;
@@ -36,30 +38,14 @@ public:
 		Binds, listens. accepts clients if tcp using
 		the 'Server' instances. Sets 
 	*/
-	inline BOOL StartServer(Server server) {
-		
-		// TODO: cleanup start server function. include
-		// error handling too since this is a server side function
-
-		BindSocket(server.sfd, ( sockaddr*)&server.addr, sizeof(server.addr));
-		SocketListen(server.sfd, SOMAXCONN);
-		this->ServerDetails = server;
-		return TRUE;
-	}
+	BOOL		   StartServer(Server server);
 
 	void		   ShutdownServer(Server server);
 
 	Server         NewServerInstance(SocketTypes serverType, int port); // Start a new server
 
-	inline BOOL    IsServerRunning(Server s) const {
-		return s.alive;
-	}
-
-	inline const Server GetServerDetails() const {
-		return this->ServerDetails;
-	}
-
 	BOOL           TCPSendMessageToClient(long cuid, ServerCommand req);
+
 	BOOL           TCPSendMessageToClients(ServerCommand req);
 	
 	/*
@@ -73,7 +59,13 @@ public:
 	void           TCPReceiveMessagesFromClient(long cuid);
 
 	ClientRequest  DecryptClientRequest(long cuid, BYTESTRING req);
+
 	BYTESTRING     EncryptServerRequest(ServerRequest req);
+
+	/*
+		Thread to accept clients to the tcp server.
+	*/
+	void		   AcceptTCPConnections();
 
 	/*
 		Wait for a single client response from a client
@@ -98,24 +90,14 @@ public:
 		to update the clients connection client-side.
 	*/
 	BOOL           UDPSendMessageToClient(long cuid, UDPMessage message);
+	
+	BOOL           UDPSendMessageToClient(Client& client, UDPMessage message);
 
 	/*
 		Insert Client into clientList, genearting a unique
 		CUID, and then adding to clientList
 	*/
 	BOOL           AddToClientList(Client client);
-	
-	/*
-		Accept and insert a client connection to the tcp server.
-
-		Use client class instead of client id because that is
-		what is sent with the initial udp request and the client
-		hasnt been added to the client list and cuid has not been
-		generated for the client.
-
-		return cuid for client, otherwise return -1
-	*/
-	long           AcceptTCPConnection(Client clientToAccept);
 
 	/*
 		Used to see if a client is still alive.
@@ -143,7 +125,7 @@ public:
 	*/
 	BOOL           IsClientAlive(long cuid);
 
-	inline BOOL    RemoveClientFromClientList(long cuid) {
+	inline BOOL RemoveClientFromClientList(long cuid) {
 		return GetClientList().erase(cuid) == 1; // true if 1 element was erased
 	}
 
@@ -153,15 +135,22 @@ public:
 	*/
 	inline const ClientData GetClientData(long cuid) {
 		if ( !ClientIsInClientList(cuid) )
-			return {};
+			return std::make_tuple<Client, std::string, std::string>({}, "", ""); // empty tuple
 
-		ClientListMutex.lock();
 		return GetClientList().at(cuid);
 	}
 
 	inline std::unordered_map<long, ClientData>& GetClientList() {
 		std::lock_guard<std::mutex> lock(ClientListMutex);
 		return this->ClientList;
+	}
+
+	inline BOOL IsServerRunning(Server s) const {
+		return s.alive;
+	}
+
+	inline const Server GetServerDetails() const {
+		return this->ServerDetails;
 	}
 
 protected:
