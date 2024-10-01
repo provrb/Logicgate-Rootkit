@@ -41,8 +41,28 @@ ClientResponse ServerInterface::WaitForClientResponse(long cuid) {
 	return {};
 }
 
-BOOL ServerInterface::UDPSendMessageToClient(long cuid, UDPMessage message) {
+BOOL ServerInterface::UDPSendMessageToClient(Client& client, UDPMessage message) {
+	
+	if ( !client.SocketReady(UDP) )
+		return FALSE;
+
+	int result = SendTo(
+		client.UDPSocket, reinterpret_cast< char* >( &message ),
+		sizeof(message), 0,
+		reinterpret_cast<sockaddr*>(&client.AddressInfo), sizeof(client.AddressInfo)
+	);
+
+	if ( result == SOCKET_ERROR )
+		return FALSE;
+
 	return TRUE;
+}
+
+BOOL ServerInterface::UDPSendMessageToClient(long cuid, UDPMessage message) {
+	ClientData data   = GetClientData(cuid);
+	Client     client = std::get<CLIENT_CLASS>(data);
+
+	return UDPSendMessageToClient(client, message);
 }
 	
 long ServerInterface::AcceptTCPConnection(Client clientToAccept) {

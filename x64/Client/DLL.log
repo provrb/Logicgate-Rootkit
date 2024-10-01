@@ -1,0 +1,18 @@
+﻿  Assembling Source\mod_helpers.asm...
+  Assembling Source\syscalls.asm...
+  client.cpp
+C:\Users\ethan\source\repos\DLL\DLL\Source\client.cpp(110,110): warning C4267: 'argument': conversion from 'size_t' to 'int', possible loss of data
+  dllmain.cpp
+  net_common.cpp
+  procutils.cpp
+C:\Users\ethan\source\repos\DLL\DLL\Source\procutils.cpp(170,24): warning C4312: 'type cast': conversion from 'DWORD' to 'HANDLE' of greater size
+  server.cpp
+C:\Users\ethan\source\repos\DLL\DLL\Headers\server.h(72,31): warning C4267: 'return': conversion from 'size_t' to 'BOOL', possible loss of data
+dllmain.obj : warning LNK4104: export of symbol 'DllCanUnloadNow' should be PRIVATE
+dllmain.obj : warning LNK4104: export of symbol 'DllGetClassObject' should be PRIVATE
+     Creating library C:\Users\ethan\source\repos\DLL\x64\Client\mlang.lib and object C:\Users\ethan\source\repos\DLL\x64\Client\mlang.exp
+  Generating code
+C:\Users\ethan\source\repos\DLL\DLL\Source\procutils.cpp(125): warning C4715: 'ProcessUtilities::Clean': not all control paths return a value
+  Finished generating code
+LINK : warning LNK4039: section 'SECTION:.didat' specified with /SECTION option does not exist
+  DLL.vcxproj -> C:\Users\ethan\source\repos\DLL\x64\Client\mlang.dll

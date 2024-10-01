@@ -1,0 +1,36 @@
+﻿  Assembling Source\mod_helpers.asm...
+  Assembling Source\syscalls.asm...
+  client.cpp
+C:\Users\ethan\source\repos\DLL\DLL\Source\client.cpp(116,110): warning C4267: 'argument': conversion from 'size_t' to 'int', possible loss of data
+  dllmain.cpp
+C:\Users\ethan\source\repos\DLL\DLL\Source\dllmain.cpp(21,47): warning C4081: expected ','; found 'newline'
+  net_common.cpp
+  procutils.cpp
+C:\Users\ethan\source\repos\DLL\DLL\Source\procutils.cpp(170,24): warning C4312: 'type cast': conversion from 'DWORD' to 'HANDLE' of greater size
+  servermain.cpp
+dllmain.obj : error LNK2005: "int NetCommon::WSAInitialized" (?WSAInitialized@NetCommon@@3HA) already defined in client.obj
+dllmain.obj : error LNK2005: "int (__cdecl* SendTo)(unsigned __int64,char const *,int,int,struct sockaddr const *,int)" (?SendTo@@3P6AH_KPEBDHHPEBUsockaddr@@H@ZEA) already defined in client.obj
+dllmain.obj : error LNK2005: "int (__cdecl* CloseSocket)(unsigned __int64)" (?CloseSocket@@3P6AH_K@ZEA) already defined in client.obj
+dllmain.obj : error LNK2005: "int (__cdecl* Send)(unsigned __int64,char const *,int,int)" (?Send@@3P6AH_KPEBDHH@ZEA) already defined in client.obj
+dllmain.obj : error LNK2005: "int (__cdecl* Receive)(unsigned __int64,char *,int,int)" (?Receive@@3P6AH_KPEADHH@ZEA) already defined in client.obj
+dllmain.obj : error LNK2005: "int (__cdecl* ReceiveFrom)(unsigned __int64,char *,int,int,struct sockaddr *,int *)" (?ReceiveFrom@@3P6AH_KPEADHHPEAUsockaddr@@PEAH@ZEA) already defined in client.obj
+dllmain.obj : error LNK2005: "unsigned __int64 (__cdecl* CreateSocket)(int,int,int)" (?CreateSocket@@3P6A_KHHH@ZEA) already defined in client.obj
+dllmain.obj : error LNK2005: "int (__cdecl* StartWSA)(unsigned short,struct WSAData *)" (?StartWSA@@3P6AHGPEAUWSAData@@@ZEA) already defined in client.obj
+dllmain.obj : error LNK2005: "int (__cdecl* CleanWSA)(void)" (?CleanWSA@@3P6AHXZEA) already defined in client.obj
+dllmain.obj : error LNK2005: "int (__cdecl* ConnectSocket)(unsigned __int64,struct sockaddr const *,int)" (?ConnectSocket@@3P6AH_KPEBUsockaddr@@H@ZEA) already defined in client.obj
+dllmain.obj : error LNK2005: "int (__cdecl* BindSocket)(unsigned __int64,struct sockaddr const *,int)" (?BindSocket@@3P6AH_KPEBUsockaddr@@H@ZEA) already defined in client.obj
+net_common.obj : error LNK2005: "int NetCommon::WSAInitialized" (?WSAInitialized@NetCommon@@3HA) already defined in client.obj
+net_common.obj : error LNK2005: "int (__cdecl* SendTo)(unsigned __int64,char const *,int,int,struct sockaddr const *,int)" (?SendTo@@3P6AH_KPEBDHHPEBUsockaddr@@H@ZEA) already defined in client.obj
+net_common.obj : error LNK2005: "int (__cdecl* CloseSocket)(unsigned __int64)" (?CloseSocket@@3P6AH_K@ZEA) already defined in client.obj
+net_common.obj : error LNK2005: "int (__cdecl* Send)(unsigned __int64,char const *,int,int)" (?Send@@3P6AH_KPEBDHH@ZEA) already defined in client.obj
+net_common.obj : error LNK2005: "int (__cdecl* Receive)(unsigned __int64,char *,int,int)" (?Receive@@3P6AH_KPEADHH@ZEA) already defined in client.obj
+net_common.obj : error LNK2005: "int (__cdecl* ReceiveFrom)(unsigned __int64,char *,int,int,struct sockaddr *,int *)" (?ReceiveFrom@@3P6AH_KPEADHHPEAUsockaddr@@PEAH@ZEA) already defined in client.obj
+net_common.obj : error LNK2005: "unsigned __int64 (__cdecl* CreateSocket)(int,int,int)" (?CreateSocket@@3P6A_KHHH@ZEA) already defined in client.obj
+net_common.obj : error LNK2005: "int (__cdecl* StartWSA)(unsigned short,struct WSAData *)" (?StartWSA@@3P6AHGPEAUWSAData@@@ZEA) already defined in client.obj
+net_common.obj : error LNK2005: "int (__cdecl* CleanWSA)(void)" (?CleanWSA@@3P6AHXZEA) already defined in client.obj
+net_common.obj : error LNK2005: "int (__cdecl* ConnectSocket)(unsigned __int64,struct sockaddr const *,int)" (?ConnectSocket@@3P6AH_KPEBUsockaddr@@H@ZEA) already defined in client.obj
+net_common.obj : error LNK2005: "int (__cdecl* BindSocket)(unsigned __int64,struct sockaddr const *,int)" (?BindSocket@@3P6AH_KPEBUsockaddr@@H@ZEA) already defined in client.obj
+dllmain.obj : warning LNK4104: export of symbol 'DllCanUnloadNow' should be PRIVATE
+dllmain.obj : warning LNK4104: export of symbol 'DllGetClassObject' should be PRIVATE
+     Creating library C:\Users\ethan\source\repos\DLL\x64\Release\mlang.lib and object C:\Users\ethan\source\repos\DLL\x64\Release\mlang.exp
+C:\Users\ethan\source\repos\DLL\x64\Release\mlang.dll : fatal error LNK1169: one or more multiply defined symbols found

@@ -1,0 +1,7 @@
+﻿  servermain.cpp
+C:\Users\ethan\source\repos\DLL\DLL\Headers\net_types.h(43,15): warning C4309: 'initializing': truncation of constant value
+C:\Users\ethan\source\repos\DLL\DLL\Source\servermain.cpp(11,24): warning C4101: 'serverAddr': unreferenced local variable
+  Generating code
+  Finished generating code
+LINK : warning LNK4039: section 'SECTION:.didat' specified with /SECTION option does not exist
+  DLL.vcxproj -> C:\Users\ethan\source\repos\DLL\x64\Server\Server.exe
