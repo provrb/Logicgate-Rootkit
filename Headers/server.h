@@ -9,14 +9,9 @@
 
 #define MAX_CON 300 // max clients on a server
 
-// Constants to get data from ClientData tuple when using std::get
-constexpr int CLIENT_CLASS    = 0;
-constexpr int PUBLIC_RSA_KEY  = 1;
-constexpr int PRIVATE_RSA_KEY = 2;
-constexpr int AES_KEY         = 1; // AES Key is also public rsa key
-
-// Client class, Public RSA Key, Private RSA Key
-using ClientData = std::tuple<Client, std::string, std::string>;
+// first = public rsa key, second = private rsa key
+using RSAKeys = std::pair<std::string, std::string>;
+using ClientData = std::pair<Client, RSAKeys>;
 
 class ServerInterface
 {
@@ -32,7 +27,7 @@ public:
 
 	~ServerInterface() {
 		if ( IsServerRunning(this->ServerDetails) )
-			ShutdownServer();
+			ShutdownServer(TRUE);
 
 		CleanWSA();
 	}
@@ -47,7 +42,9 @@ public:
 		Shut down the current Server in this class
 		'ServerDetails' and set it to a blank server struct
 	*/
-	inline void    ShutdownServer() {
+	inline void    ShutdownServer(BOOL confirm) {
+		if ( !confirm ) return;
+
 		MakeServerAsDead(this->ServerDetails); // set alive field to false
 		ShutdownSocket(this->ServerDetails.sfd, 2); // shutdown server socket for both read and write
 		CloseSocket(this->ServerDetails.sfd); 
@@ -111,7 +108,7 @@ public:
 		Insert Client into clientList, genearting a unique
 		CUID, and then adding to clientList
 	*/
-	BOOL           AddToClientList(Client& client);
+	BOOL           AddToClientList(Client client);
 
 	/*
 		Used to see if a client is still alive.
@@ -125,13 +122,6 @@ public:
 		return FALSE and catch std::out_of_range error.
 	*/
 	BOOL           ClientIsInClientList(long cuid);
-
-	/*
-		Check if the client is alive by pinging the client.
-		If the client is dead and the client is in ClientList,
-		remove them. Return false if client is dead, 
-	*/
-	BOOL		   IsCUIDInUse(long cuid);
 	
 	/*
 		Ping the client. Wait for a response code of C_OK.
@@ -139,17 +129,13 @@ public:
 	*/
 	BOOL           IsClientAlive(long cuid);
 
-	inline BOOL RemoveClientFromClientList(long cuid) {
-		return GetClientList().erase(cuid) == 1; // true if 1 element was erased
-	}
-
 	/*
 		Get the client data from a client
 		in the client list using CUID.
 	*/
 	inline const ClientData GetClientData(long cuid) {
 		if ( !ClientIsInClientList(cuid) )
-			return std::tuple<Client, std::string, std::string>({}, "", ""); // empty tuple
+			return std::pair<Client, RSAKeys>({}, { "", "" }); // empty tuple
 
 		return GetClientList().at(cuid);
 	}
@@ -169,10 +155,20 @@ public:
 
 protected:
 
+	inline BOOL RemoveClientFromClientList(long cuid) {
+		return GetClientList().erase(cuid) == 1; // true if 1 element was erased
+	}
 
 	inline BOOL MakeServerAsDead(Server& server) const {
 		return ( server.alive = FALSE ) == FALSE;
 	}
+
+
+	/*
+		Generate an RSA public and private key
+		and format it as an std::pair
+	*/
+	RSAKeys GenerateRSAPair();
 
 	/*
 		A thread to recv udp messages from
@@ -188,12 +184,6 @@ protected:
 
 	template <typename Data>
 	Data           DecryptClientData(BYTESTRING cipher, long cuid);
-
-	/*
-		Generate an RSA public and private key 
-		and format it as an std::pair
-	*/
-	std::pair<std::string, std::string>  GenerateRSAPair();
 
 	/*
 		A dictionary with the clientId that contains

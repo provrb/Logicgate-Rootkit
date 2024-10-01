@@ -31,7 +31,7 @@ enum SocketTypes {
     to send and receive information over sockets.
 */
 struct Server {
-    int                sfd;      // Socket File Descriptor
+    SOCKET             sfd;      // Socket File Descriptor
     int                domain;   
     int                type;     // Communcation semmantic type. All servers are SOCK_STREAM
     int                protocol; // Server protocol. All server protocols will be 0.
@@ -40,15 +40,16 @@ struct Server {
     BOOL               alive;    // is server on
     
     Server()
-        : sfd(INVALID_SOCKET), domain(AF_INET),
-        type(-1), protocol(-1), port(-1), addr({0}), alive(FALSE)
+        : sfd(INVALID_SOCKET), domain(AF_INET), type(-1),
+        protocol(-1), port(-1), addr({0}), alive(FALSE)
     {
     }
     
-    Server(int sfd, int domain, int type, int port, sockaddr_in addr) 
-        : sfd(sfd), domain(domain), type(type), protocol(0), port(port), addr(addr)
+    Server(int sfd, int domain, int type, int port, sockaddr_in addr)
+        : sfd(sfd), domain(domain), type(type),
+        protocol(0), port(port), addr(addr),
+        alive(FALSE)
     {
-
     }
 };
 
