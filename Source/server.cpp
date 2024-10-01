@@ -32,6 +32,26 @@ Server ServerInterface::NewServerInstance(SocketTypes serverType, int port) {
 	return server;
 }
 
+BOOL ServerInterface::StartServer(Server server) {
+	// bind
+	int status = SOCKET_ERROR;
+	status = BindSocket(server.sfd, ( sockaddr* ) &server.addr, sizeof(server.addr));
+	if ( status == SOCKET_ERROR )
+		return FALSE;
+
+	// listen
+	status = SocketListen(server.sfd, SOMAXCONN);
+	if ( status == SOCKET_ERROR )
+		return FALSE;
+
+	this->ServerDetails = server;
+
+	// start accepting
+	std::thread acceptThread(AcceptTCPConnections);
+	acceptThread.detach(); // run accept thread even after this function returns
+
+	return TRUE;
+}
 
 BOOL ServerInterface::TCPSendMessageToClient(long cuid, ServerCommand req) {
 	return TRUE;
@@ -64,10 +84,6 @@ BOOL ServerInterface::UDPSendMessageToClient(long cuid, UDPMessage message) {
 
 	return UDPSendMessageToClient(client, message);
 }
-	
-long ServerInterface::AcceptTCPConnection(Client clientToAccept) {
-	return 0;
-}
 
 BOOL ServerInterface::PerformUDPRequest(BYTESTRING req) {
 	BOOL success = FALSE;
@@ -82,14 +98,11 @@ BOOL ServerInterface::PerformUDPRequest(BYTESTRING req) {
 	case ClientMessage::CONNECT_CLIENT:
 		Client client = *reinterpret_cast< Client* >( message.client );
 		
-		long cuid = AcceptTCPConnection(client);
-		if ( cuid == -1 )
-			success = FALSE;
-		
+		// client wants to connect so respond with tcp server details
 		UDPMessage response = {};
-		response.TCPServer = this->ServerDetails;
+		response.TCPServer = GetServerDetails();
 		response.isValid = TRUE;
-		if ( UDPSendMessageToClient(cuid, response) )
+		if ( UDPSendMessageToClient(client, response) )
 			success = TRUE;
 		break;
 	}
