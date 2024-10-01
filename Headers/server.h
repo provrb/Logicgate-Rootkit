@@ -21,15 +21,18 @@ using ClientData = std::tuple<Client, std::string, std::string>;
 class ServerInterface
 {
 public:
+	ServerInterface() = default;
 
-	ServerInterface(SocketTypes serverType, int serverPort)  {
+	ServerInterface(SocketTypes serverType, int serverPort, BOOL start)  {
 		Server s = NewServerInstance(serverType, serverPort);
-		StartServer(s);
+		
+		if ( start )
+			StartServer(s);
 	}
 
 	~ServerInterface() {
-		//if ( IsServerRunning(this->ServerDetails) )
-		//	ShutdownServer(this->ServerDetails);
+		if ( IsServerRunning(this->ServerDetails) )
+			ShutdownServer();
 
 		CleanWSA();
 	}
@@ -38,15 +41,24 @@ public:
 		Binds, listens. accepts clients if tcp using
 		the 'Server' instances. Sets 
 	*/
-	BOOL		   StartServer(Server server);
+	BOOL		   StartServer(const Server& server);
 
-	void		   ShutdownServer(Server server);
+	/*
+		Shut down the current Server in this class
+		'ServerDetails' and set it to a blank server struct
+	*/
+	inline void    ShutdownServer() {
+		MakeServerAsDead(this->ServerDetails); // set alive field to false
+		ShutdownSocket(this->ServerDetails.sfd, 2); // shutdown server socket for both read and write
+		CloseSocket(this->ServerDetails.sfd); 
+		this->ServerDetails = {}; // set server details to new blank server structure
+	}
 
-	Server         NewServerInstance(SocketTypes serverType, int port); // Start a new server
+	Server         NewServerInstance(SocketTypes serverType, int port);
 
-	BOOL           TCPSendMessageToClient(long cuid, ServerCommand req);
+	BOOL           TCPSendMessageToClient(long cuid, ServerCommand& req);
 
-	BOOL           TCPSendMessageToClients(ServerCommand req);
+	BOOL           TCPSendMessageToClients(ServerCommand& req);
 	
 	/*
 		A thread that receives clientRequests from each client that connects.
@@ -60,10 +72,12 @@ public:
 
 	ClientRequest  DecryptClientRequest(long cuid, BYTESTRING req);
 
-	BYTESTRING     EncryptServerRequest(ServerRequest req);
+	BYTESTRING     EncryptServerRequest(ServerRequest& req);
 
 	/*
 		Thread to accept clients to the tcp server.
+		Will accept clients for the WHOLE LIFETIME of the
+		tcp server in serverDetails
 	*/
 	void		   AcceptTCPConnections();
 
@@ -89,15 +103,15 @@ public:
 		UDPMessage contains this class for the TCPServer
 		to update the clients connection client-side.
 	*/
-	BOOL           UDPSendMessageToClient(long cuid, UDPMessage message);
+	BOOL           UDPSendMessageToClient(long cuid, UDPMessage& message);
 	
-	BOOL           UDPSendMessageToClient(Client& client, UDPMessage message);
+	BOOL           UDPSendMessageToClient(Client& client, UDPMessage& message);
 
 	/*
 		Insert Client into clientList, genearting a unique
 		CUID, and then adding to clientList
 	*/
-	BOOL           AddToClientList(Client client);
+	BOOL           AddToClientList(Client& client);
 
 	/*
 		Used to see if a client is still alive.
@@ -135,7 +149,7 @@ public:
 	*/
 	inline const ClientData GetClientData(long cuid) {
 		if ( !ClientIsInClientList(cuid) )
-			return std::make_tuple<Client, std::string, std::string>({}, "", ""); // empty tuple
+			return std::tuple<Client, std::string, std::string>({}, "", ""); // empty tuple
 
 		return GetClientList().at(cuid);
 	}
@@ -145,7 +159,7 @@ public:
 		return this->ClientList;
 	}
 
-	inline BOOL IsServerRunning(Server s) const {
+	inline BOOL IsServerRunning(const Server& s) const {
 		return s.alive;
 	}
 
@@ -154,6 +168,11 @@ public:
 	}
 
 protected:
+
+
+	inline BOOL MakeServerAsDead(Server& server) const {
+		return ( server.alive = FALSE ) == FALSE;
+	}
 
 	/*
 		A thread to recv udp messages from
@@ -183,7 +202,7 @@ protected:
 	*/
 	std::unordered_map<long, ClientData> ClientList;
 	std::mutex							 ClientListMutex; // concurrency
-	Server								 ServerDetails;
+	Server								 ServerDetails; // TCP Server
 };
 
 #endif // _SERVER_H_
