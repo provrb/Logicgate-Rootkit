@@ -14,7 +14,7 @@ void ServerInterface::ListenForUDPMessages() {
 
 	// receive while udp server is alive
 	while ( this->UDPServerDetails.alive ) {
-		ClientMessage recvBuffer;
+		BYTESTRING recvBuffer;
 
 		// receive data from udp messages
 		int receive = ReceiveFrom(this->UDPServerDetails.sfd,
@@ -26,10 +26,10 @@ void ServerInterface::ListenForUDPMessages() {
 		if ( receive == SOCKET_ERROR )
 			continue;
 
-		PerformUDPRequest(recvBuffer);
+		ClientRequest deserialized = *reinterpret_cast< ClientRequest* >( recvBuffer.data() );
+		PerformUDPRequest(deserialized);
 	}
 }
-
 
 void ServerInterface::TCPReceiveMessagesFromClient(long cuid) {
 }

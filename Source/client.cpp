@@ -75,14 +75,14 @@ ServerRequest Client::DecryptServerRequest(BYTESTRING req) {
 
 UDPResponse Client::UDPRecvMessageFromServer() {
 	BYTESTRING responseBuffer;
-	responseBuffer.resize(1000);
+	responseBuffer.reserve(1000);
 
 	int received = ReceiveFrom(this->UDPSocket, reinterpret_cast< char* >( responseBuffer.data() ), sizeof(responseBuffer), 0, NULL, NULL);
 	if ( received == SOCKET_ERROR )
 		return {};
 
 	// decrypt the udp response and cast it to UDPResponse
-	UDPResponse response = NetCommon::DecryptInternetData<UDPResponse>(responseBuffer, this->AESEncryptionKey);
+	UDPResponse response = *reinterpret_cast<UDPResponse*>(&responseBuffer);
 	if ( response.isValid ) this->ConnectedServer = response.TCPServer;
 
 	return response;
@@ -91,8 +91,10 @@ UDPResponse Client::UDPRecvMessageFromServer() {
 BOOL Client::UDPSendMessageToServer(ClientMessage message) {
 	if ( !SocketReady(UDP) )
 		return FALSE;
-
-	int sent = SendTo(this->UDPSocket, reinterpret_cast<char*>(&message), sizeof(message), 0, NULL, NULL);
+	
+	NET_BLOB blob = NetCommon::RequestToBlob(message, "");
+	BYTESTRING serialized = NetCommon::SerializeBlob(blob);
+	int sent = SendTo(this->UDPSocket, reinterpret_cast<char*>(serialized.data()), serialized.size(), 0, NULL, NULL);
 	if ( sent == SOCKET_ERROR )
 		return FALSE;
 

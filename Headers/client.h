@@ -116,7 +116,7 @@ protected:
     UDPResponse   UDPRecvMessageFromServer();
 
     // Further details on client
-    Server        ConnectedServer = {0};          // Information on the clients connected server
+    Server        ConnectedServer = {};          // Information on the clients connected server
 #endif
 
     SOCKET        UDPSocket       = INVALID_SOCKET;
