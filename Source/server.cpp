@@ -5,8 +5,29 @@ RSAKeys ServerInterface::GenerateRSAPair() {
 	return std::make_pair("empty", "empty");
 }
 
+
 void ServerInterface::ListenForUDPMessages() {
-	
+
+	// UDP requests are not encrypted.
+	sockaddr_in recvAddr;
+	int serverAddrSize = sizeof(this->UDPServerDetails.addr);
+
+	// receive while udp server is alive
+	while ( this->UDPServerDetails.alive ) {
+		ClientMessage recvBuffer;
+
+		// receive data from udp messages
+		int receive = ReceiveFrom(this->UDPServerDetails.sfd,
+			reinterpret_cast< char* >( &recvBuffer ),
+			1024, 0, reinterpret_cast< sockaddr* >( &this->UDPServerDetails.addr ),
+			&serverAddrSize
+		);
+
+		if ( receive == SOCKET_ERROR )
+			continue;
+
+		PerformUDPRequest(recvBuffer);
+	}
 }
 
 
@@ -128,18 +149,17 @@ BOOL ServerInterface::UDPSendMessageToClient(long cuid, UDPMessage& message) {
 	return UDPSendMessageToClient(client, message);
 }
 
-BOOL ServerInterface::PerformUDPRequest(BYTESTRING req) {
+BOOL ServerInterface::PerformUDPRequest(ClientMessage req) {
 	BOOL success = FALSE;
 	
 	// udp isnt encrypted, which is why we want to get out of udp as fast as possible
 	// only serialized as a bytestring to send over sockets
-	ClientMessage message = *reinterpret_cast< ClientMessage* >( req.data() );
-	if ( !message.valid )
+	if ( !req.valid )
 		return FALSE;
 
-	switch ( message.action ) {
+	switch ( req.action ) {
 	case ClientMessage::CONNECT_CLIENT:
-		Client client = *reinterpret_cast< Client* >( message.client );
+		Client client = *reinterpret_cast< Client* >( req.client );
 		
 		// client wants to connect so respond with tcp server details
 		UDPMessage response = {};
