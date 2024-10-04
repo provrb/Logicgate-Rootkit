@@ -178,11 +178,7 @@ protected:
 	*/
 	RSAKeys		   GenerateRSAPair();
 
-	/*
-		Perform a received and encrypted udp request
-		from a client.
-	*/
-	BOOL           PerformUDPRequest(BYTESTRING req);
+	BOOL           PerformUDPRequest(ClientMessage req);
 
 	template <typename Data>
 	Data           DecryptClientData(BYTESTRING cipher, long cuid);
