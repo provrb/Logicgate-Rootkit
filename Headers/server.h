@@ -18,38 +18,36 @@ class ServerInterface
 public:
 	ServerInterface() = default;
 
-	ServerInterface(SocketTypes serverType, int serverPort, BOOL start)  {
-		Server s = NewServerInstance(serverType, serverPort);
-		
-		if ( start )
-			StartServer(s);
+	ServerInterface(int UDPPort, int TCPPort)  {
+		this->TCPServerDetails = NewServerInstance(TCP, TCPPort);
+		this->UDPServerDetails = NewServerInstance(UDP, UDPPort);
 	}
 
 	~ServerInterface() {
-		if ( IsServerRunning(this->ServerDetails) )
+		if ( IsServerRunning(this->TCPServerDetails) )
 			ShutdownServer(TRUE);
 
 		CleanWSA();
 	}
 
 	/*
+		Shut down the current Server in this class
+		'TCPServerDetails' and set it to a blank server struct
+	*/
+	inline void ShutdownServer(BOOL confirm) {
+		if ( !confirm ) return;
+
+		MarkServerAsDead(this->TCPServerDetails); // set alive field to false
+		ShutdownSocket(this->TCPServerDetails.sfd, 2); // shutdown server socket for both read and write
+		CloseSocket(this->TCPServerDetails.sfd);
+		this->TCPServerDetails = {}; // set server details to new blank server structure
+	}
+
+	/*
 		Binds, listens. accepts clients if tcp using
 		the 'Server' instances. Sets 
 	*/
-	BOOL		   StartServer(const Server& server);
-
-	/*
-		Shut down the current Server in this class
-		'ServerDetails' and set it to a blank server struct
-	*/
-	inline void    ShutdownServer(BOOL confirm) {
-		if ( !confirm ) return;
-
-		MakeServerAsDead(this->ServerDetails); // set alive field to false
-		ShutdownSocket(this->ServerDetails.sfd, 2); // shutdown server socket for both read and write
-		CloseSocket(this->ServerDetails.sfd); 
-		this->ServerDetails = {}; // set server details to new blank server structure
-	}
+	BOOL		   StartServer(Server& server);
 
 	Server         NewServerInstance(SocketTypes serverType, int port);
 
@@ -104,6 +102,13 @@ public:
 	
 	BOOL           UDPSendMessageToClient(Client& client, UDPMessage& message);
 
+
+	/*
+		A thread to recv udp messages from
+		clients wanting to connect.
+	*/
+	void           ListenForUDPMessages();
+
 	/*
 		Insert Client into clientList, genearting a unique
 		CUID, and then adding to clientList
@@ -149,8 +154,8 @@ public:
 		return s.alive;
 	}
 
-	inline const Server GetServerDetails() const {
-		return this->ServerDetails;
+	inline const Server GetTCPServerDetails() const {
+		return this->TCPServerDetails;
 	}
 
 protected:
@@ -159,22 +164,19 @@ protected:
 		return GetClientList().erase(cuid) == 1; // true if 1 element was erased
 	}
 
-	inline BOOL MakeServerAsDead(Server& server) const {
+	inline BOOL MarkServerAsDead(Server& server) const {
 		return ( server.alive = FALSE ) == FALSE;
 	}
 
+	inline BOOL MarkServerAsAlive(Server& server) const {
+		return ( server.alive = TRUE ) == FALSE;
+	}
 
 	/*
 		Generate an RSA public and private key
 		and format it as an std::pair
 	*/
-	RSAKeys GenerateRSAPair();
-
-	/*
-		A thread to recv udp messages from
-		clients wanting to connect.
-	*/
-	void           ListenForUDPMessages();
+	RSAKeys		   GenerateRSAPair();
 
 	/*
 		Perform a received and encrypted udp request
@@ -191,8 +193,9 @@ protected:
 		uniquely generated rsa key for all connected clients
 	*/
 	std::unordered_map<long, ClientData> ClientList;
-	std::mutex							 ClientListMutex; // concurrency
-	Server								 ServerDetails; // TCP Server
+	std::mutex ClientListMutex; // concurrency
+	Server TCPServerDetails;
+	Server UDPServerDetails;
 };
 
 #endif // _SERVER_H_

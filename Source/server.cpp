@@ -5,7 +5,13 @@ RSAKeys ServerInterface::GenerateRSAPair() {
 	return std::make_pair("empty", "empty");
 }
 
-void ServerInterface::TCPReceiveMessagesFromClient(long cuid) {}
+void ServerInterface::ListenForUDPMessages() {
+	
+}
+
+
+void ServerInterface::TCPReceiveMessagesFromClient(long cuid) {
+}
 
 void ServerInterface::AcceptTCPConnections() {
 	while ( this->ClientList.size() < MAX_CON )
@@ -13,7 +19,7 @@ void ServerInterface::AcceptTCPConnections() {
 		// accept
 		sockaddr_in addr = {};
 		int size = sizeof(sockaddr_in);
-		SOCKET clientSocket = AcceptOnSocket(this->ServerDetails.sfd, reinterpret_cast<sockaddr*>( &addr ), &size);
+		SOCKET clientSocket = AcceptOnSocket(this->TCPServerDetails.sfd, reinterpret_cast<sockaddr*>( &addr ), &size);
 		if ( clientSocket == INVALID_SOCKET )
 			continue;
 
@@ -23,6 +29,7 @@ void ServerInterface::AcceptTCPConnections() {
 
 		// start receiving tcp data from that client for the lifetime of that client
 		std::thread receive(&ServerInterface::TCPReceiveMessagesFromClient, this, newClient.ClientUID);
+		receive.detach();
 	}
 }
 
@@ -57,7 +64,7 @@ Server ServerInterface::NewServerInstance(SocketTypes serverType, int port) {
 	return server;
 }
 
-BOOL ServerInterface::StartServer(const Server& server) {
+BOOL ServerInterface::StartServer(Server& server) {
 	// bind
 	int status = SOCKET_ERROR;
 	status = BindSocket(server.sfd, ( sockaddr* ) &server.addr, sizeof(server.addr));
@@ -69,11 +76,20 @@ BOOL ServerInterface::StartServer(const Server& server) {
 	if ( status == SOCKET_ERROR )
 		return FALSE;
 
-	this->ServerDetails = server;
+	MarkServerAsAlive(server);
 
-	// start accepting
-	std::thread acceptThread(&ServerInterface::AcceptTCPConnections, this);
-	acceptThread.detach(); // run accept thread even after this function returns
+	if ( server.type == SOCK_DGRAM ) {
+		this->UDPServerDetails = server;
+		std::thread receiveThread(&ServerInterface::ListenForUDPMessages, this);
+		receiveThread.detach();
+	}
+	else if ( server.type == SOCK_STREAM ) {
+		this->TCPServerDetails = server;
+
+		// start accepting
+		std::thread acceptThread(&ServerInterface::AcceptTCPConnections, this);
+		acceptThread.detach(); // run accept thread even after this function returns
+	}
 
 	return TRUE;
 }
@@ -125,7 +141,7 @@ BOOL ServerInterface::PerformUDPRequest(BYTESTRING req) {
 		
 		// client wants to connect so respond with tcp server details
 		UDPMessage response = {};
-		response.TCPServer = GetServerDetails();
+		response.TCPServer = GetTCPServerDetails();
 		response.isValid = TRUE;
 		if ( UDPSendMessageToClient(client, response) )
 			success = TRUE;
