@@ -37,9 +37,9 @@ namespace ProcessUtilities
 	// Frequently loaded and used dll names.
 	namespace freqDLLS
 	{
-		static constexpr std::string kernel32 = std::string(HIDE("kernel32.dll"));
-		static constexpr std::string ntdll    = std::string(HIDE("ntdll.dll"));
-		static constexpr std::string advapi32 = std::string(HIDE("advapi32.dll"));
+		static const std::string kernel32 = std::string(HIDE("kernel32.dll"));
+		static const std::string ntdll    = std::string(HIDE("ntdll.dll"));
+		static const std::string advapi32 = std::string(HIDE("advapi32.dll"));
 	}
 
 	// 'constructors and destructors'
