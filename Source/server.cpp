@@ -73,8 +73,6 @@ BOOL ServerInterface::StartServer(Server& server) {
 
 	MarkServerAsAlive(server); // alive once binded
 
-	// test comment
-
 	// listen if TCP server
 	if ( server.type == SOCK_STREAM ) {
 		status = SocketListen(server.sfd, SOMAXCONN);
