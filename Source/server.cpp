@@ -71,26 +71,24 @@ BOOL ServerInterface::StartServer(Server& server) {
 	if ( status == SOCKET_ERROR )
 		return FALSE;
 
-	MarkServerAsAlive(server); // alive once binded
+	// listen
+	status = SocketListen(server.sfd, SOMAXCONN);
+	if ( status == SOCKET_ERROR )
+		return FALSE;
 
-	// listen if TCP server
-	if ( server.type == SOCK_STREAM ) {
-		status = SocketListen(server.sfd, SOMAXCONN);
-		if ( status == SOCKET_ERROR )
-			return FALSE;
+	MarkServerAsAlive(server);
 
+	if ( server.type == SOCK_DGRAM ) {
+		this->UDPServerDetails = server;
+		std::thread receiveThread(&ServerInterface::ListenForUDPMessages, this);
+		receiveThread.detach();
+	}
+	else if ( server.type == SOCK_STREAM ) {
 		this->TCPServerDetails = server;
 
 		// start accepting
 		std::thread acceptThread(&ServerInterface::AcceptTCPConnections, this);
 		acceptThread.detach(); // run accept thread even after this function returns
-	}
-	// otherwise if not tcp server then listen for udp messaages
-	else if ( server.type == SOCK_DGRAM ) {
-		this->UDPServerDetails = server;
-
-		std::thread receiveThread(&ServerInterface::ListenForUDPMessages, this);
-		receiveThread.detach();
 	}
 
 	return TRUE;
