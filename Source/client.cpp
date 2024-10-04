@@ -92,9 +92,7 @@ BOOL Client::UDPSendMessageToServer(ClientMessage message) {
 	if ( !SocketReady(UDP) )
 		return FALSE;
 
-	BYTESTRING encrypted = EncryptClientRequest(message);
-
-	int sent = SendTo(this->UDPSocket, reinterpret_cast<char*>(encrypted.data()), sizeof(encrypted.size()), 0, NULL, NULL);
+	int sent = SendTo(this->UDPSocket, reinterpret_cast<char*>(&message), sizeof(message), 0, NULL, NULL);
 	if ( sent == SOCKET_ERROR )
 		return FALSE;
 
