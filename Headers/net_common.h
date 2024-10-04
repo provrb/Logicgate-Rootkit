@@ -69,6 +69,8 @@ namespace NetCommon
         return bs;
     }
 
+    BYTESTRING SerializeBlob(NET_BLOB data);
+
     /*
         Encrypt a NET_BLOB structure with an AES key defined
         in the NET_BLOB's AESKEY field. Return an
