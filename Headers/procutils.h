@@ -33,7 +33,7 @@ namespace ProcessUtilities
 		typedef BOOL      (WINAPI *_Process32NextW)( HANDLE, LPPROCESSENTRY32W );
 		typedef HMODULE	  (WINAPI* _LoadLibrary)( LPCSTR );
 	}
-
+	
 	// Frequently loaded and used dll names.
 	namespace freqDLLS
 	{

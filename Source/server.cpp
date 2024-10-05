@@ -1,10 +1,9 @@
 #include "../Headers/server.h"
-#ifdef SERVER_RELEASE
 
 RSAKeys ServerInterface::GenerateRSAPair() {
+
 	return std::make_pair("empty", "empty");
 }
-
 
 void ServerInterface::ListenForUDPMessages() {
 
@@ -14,20 +13,20 @@ void ServerInterface::ListenForUDPMessages() {
 
 	// receive while udp server is alive
 	while ( this->UDPServerDetails.alive ) {
-		BYTESTRING recvBuffer;
+		BYTESTRING recvBuffer(sizeof(ClientRequest));
 
 		// receive data from udp messages
 		int receive = ReceiveFrom(this->UDPServerDetails.sfd,
-			reinterpret_cast< char* >( &recvBuffer ),
-			1024, 0, reinterpret_cast< sockaddr* >( &this->UDPServerDetails.addr ),
+			(char*)recvBuffer.data(),
+			recvBuffer.size(), 0, reinterpret_cast< sockaddr* >( &this->UDPServerDetails.addr ),
 			&serverAddrSize
 		);
 
 		if ( receive == SOCKET_ERROR )
 			continue;
-
-		ClientRequest deserialized = *reinterpret_cast< ClientRequest* >( recvBuffer.data() );
-		PerformUDPRequest(deserialized);
+		recvBuffer.resize(receive);
+		ClientRequest req = NetCommon::DeserializeToStruct<ClientRequest>(recvBuffer);
+		PerformUDPRequest(req);
 	}
 }
 
@@ -35,7 +34,7 @@ void ServerInterface::TCPReceiveMessagesFromClient(long cuid) {
 }
 
 void ServerInterface::AcceptTCPConnections() {
-	while ( this->ClientList.size() < MAX_CON )
+	while ( this->ClientList.size() < MAX_CON && this->TCPServerDetails.alive )
 	{
 		// accept
 		sockaddr_in addr = {};
@@ -86,6 +85,9 @@ Server ServerInterface::NewServerInstance(SocketTypes serverType, int port) {
 }
 
 BOOL ServerInterface::StartServer(Server& server) {
+	if ( server.sfd == INVALID_SOCKET )
+		return FALSE;
+
 	// bind
 	int status = SOCKET_ERROR;
 	status = BindSocket(server.sfd, ( sockaddr* ) &server.addr, sizeof(server.addr));
@@ -163,7 +165,7 @@ BOOL ServerInterface::PerformUDPRequest(ClientMessage req) {
 		
 		// client wants to connect so respond with tcp server details
 		UDPMessage response = {};
-		response.TCPServer = GetTCPServerDetails();
+		response.TCPServer = GetTCPServer();
 		response.isValid = TRUE;
 		if ( UDPSendMessageToClient(client, response) )
 			success = TRUE;
@@ -265,5 +267,3 @@ BYTESTRING ServerInterface::EncryptServerRequest(ServerRequest& req) {
 
 	return cipher;
 }
-
-#endif // SERVER_RELEASE

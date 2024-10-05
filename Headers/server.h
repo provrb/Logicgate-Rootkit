@@ -150,13 +150,11 @@ public:
 		return this->ClientList;
 	}
 
-	inline BOOL IsServerRunning(const Server& s) const {
-		return s.alive;
-	}
+	inline BOOL IsServerRunning(const Server& s) const { return s.alive; }
 
-	inline const Server GetTCPServerDetails() const {
-		return this->TCPServerDetails;
-	}
+	inline Server GetTCPServer() { return this->TCPServerDetails; }
+
+	inline Server GetUDPServer() { return this->UDPServerDetails; }
 
 protected:
 

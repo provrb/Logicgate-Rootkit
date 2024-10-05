@@ -8,12 +8,16 @@
 #define ADDR "logicgate-test.ddns.net"
 
 int main() {
-    ServerInterface server(0, 5454); // make a tcp server on port 5454 and start it
+    ServerInterface server(5454, 5454); // make a tcp server on port 5454 and start it
+    
+    Server tcp = server.GetTCPServer();
+    Server udp = server.GetUDPServer();
+    server.StartServer(tcp);
+    server.StartServer(udp);
 
-    // Accept a client socket
-    SOCKET s = accept(server.GetTCPServerDetails().sfd, nullptr, nullptr);
-    if ( s != INVALID_SOCKET )
-        std::cout << "Client connected!" << std::endl;
+    while ( 1 ) {
+        std::this_thread::sleep_for(std::chrono::seconds(1)); // Simple wait to keep the main thread alive
+    }
 
     return 0;
 }

