@@ -1,6 +1,7 @@
 
-### This article is still a WIP. s
+### 'Logicgate', a User-Mode Rootkit 
 
+## _This article is still a WIP._
 # My Experience Writing This Program
 
 Disclaimer: This project was made for educational and ethical purposes. This article was written
@@ -22,7 +23,7 @@ undocumented Windows API functions that invoke syscalls are also used to further
 With all this information, I wanted to construct a sophisticated piece of malware for educational purposes and, of course, for fun.
 I thought simple ransomware would be pretty boring and easy to crack. I did like the idea of ransomware
 but I also liked the idea of a RAT. So I compromised by creating a RAT which could also invoke a Ransomware attack, among other
-functions. 
+functions for Windows.
 
 ### My first roadblock
 Still thinking about this idea of sophisticated ransomware, I realized I hadn't worked with much cryptography, [apart from 'web hacker',
