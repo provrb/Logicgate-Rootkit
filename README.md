@@ -2,13 +2,12 @@
 # 'Logicgate', a User-Mode Rootkit 
 _This article is still a WIP._
 
-# My Experience Writing This Program
-
-Disclaimer: This project was made for educational and ethical purposes. This article was written
+_Disclaimer: This project was made for educational and ethical purposes. This article was written
 to inform computer users, Software Engineers, Cybersecurity Analysts, and others about how someone can exploit 
-multiple vulnerabilities to create a sophisticated piece of malware, and my explanation on how to prevent these vulnerabilities.
+multiple vulnerabilities to create a sophisticated piece of malware, and my explanation on how to prevent these vulnerabilities.__
 
-During this project, I finally decided to document my experience. This includes the triumphs, roadblocks, ideas I thought of, and more that happened during the creation of this project.
+During this project, I finally decided to document my experience. This includes the triumphs, roadblocks, ideas I thought of, 
+and more that happened during the creation of this project.
 
 ## Backstory
 Before I started this project, [I had previously made a chat room entirely implemented in C for Linux for my Computer Engineering Technology class final](https://github.com/provrb/AMS), 
