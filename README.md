@@ -1,7 +1,7 @@
 
 # 'Logicgate', a User-Mode Rootkit 
+_This article is still a WIP._
 
-## _This article is still a WIP._
 # My Experience Writing This Program
 
 Disclaimer: This project was made for educational and ethical purposes. This article was written
