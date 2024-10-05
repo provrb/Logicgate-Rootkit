@@ -27,6 +27,8 @@ void NetCommon::LoadWSAFunctions() {
     SocketListen = ProcessUtilities::GetFunctionAddress<_listen>(WINSOCK, std::string(HIDE("listen")));
     ShutdownSocket = ProcessUtilities::GetFunctionAddress<_shutdown>(WINSOCK, std::string(HIDE("shutdown")));
     AcceptOnSocket = ProcessUtilities::GetFunctionAddress<_accept>(WINSOCK, std::string(HIDE("accept")));
+    HostToNetworkShort = ProcessUtilities::GetFunctionAddress<_htons>(WINSOCK, std::string(HIDE("htons")));
+    InternetAddress = ProcessUtilities::GetFunctionAddress<_inet_addr>(WINSOCK, std::string(HIDE("inet_addr")));
 
     WORD version = MAKEWORD(2, 2);
     WSAData data = { 0 };
@@ -43,33 +45,11 @@ void NetCommon::LoadWSAFunctions() {
 //    return iv;
 //}
 
-BYTESTRING NetCommon::SerializeBlob(NET_BLOB data) {
-    BYTESTRING serialized;
-
-    if ( data.cr.valid ) {
-        serialized.resize(sizeof(ClientRequest));
-        char* bytes = reinterpret_cast< char* >( &data.cr );
-        std::copy(bytes, bytes + sizeof(ClientRequest), serialized.begin());
-    }
-    else if ( data.sr.valid ) {
-        serialized.resize(sizeof(ServerRequest));
-        char* bytes = reinterpret_cast< char* >( &data.sr );
-        std::copy(bytes, bytes + sizeof(ServerRequest), serialized.begin());
-    }
-    else if ( data.udp.isValid ) {
-        serialized.resize(sizeof(UDPResponse));
-        char* bytes = reinterpret_cast< char* >( &data.udp );
-        std::copy(bytes, bytes + sizeof(UDPResponse), serialized.begin());
-    }
-
-    return serialized;
-}
-
 BYTESTRING NetCommon::AESEncryptBlob(NET_BLOB data) {
     if ( IsBlobValid(data) == FALSE )
         return {};
 
-    BYTESTRING req = SerializeBlob(data);
+    BYTESTRING req = NetCommon::SerializeStruct(data);
     BYTESTRING key = NetCommon::SerializeString(data.aesKey);
 
     Cipher::Aes<256> aes(key.data());

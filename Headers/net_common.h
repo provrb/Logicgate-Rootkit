@@ -9,7 +9,6 @@
 
 #define winsock32 std::string(HIDE("Ws2_32.dll"))
 
-#pragma pack(2)
 typedef struct {
     ClientRequest cr;
     ServerRequest sr;
@@ -33,21 +32,25 @@ typedef int    ( WINAPI* _connect )     ( SOCKET s, const sockaddr* addr, int na
 typedef int    ( WINAPI* _listen )      ( SOCKET s, int backlog );
 typedef int    ( WINAPI* _shutdown )    ( SOCKET s, int how );
 typedef SOCKET ( WINAPI* _accept )      ( SOCKET s, sockaddr* addr, int* addrlen );
+typedef unsigned short ( WINAPI* _htons )( unsigned short s );
+typedef unsigned long ( WINAPI* _inet_addr )( const char* ip );
 
 // Dynamically loaded functions from the winsock library
-inline _socket       CreateSocket   = nullptr;
-inline _WSAStartup   StartWSA       = nullptr;
-inline _WSACleanup   CleanWSA       = nullptr;
-inline _closesocket  CloseSocket    = nullptr;
-inline _bind         BindSocket     = nullptr;
-inline _sendto       SendTo         = nullptr;
-inline _send         Send           = nullptr;
-inline _recv         Receive        = nullptr;
-inline _recvfrom     ReceiveFrom    = nullptr;
-inline _connect      ConnectSocket  = nullptr;
-inline _listen       SocketListen   = nullptr;
-inline _shutdown     ShutdownSocket = nullptr;
-inline _accept       AcceptOnSocket = nullptr;
+inline _socket       CreateSocket       = nullptr;
+inline _WSAStartup   StartWSA           = nullptr;
+inline _WSACleanup   CleanWSA           = nullptr;
+inline _closesocket  CloseSocket        = nullptr;
+inline _bind         BindSocket         = nullptr;
+inline _sendto       SendTo             = nullptr;
+inline _send         Send               = nullptr;
+inline _recv         Receive            = nullptr;
+inline _recvfrom     ReceiveFrom        = nullptr;
+inline _connect      ConnectSocket      = nullptr;
+inline _listen       SocketListen       = nullptr;
+inline _shutdown     ShutdownSocket     = nullptr;
+inline _accept       AcceptOnSocket     = nullptr;
+inline _htons        HostToNetworkShort = nullptr;
+inline _inet_addr    InternetAddress    = nullptr;
 
 namespace NetCommon
 {
@@ -69,7 +72,18 @@ namespace NetCommon
         return bs;
     }
 
-    BYTESTRING SerializeBlob(NET_BLOB data);
+    template <typename _Struct>
+    inline _Struct DeserializeToStruct(BYTESTRING b) {
+        return *reinterpret_cast< _Struct* >( b.data() );
+    }
+
+    template <typename _Struct>
+    inline BYTESTRING SerializeStruct(_Struct data) {
+        BYTESTRING serialized(sizeof(_Struct));
+        std::memcpy(serialized.data(), &data, sizeof(_Struct));
+
+        return serialized;
+    }
 
     /*
         Encrypt a NET_BLOB structure with an AES key defined
