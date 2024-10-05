@@ -1,5 +1,5 @@
 
-### 'Logicgate', a User-Mode Rootkit 
+# 'Logicgate', a User-Mode Rootkit 
 
 ## _This article is still a WIP._
 # My Experience Writing This Program
