@@ -46,6 +46,15 @@ void NetCommon::LoadWSAFunctions() {
 //    return iv;
 //}
 
+BYTESTRING NetCommon::AESEncryptStruct(BYTESTRING data, std::string aesKey) {
+    BYTESTRING serializedKey = NetCommon::SerializeString(aesKey);
+    Cipher::Aes<256> aes(serializedKey.data());
+    aes.encrypt_block(data.data());
+
+    return data;
+}
+
+
 BYTESTRING NetCommon::AESEncryptBlob(NET_BLOB data) {
     if ( IsBlobValid(data) == FALSE )
         return {};

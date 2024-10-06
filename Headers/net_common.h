@@ -94,6 +94,10 @@ namespace NetCommon
     */
     BYTESTRING AESEncryptBlob(NET_BLOB data);
 
+    
+    // Encrypt a BYTESTRING using an aes key
+    BYTESTRING AESEncryptStruct(BYTESTRING data, std::string aesKey);
+
     /*
         Decrypt a byte string using AES with the AES
         symmetrical key 'key'. 
