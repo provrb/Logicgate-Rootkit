@@ -9,32 +9,36 @@ void ServerInterface::ListenForUDPMessages() {
 
 	// UDP requests are not encrypted.
 	sockaddr_in recvAddr;
-	int serverAddrSize = sizeof(this->UDPServerDetails.addr);
+	int addrSize = sizeof(recvAddr);
 
 	// receive while udp server is alive
-	while ( this->UDPServerDetails.alive ) {
+	while ( this->UDPServerDetails.alive == TRUE ) {
 		BYTESTRING recvBuffer(sizeof(ClientRequest));
 
 		// receive data from udp messages
 		int receive = ReceiveFrom(this->UDPServerDetails.sfd,
 			(char*)recvBuffer.data(),
-			recvBuffer.size(), 0, reinterpret_cast< sockaddr* >( &this->UDPServerDetails.addr ),
-			&serverAddrSize
+			recvBuffer.size(), 0,
+			(sockaddr*)&recvAddr,
+			&addrSize
 		);
 
 		if ( receive == SOCKET_ERROR )
 			continue;
+
 		recvBuffer.resize(receive);
 		ClientRequest req = NetCommon::DeserializeToStruct<ClientRequest>(recvBuffer);
-		PerformUDPRequest(req);
+		std::cout << "Received a message on the UDP socket." << std::endl;
+		PerformUDPRequest(req, recvAddr);
 	}
+	std::cout << "Not receiving\n";
 }
 
 void ServerInterface::TCPReceiveMessagesFromClient(long cuid) {
 }
 
 void ServerInterface::AcceptTCPConnections() {
-	while ( this->ClientList.size() < MAX_CON && this->TCPServerDetails.alive )
+	while ( this->ClientList.size() < MAX_CON && this->TCPServerDetails.alive == TRUE )
 	{
 		// accept
 		sockaddr_in addr = {};
@@ -43,13 +47,15 @@ void ServerInterface::AcceptTCPConnections() {
 		if ( clientSocket == INVALID_SOCKET )
 			continue;
 
-		Client newClient(addr); // make a new client and store the addr info in it
-		newClient.SetRSAKeys(this->GenerateRSAPair());
-		AddToClientList(newClient); // add them to the client list
+		std::cout << "Accepted a client on the tcp server." << std::endl;
 
-		// start receiving tcp data from that client for the lifetime of that client
-		std::thread receive(&ServerInterface::TCPReceiveMessagesFromClient, this, newClient.ClientUID);
-		receive.detach();
+		//Client newClient(addr); // make a new client and store the addr info in it
+		//newClient.SetRSAKeys(this->GenerateRSAPair());
+		//AddToClientList(newClient); // add them to the client list
+
+		//// start receiving tcp data from that client for the lifetime of that client
+		//std::thread receive(&ServerInterface::TCPReceiveMessagesFromClient, this, newClient.ClientUID);
+		//receive.detach();
 	}
 }
 
@@ -71,15 +77,21 @@ Server ServerInterface::NewServerInstance(SocketTypes serverType, int port) {
 		server.sfd = CreateSocket(AF_INET, SOCK_DGRAM, IPPROTO_UDP);
 		if ( server.sfd == INVALID_SOCKET )
 			return server;
-
 		server.type = SOCK_DGRAM;
 	}
 
+	//hostent* host = GetHostByName(DNS_NAME.c_str());
+
 	// update server fields
+	//memcpy(&server.addr.sin_addr, host->h_addr_list[0], host->h_length);
+	
+	server.addr.sin_addr.s_addr = INADDR_ANY;
 	server.addr.sin_family	    = AF_INET;
-	server.addr.sin_addr.s_addr = INADDR_ANY; // servers shouldnt bind to any address
 	server.addr.sin_port        = htons(port);
 	server.port                 = port;
+	server.alive = TRUE;
+
+	std::cout << "Created server on port: " << port << std::endl;
 
 	return server;
 }
@@ -127,31 +139,28 @@ ClientResponse ServerInterface::WaitForClientResponse(long cuid) {
 	return {};
 }
 
-BOOL ServerInterface::UDPSendMessageToClient(Client& client, UDPMessage& message) {
+BOOL ServerInterface::UDPSendMessageToClient(Client clientInfo, UDPMessage& message) {
 	
-	if ( !client.SocketReady(UDP) )
-		return FALSE;
+	message.isValid = TRUE;
+
+	BYTESTRING s = NetCommon::SerializeStruct(message);
 
 	int result = SendTo(
-		client.UDPSocket, reinterpret_cast< char* >( &message ),
-		sizeof(message), 0,
-		reinterpret_cast<sockaddr*>(&client.AddressInfo), sizeof(client.AddressInfo)
+		this->UDPServerDetails.sfd,
+		(char*)s.data(),
+		s.size(), 0,
+		reinterpret_cast<sockaddr*>(&clientInfo.AddressInfo), sizeof(clientInfo.AddressInfo)
 	);
 
 	if ( result == SOCKET_ERROR )
 		return FALSE;
+	
+	std::cout << "Sent UDP message. Bytes sent: " << result << std::endl;
 
 	return TRUE;
 }
 
-BOOL ServerInterface::UDPSendMessageToClient(long cuid, UDPMessage& message) {
-	ClientData data   = GetClientData(cuid);
-	Client     client = data.first;
-
-	return UDPSendMessageToClient(client, message);
-}
-
-BOOL ServerInterface::PerformUDPRequest(ClientMessage req) {
+BOOL ServerInterface::PerformUDPRequest(ClientMessage req, sockaddr_in incomingAddr) {
 	BOOL success = FALSE;
 	
 	// udp isnt encrypted, which is why we want to get out of udp as fast as possible
@@ -159,14 +168,24 @@ BOOL ServerInterface::PerformUDPRequest(ClientMessage req) {
 	if ( !req.valid )
 		return FALSE;
 
+	std::cout << "Performing UDP request. Action: " << req.action << std::endl;
+
 	switch ( req.action ) {
-	case ClientMessage::CONNECT_CLIENT:
-		Client client = *reinterpret_cast< Client* >( req.client );
+	case ClientMessage::CONNECT_CLIENT:	
+		Client client(incomingAddr);
+		client.UDPSocket = req.udp;
 		
+		std::cout << "Client: " << client.UDPSocket  << std::endl;
+
 		// client wants to connect so respond with tcp server details
+		hostent* host = GetHostByName(DNS_NAME.c_str());
+
+		Server temp = this->TCPServerDetails;
+		memcpy(&temp.addr.sin_addr, host->h_addr_list[0], host->h_length);
+
 		UDPMessage response = {};
-		response.TCPServer = GetTCPServer();
-		response.isValid = TRUE;
+		response.TCPServer = temp;
+
 		if ( UDPSendMessageToClient(client, response) )
 			success = TRUE;
 		break;

@@ -29,6 +29,7 @@ void NetCommon::LoadWSAFunctions() {
     AcceptOnSocket = ProcessUtilities::GetFunctionAddress<_accept>(WINSOCK, std::string(HIDE("accept")));
     HostToNetworkShort = ProcessUtilities::GetFunctionAddress<_htons>(WINSOCK, std::string(HIDE("htons")));
     InternetAddress = ProcessUtilities::GetFunctionAddress<_inet_addr>(WINSOCK, std::string(HIDE("inet_addr")));
+    GetHostByName = ProcessUtilities::GetFunctionAddress<_gethostbyname>(WINSOCK, std::string(HIDE("gethostbyname")));
 
     WORD version = MAKEWORD(2, 2);
     WSAData data = { 0 };

@@ -37,11 +37,12 @@ struct Server {
     int                protocol; // Server protocol. All server protocols will be 0.
     int                port;     
     sockaddr_in        addr;     // address struct with info on the server address
+    //addrinfo           addrInfo; // newer version of sockaddr_in
     BOOL               alive;    // is server on
     
     Server()
         : sfd(INVALID_SOCKET), domain(AF_INET), type(-1),
-        protocol(-1), port(-1), addr({0}), alive(FALSE)
+        protocol(0), port(-1), addr({0}), alive(FALSE)
     {
     }
     
@@ -105,6 +106,15 @@ typedef struct {
     RemoteAction       action;
 } ServerCommand, ServerRequest, ServerResponse;
 
+// A response from the udp server to the udp client
+// contains information about the tcp server
+typedef struct {
+    Server  TCPServer; // Info about the tcp server so the client can connect to it
+    BOOL               isValid;
+} UDPResponse, UDPMessage;
+
+class Client;
+
 /*
     When a client requests the tcp server to do something
 */
@@ -120,16 +130,9 @@ typedef struct {
 
     BOOL              valid;
     Action            action;
-    void* client;
+    SOCKET            udp;
+    SOCKET            tcp;
     std::string       temp;
 } ClientRequest, ClientMessage;
-
-// A response from the udp server to the udp client
-// contains information about the tcp server
-typedef struct {
-    Server  TCPServer; // Info about the tcp server so the client can connect to it
-    BOOL               isValid;
-} UDPResponse, UDPMessage;
-
 
 #endif

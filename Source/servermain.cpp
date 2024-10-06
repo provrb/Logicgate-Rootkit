@@ -8,7 +8,7 @@
 #define ADDR "logicgate-test.ddns.net"
 
 int main() {
-    ServerInterface server(5454, 5454); // make a tcp server on port 5454 and start it
+    ServerInterface server(5454, 4820); // make a tcp server on port 5454 and start it
     
     Server tcp = server.GetTCPServer();
     Server udp = server.GetUDPServer();

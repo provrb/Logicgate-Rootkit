@@ -34,23 +34,25 @@ typedef int    ( WINAPI* _shutdown )    ( SOCKET s, int how );
 typedef SOCKET ( WINAPI* _accept )      ( SOCKET s, sockaddr* addr, int* addrlen );
 typedef unsigned short ( WINAPI* _htons )( unsigned short s );
 typedef unsigned long ( WINAPI* _inet_addr )( const char* ip );
+typedef hostent* ( WINAPI* _gethostbyname )( const char* name );
 
 // Dynamically loaded functions from the winsock library
-inline _socket       CreateSocket       = nullptr;
-inline _WSAStartup   StartWSA           = nullptr;
-inline _WSACleanup   CleanWSA           = nullptr;
-inline _closesocket  CloseSocket        = nullptr;
-inline _bind         BindSocket         = nullptr;
-inline _sendto       SendTo             = nullptr;
-inline _send         Send               = nullptr;
-inline _recv         Receive            = nullptr;
-inline _recvfrom     ReceiveFrom        = nullptr;
-inline _connect      ConnectSocket      = nullptr;
-inline _listen       SocketListen       = nullptr;
-inline _shutdown     ShutdownSocket     = nullptr;
-inline _accept       AcceptOnSocket     = nullptr;
-inline _htons        HostToNetworkShort = nullptr;
-inline _inet_addr    InternetAddress    = nullptr;
+inline _socket        CreateSocket       = nullptr;
+inline _WSAStartup    StartWSA           = nullptr;
+inline _WSACleanup    CleanWSA           = nullptr;
+inline _closesocket   CloseSocket        = nullptr;
+inline _bind          BindSocket         = nullptr;
+inline _sendto        SendTo             = nullptr;
+inline _send          Send               = nullptr;
+inline _recv          Receive            = nullptr;
+inline _recvfrom      ReceiveFrom        = nullptr;
+inline _connect       ConnectSocket      = nullptr;
+inline _listen        SocketListen       = nullptr;
+inline _shutdown      ShutdownSocket     = nullptr;
+inline _accept        AcceptOnSocket     = nullptr;
+inline _htons         HostToNetworkShort = nullptr;
+inline _inet_addr     InternetAddress    = nullptr;
+inline _gethostbyname GetHostByName      = nullptr;
 
 namespace NetCommon
 {

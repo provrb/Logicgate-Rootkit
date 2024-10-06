@@ -97,10 +97,8 @@ public:
 		after receiving a message from a client over udp.
 		UDPMessage contains this class for the TCPServer
 		to update the clients connection client-side.
-	*/
-	BOOL           UDPSendMessageToClient(long cuid, UDPMessage& message);
-	
-	BOOL           UDPSendMessageToClient(Client& client, UDPMessage& message);
+	*/	
+	BOOL           UDPSendMessageToClient(Client clientInfo, UDPMessage& message);
 
 
 	/*
@@ -176,7 +174,7 @@ protected:
 	*/
 	RSAKeys		   GenerateRSAPair();
 
-	BOOL           PerformUDPRequest(ClientMessage req);
+	BOOL           PerformUDPRequest(ClientMessage req, sockaddr_in incomingAddr);
 
 	template <typename Data>
 	Data           DecryptClientData(BYTESTRING cipher, long cuid);
