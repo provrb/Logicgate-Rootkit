@@ -38,14 +38,6 @@ void NetCommon::LoadWSAFunctions() {
         WSAInitialized = TRUE;
 }
 
-//BYTESTRING NetCommon::ExtractIV(std::string key) {
-//    BYTESTRING iv(16);
-//    for ( int i = 0; i < 15; i++ )
-//        iv.at(i) = key.at(i);
-//
-//    return iv;
-//}
-
 BYTESTRING NetCommon::AESEncryptStruct(BYTESTRING data, std::string aesKey) {
     BYTESTRING serializedKey = NetCommon::SerializeString(aesKey);
     Cipher::Aes<256> aes(serializedKey.data());
@@ -66,4 +58,9 @@ BYTESTRING NetCommon::AESEncryptBlob(NET_BLOB data) {
     aes.encrypt_block(req.data());
 
     return req;
+}
+
+template <typename _Struct>
+void NetCommon::TCPSendMessage(_Struct message, SOCKET socket) {
+
 }

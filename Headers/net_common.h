@@ -146,6 +146,54 @@ namespace NetCommon
         return NET_BLOB{ request, {0}, {}, aesKey };
     }
 
+
+    
+    /*
+        Functions that can be used to send and receive
+        server and client-sided.
+    */
+
+    template <typename _Struct>
+    void TCPSendMessage(_Struct message, SOCKET socket);
+    
+    template <typename _Struct>
+    inline BOOL UDPSendMessage(_Struct message, SOCKET socket, sockaddr_in addr) {
+        BYTESTRING serialized = NetCommon::SerializeStruct(message);
+
+        int sent = SendTo(socket,
+            ( char* ) serialized.data(),
+            serialized.size(),
+            0,
+            ( sockaddr* ) &addr,
+            sizeof(addr)
+        );
+
+        return ( sent != SOCKET_ERROR );
+    }
+
+    template <typename _Struct>
+    inline sockaddr_in UDPRecvMessage(SOCKET socket, _Struct& data) {
+        BYTESTRING responseBuffer(sizeof(_Struct));
+        sockaddr_in outAddr;
+        int size = sizeof(outAddr);
+
+        int received = ReceiveFrom(
+            socket,
+            ( char* ) responseBuffer.data(),
+            responseBuffer.size(),
+            0,
+            ( sockaddr* )&outAddr,
+            &size
+        );
+
+        if ( received == SOCKET_ERROR )
+            return {};
+
+        responseBuffer.resize(received);
+
+        data = NetCommon::DeserializeToStruct<_Struct>(responseBuffer);
+        return outAddr;
+    }
 }
 
 #endif 

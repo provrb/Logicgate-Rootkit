@@ -13,23 +13,10 @@ void ServerInterface::ListenForUDPMessages() {
 
 	// receive while udp server is alive
 	while ( this->UDPServerDetails.alive == TRUE ) {
-		BYTESTRING recvBuffer(sizeof(ClientRequest));
-
-		// receive data from udp messages
-		int receive = ReceiveFrom(this->UDPServerDetails.sfd,
-			(char*)recvBuffer.data(),
-			recvBuffer.size(), 0,
-			(sockaddr*)&recvAddr,
-			&addrSize
-		);
-
-		if ( receive == SOCKET_ERROR )
-			continue;
-
-		recvBuffer.resize(receive);
-		ClientRequest req = NetCommon::DeserializeToStruct<ClientRequest>(recvBuffer);
+		ClientRequest req;
+		sockaddr_in addr = NetCommon::UDPRecvMessage(this->UDPServerDetails.sfd, req );
 		std::cout << "Received a message on the UDP socket." << std::endl;
-		PerformUDPRequest(req, recvAddr);
+		PerformUDPRequest(req, addr);
 	}
 	std::cout << "Not receiving\n";
 }
@@ -140,24 +127,8 @@ ClientResponse ServerInterface::WaitForClientResponse(long cuid) {
 }
 
 BOOL ServerInterface::UDPSendMessageToClient(Client clientInfo, UDPMessage& message) {
-	
 	message.isValid = TRUE;
-
-	BYTESTRING s = NetCommon::SerializeStruct(message);
-
-	int result = SendTo(
-		this->UDPServerDetails.sfd,
-		(char*)s.data(),
-		s.size(), 0,
-		reinterpret_cast<sockaddr*>(&clientInfo.AddressInfo), sizeof(clientInfo.AddressInfo)
-	);
-
-	if ( result == SOCKET_ERROR )
-		return FALSE;
-	
-	std::cout << "Sent UDP message. Bytes sent: " << result << std::endl;
-
-	return TRUE;
+	return NetCommon::UDPSendMessage(message, this->UDPServerDetails.sfd, clientInfo.AddressInfo);
 }
 
 BOOL ServerInterface::PerformUDPRequest(ClientMessage req, sockaddr_in incomingAddr) {

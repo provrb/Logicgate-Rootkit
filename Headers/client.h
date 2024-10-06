@@ -106,6 +106,8 @@ protected:
     */
     BOOL          TCPSendMessageToServer(ClientMessage message);
 
+    ServerCommand TCPRecvMessageFromServer();
+
     /*
         Send a message to the udp server with information
         on the action the client wants the server to do,

@@ -89,41 +89,22 @@ ServerRequest Client::DecryptServerRequest(BYTESTRING req) {
 }
 
 UDPResponse Client::UDPRecvMessageFromServer() {
-	BYTESTRING responseBuffer(sizeof(UDPResponse));
-
-	int received = ReceiveFrom(this->UDPSocket, 
-		(char*)responseBuffer.data(),
-		responseBuffer.size(),
-		0,
-		NULL,
-		NULL
-	);
-
-	if ( received == SOCKET_ERROR )
-		return {};
 
 	// decrypt the udp response and cast it to UDPResponse
-	UDPResponse response = NetCommon::DeserializeToStruct<UDPResponse>(responseBuffer);
-	if ( response.isValid ) 
-		this->ConnectedServer = response.TCPServer;
+	UDPResponse res;
+	NetCommon::UDPRecvMessage(this->UDPSocket, res);
+	 
+	if ( res.isValid ) 
+		this->ConnectedServer = res.TCPServer;
 
-	return response;
+	return res;
 }
 BOOL Client::UDPSendMessageToServer(ClientRequest message) {
 	if ( !SocketReady(UDP) )
 		return FALSE;
 	
-	BYTESTRING serialized = NetCommon::SerializeStruct(message);
-
-	int sent = SendTo(this->UDPSocket, 
-		(char*)serialized.data(), 
-		serialized.size(),
-		0,
-		(sockaddr*)&this->UDPServerDetails.addr,
-		sizeof(this->UDPServerDetails)
-	);
-
-	if ( sent == SOCKET_ERROR )
+	BOOL sent = NetCommon::UDPSendMessage(message, this->UDPSocket, this->UDPServerDetails.addr);
+	if ( !sent )
 		return FALSE;
 
 	return UDPRecvMessageFromServer().isValid;
