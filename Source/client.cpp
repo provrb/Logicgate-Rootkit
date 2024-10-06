@@ -53,9 +53,7 @@ BOOL Client::Connect() {
 	if ( this->UDPSocket == INVALID_SOCKET )
 		return FALSE;
 
-
 	ClientRequest request = {};
-
 	request.action = ClientRequest::Action::CONNECT_CLIENT;
 	request.valid = TRUE;
 

