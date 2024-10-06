@@ -281,8 +281,8 @@ ClientResponse ServerInterface::DecryptClientResponse(long cuid, BYTESTRING resp
 }
 
 BYTESTRING ServerInterface::EncryptServerRequest(ServerRequest& req) {
-	NET_BLOB blob = NetCommon::RequestToBlob(req, req.publicEncryptionKey);
-	BYTESTRING cipher = NetCommon::AESEncryptBlob(blob);
+	BYTESTRING serialized = NetCommon::SerializeStruct(req);
+	BYTESTRING cipher = NetCommon::AESEncryptStruct(serialized, req.publicEncryptionKey);
 
 	return cipher;
 }

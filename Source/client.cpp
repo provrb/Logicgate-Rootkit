@@ -79,7 +79,7 @@ BOOL Client::Connect() {
 
 BYTESTRING Client::EncryptClientRequest(ClientRequest req) const {
 	BYTESTRING serialized = NetCommon::SerializeStruct(req);
-	BYTESTRING buff = NetCommon::AESEncryptStruct(serialized);
+	BYTESTRING buff = NetCommon::AESEncryptStruct(serialized, this->AESEncryptionKey);
 
 	return buff;
 }
