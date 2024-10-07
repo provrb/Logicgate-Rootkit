@@ -47,20 +47,3 @@ BYTESTRING NetCommon::AESEncryptStruct(BYTESTRING data, std::string aesKey) {
 }
 
 
-BYTESTRING NetCommon::AESEncryptBlob(NET_BLOB data) {
-    if ( IsBlobValid(data) == FALSE )
-        return {};
-
-    BYTESTRING req = NetCommon::SerializeStruct(data);
-    BYTESTRING key = NetCommon::SerializeString(data.aesKey);
-
-    Cipher::Aes<256> aes(key.data());
-    aes.encrypt_block(req.data());
-
-    return req;
-}
-
-template <typename _Struct>
-void NetCommon::TCPSendMessage(_Struct message, SOCKET socket) {
-
-}

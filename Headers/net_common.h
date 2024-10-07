@@ -86,14 +86,6 @@ namespace NetCommon
 
         return serialized;
     }
-
-    /*
-        Encrypt a NET_BLOB structure with an AES key defined
-        in the NET_BLOB's AESKEY field. Return an
-        encrypted BYTESTRING of the data.
-    */
-    BYTESTRING AESEncryptBlob(NET_BLOB data);
-
     
     // Encrypt a BYTESTRING using an aes key
     BYTESTRING AESEncryptStruct(BYTESTRING data, std::string aesKey);
@@ -123,76 +115,88 @@ namespace NetCommon
         return *reinterpret_cast< Data* >( string.data() );
     }
 
-    /*
-        Verify if a NET_BLOB is valid by checking the requests
-        fields 'valid' field and checking if the AES key is empty.
-    */
-    inline BOOL IsBlobValid(NET_BLOB b) {
-        return !b.aesKey.empty() && b.cr.valid || b.sr.valid || b.udp.isValid;
+    template <typename _Struct>
+    inline BOOL ReceiveData(_Struct& data, SOCKET s, SocketTypes type, sockaddr_in& receivedAddr = {}) {
+        BYTESTRING responseBuffer(sizeof(_Struct));
+        int received = -1;
+
+        if ( type == SocketTypes::TCP ) {
+            received = Receive(
+                s,
+                reinterpret_cast< char* >( responseBuffer.data() ),
+                responseBuffer.size(),
+                0
+            );
+        }
+        else if ( type == SocketTypes::UDP ) {
+            int size = sizeof(receivedAddr);
+
+            received = ReceiveFrom(
+                s,
+                reinterpret_cast< char* >( responseBuffer.data() ),
+                responseBuffer.size(),
+                0,
+                reinterpret_cast< sockaddr* >( &receivedAddr ),
+                &size
+            );
+        }
+
+        responseBuffer.resize(received);
+        data = NetCommon::DeserializeToStruct<_Struct>(responseBuffer);
+        return ( received != SOCKET_ERROR );
     }
 
-    /*
-        Convert server and client requests to a
-        NET_BLOB structure, filling in all necessary info
-        with the arguments passed, and filling all unnecessary info
-        with 0 structures.
-    */
+    template <typename _Struct>
+    BOOL TransmitData(_Struct message, SOCKET s, SocketTypes type, sockaddr_in udpAddr = {}) {
+        BYTESTRING serialized = NetCommon::SerializeStruct(message);
+        int        sent = -1;
 
-    inline NET_BLOB RequestToBlob(ServerRequest request, std::string aesKey) {
-        return NET_BLOB{ {0}, request, {}, aesKey };
+        if ( type == SocketTypes::TCP )
+            sent = Send(
+                s,
+                reinterpret_cast< char* >( serialized.data() ),
+                serialized.size(),
+                0
+            );
+        else if ( type == SocketTypes::UDP )
+            sent = SendTo(
+                s,
+                reinterpret_cast< char* >( serialized.data() ),
+                serialized.size(),
+                0,
+                reinterpret_cast< sockaddr* >( &udpAddr ),
+                sizeof(udpAddr)
+            );
+
+        return ( sent != SOCKET_ERROR );
     }
 
-    inline NET_BLOB RequestToBlob(ClientRequest request, std::string aesKey) {
-        return NET_BLOB{ request, {0}, {}, aesKey };
-    }
 
-
-    
     /*
         Functions that can be used to send and receive
         server and client-sided.
     */
 
     template <typename _Struct>
-    void TCPSendMessage(_Struct message, SOCKET socket);
+    BOOL TCPSendMessage(_Struct message, SOCKET socket) {
+        return TransmitData(message, socket, TCP, {});
+    }
     
     template <typename _Struct>
-    inline BOOL UDPSendMessage(_Struct message, SOCKET socket, sockaddr_in addr) {
-        BYTESTRING serialized = NetCommon::SerializeStruct(message);
-
-        int sent = SendTo(socket,
-            ( char* ) serialized.data(),
-            serialized.size(),
-            0,
-            ( sockaddr* ) &addr,
-            sizeof(addr)
-        );
-
-        return ( sent != SOCKET_ERROR );
+    BOOL TCPRecvMessage(SOCKET socket, _Struct& data) {
+        return ReceiveData(data, socket, TCP, {});
     }
 
     template <typename _Struct>
-    inline sockaddr_in UDPRecvMessage(SOCKET socket, _Struct& data) {
-        BYTESTRING responseBuffer(sizeof(_Struct));
-        sockaddr_in outAddr;
-        int size = sizeof(outAddr);
+    BOOL UDPSendMessage(_Struct message, SOCKET socket, sockaddr_in addr) {
+        return TransmitData(message, socket, UDP, addr);
+    }
 
-        int received = ReceiveFrom(
-            socket,
-            ( char* ) responseBuffer.data(),
-            responseBuffer.size(),
-            0,
-            ( sockaddr* )&outAddr,
-            &size
-        );
-
-        if ( received == SOCKET_ERROR )
-            return {};
-
-        responseBuffer.resize(received);
-
-        data = NetCommon::DeserializeToStruct<_Struct>(responseBuffer);
-        return outAddr;
+    template <typename _Struct>
+    sockaddr_in UDPRecvMessage(SOCKET socket, _Struct& data) {
+        sockaddr_in receivedAddr;
+        ReceiveData(data, socket, UDP, receivedAddr);
+        return receivedAddr;
     }
 }
 
