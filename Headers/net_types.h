@@ -113,8 +113,6 @@ typedef struct {
     BOOL               isValid;
 } UDPResponse, UDPMessage;
 
-class Client;
-
 /*
     When a client requests the tcp server to do something
 */
