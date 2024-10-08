@@ -32,9 +32,14 @@ public:
     }
 
     inline long GenerateCUID() {
-        std::default_random_engine generator;
-        std::uniform_int_distribution<long> dist(1, 10400);
-        return dist(generator);
+        std::random_device gen;
+        std::mt19937 rng(gen());
+        std::uniform_int_distribution<std::mt19937::result_type> dist(1, 10400);
+        long generated = dist(rng);
+
+        std::cout << "Generated a client CUID.\n";
+
+        return generated;
     }
 
     inline void SetRSAKeys(std::pair<std::string, std::string> RSAKeys) {
