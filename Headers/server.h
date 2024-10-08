@@ -202,16 +202,20 @@ protected:
 	// compared to just receiving the serialized struct that would still be encrypted
 	template <typename _Struct>
 	inline _Struct ReceiveDataFrom(SOCKET s, long cuid) {
+		std::cout << "Receive data from\n";
 		Client client = GetClientData(cuid).first;
 		if ( client.ClientUID == -1 )
 			return {};
 
+		std::cout << "client data\n";
+
 		BYTESTRING outBytestring;
-		sockaddr_in temp;
 		BOOL received = NetCommon::ReceiveData(outBytestring, s, SocketTypes::TCP);
 		if ( !received )
 			return {};
 		
+		std::cout << "Receive data\n";
+
 		_Struct decryptedReq = NetCommon::DecryptInternetData<_Struct>(outBytestring, client.AESEncryptionKey);
 		return decryptedReq;
 	}

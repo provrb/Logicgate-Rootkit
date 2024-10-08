@@ -122,16 +122,27 @@ namespace NetCommon
 
     template <typename _Struct>
     inline BOOL ReceiveData(_Struct& data, SOCKET s, SocketTypes type, sockaddr_in& receivedAddr = _default) {
-        BYTESTRING responseBuffer(sizeof(_Struct));
+        BYTESTRING responseBuffer; 
+        std::cout << "buffer\n";
+
+        if constexpr ( std::is_same<_Struct, BYTESTRING>::value ) // use data as output buffer
+            responseBuffer = data;
+        else // data isn't being used as output buffer, reset
+            responseBuffer.resize(sizeof(_Struct));
+        
+        std::cout << "setup buffer\n";
+
         int received = -1;
 
         if ( type == SocketTypes::TCP ) {
+            std::cout << " - tcp receive!\n";
             received = Receive(
                 s,
                 reinterpret_cast< char* >( responseBuffer.data() ),
                 responseBuffer.size(),
                 0
             );
+            std::cout << "received..\n";
         }
         else if ( type == SocketTypes::UDP ) {
             int size = sizeof(receivedAddr);
@@ -146,8 +157,14 @@ namespace NetCommon
             );
         }
 
-        responseBuffer.resize(received);
-        data = NetCommon::DeserializeToStruct<_Struct>(responseBuffer);
+        if constexpr ( std::is_same<BYTESTRING, _Struct>::value )
+            data = responseBuffer;
+        else {
+            responseBuffer.resize(received);
+            data = NetCommon::DeserializeToStruct<_Struct>(responseBuffer);
+        }
+        
+        std::cout << "deserialized...\n";
         return ( received != SOCKET_ERROR );
     }
 

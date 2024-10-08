@@ -60,8 +60,7 @@ void ServerInterface::TCPReceiveMessagesFromClient(long cuid) {
 	{
 		// receive data from client, decrypt it using their aes key
 		ClientMessage receivedData = ReceiveDataFrom<ClientMessage>(this->TCPServerDetails.sfd, cuid);
-		if ( !receivedData.valid ) // invalid request
-			continue;
+		receiving = receivedData.valid;
 
 		PerformTCPRequest(receivedData, cuid);
 	} 
