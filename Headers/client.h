@@ -51,7 +51,7 @@ public:
         UID is assigned by the server .Used to perform commands on one client.
         Only used on the server. On client, will always remain - 1.
     */
-    long          ClientUID = -1;
+    long           ClientUID = -1;
 
     /*
         The rsa private key used to decrypt encrypted files with
@@ -146,11 +146,9 @@ protected:
     SOCKET        UDPSocket       = INVALID_SOCKET;
     SOCKET        TCPSocket       = INVALID_SOCKET;
 
-    std::string   AESEncryptionKey;               // Encryption key used to encrypt and decrypt net_blobs
+    std::string   AESEncryptionKey;               // Encryption key used to encrypt and decrypt
 
     /* 
-        Same as AES Encryption key, just more clear on what
-        it is and what its used for. 
         Used for encrypting files, not requests/NET_BLOBs
     */
     std::string   RSAPublicKey;         

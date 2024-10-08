@@ -135,6 +135,10 @@ public:
 	/*
 		Get the client data from a client
 		in the client list using CUID.
+		
+		return value:
+		.first is Client class
+		.second is rsa keys
 	*/
 	inline const ClientData GetClientData(long cuid) {
 		if ( !ClientIsInClientList(cuid) )
@@ -169,6 +173,18 @@ protected:
 	}
 
 	/*
+		Not actually adding a ransomware, especially since this
+		code is open-source. Though, I would approach this by using
+		some sort of BTC wallet api and assigning every client a unique
+		wallet address or message to send, check if that is in the wallet transaction history.
+
+		May be implemented someday...
+	*/
+	inline BOOL IsRansomPaid(Client client) {
+		return TRUE; // return true always.
+	}
+
+	/*
 		Generate an RSA public and private key
 		and format it as an std::pair
 	*/
@@ -176,8 +192,29 @@ protected:
 
 	BOOL           PerformUDPRequest(ClientMessage req, sockaddr_in incomingAddr);
 
+	BOOL		   PerformTCPRequest(ClientMessage req, long cuid);
+
 	template <typename Data>
 	Data           DecryptClientData(BYTESTRING cipher, long cuid);
+
+	// receive data on tcp. we know we are received from someone
+	// with 'cuid', so then we can get their key and decrypt the incoming request
+	// compared to just receiving the serialized struct that would still be encrypted
+	template <typename _Struct>
+	inline _Struct ReceiveDataFrom(SOCKET s, long cuid) {
+		Client client = GetClientData(cuid).first;
+		if ( client.ClientUID == -1 )
+			return {};
+
+		BYTESTRING outBytestring;
+		sockaddr_in temp;
+		BOOL received = NetCommon::ReceiveData(outBytestring, s, SocketTypes::TCP);
+		if ( !received )
+			return {};
+		
+		_Struct decryptedReq = NetCommon::DecryptInternetData<_Struct>(outBytestring, client.AESEncryptionKey);
+		return decryptedReq;
+	}
 
 	/*
 		A dictionary with the clientId that contains

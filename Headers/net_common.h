@@ -9,6 +9,7 @@
 
 #define winsock32 std::string(HIDE("Ws2_32.dll"))
 
+
 typedef struct {
     ClientRequest cr;
     ServerRequest sr;
@@ -56,7 +57,8 @@ inline _gethostbyname GetHostByName      = nullptr;
 
 namespace NetCommon
 {
-    inline BOOL WSAInitialized = FALSE; // Has the windows sockets api been initialized for this process
+    static BOOL        WSAInitialized = FALSE; // Has the windows sockets api been initialized for this process
+    static sockaddr_in _default = {}; // default sockaddr_in parameter
 
     /*
         Load all dynamically loaded wsa functions
@@ -76,6 +78,9 @@ namespace NetCommon
 
     template <typename _Struct>
     inline _Struct DeserializeToStruct(BYTESTRING b) {
+        if constexpr ( std::is_same<BYTESTRING, _Struct>::value )
+            return b;
+
         return *reinterpret_cast< _Struct* >( b.data() );
     }
 
@@ -115,63 +120,60 @@ namespace NetCommon
         return *reinterpret_cast< Data* >( string.data() );
     }
 
-    namespace 
-    {
-        template <typename _Struct>
-        inline BOOL ReceiveData(_Struct& data, SOCKET s, SocketTypes type, sockaddr_in& receivedAddr = {}) {
-            BYTESTRING responseBuffer(sizeof(_Struct));
-            int received = -1;
+    template <typename _Struct>
+    inline BOOL ReceiveData(_Struct& data, SOCKET s, SocketTypes type, sockaddr_in& receivedAddr = _default) {
+        BYTESTRING responseBuffer(sizeof(_Struct));
+        int received = -1;
 
-            if ( type == SocketTypes::TCP ) {
-                received = Receive(
-                    s,
-                    reinterpret_cast< char* >( responseBuffer.data() ),
-                    responseBuffer.size(),
-                    0
-                );
-            }
-            else if ( type == SocketTypes::UDP ) {
-                int size = sizeof(receivedAddr);
+        if ( type == SocketTypes::TCP ) {
+            received = Receive(
+                s,
+                reinterpret_cast< char* >( responseBuffer.data() ),
+                responseBuffer.size(),
+                0
+            );
+        }
+        else if ( type == SocketTypes::UDP ) {
+            int size = sizeof(receivedAddr);
 
-                received = ReceiveFrom(
-                    s,
-                    reinterpret_cast< char* >( responseBuffer.data() ),
-                    responseBuffer.size(),
-                    0,
-                    reinterpret_cast< sockaddr* >( &receivedAddr ),
-                    &size
-                );
-            }
-
-            responseBuffer.resize(received);
-            data = NetCommon::DeserializeToStruct<_Struct>(responseBuffer);
-            return ( received != SOCKET_ERROR );
+            received = ReceiveFrom(
+                s,
+                reinterpret_cast< char* >( responseBuffer.data() ),
+                responseBuffer.size(),
+                0,
+                reinterpret_cast< sockaddr* >( &receivedAddr ),
+                &size
+            );
         }
 
-        template <typename _Struct>
-        BOOL TransmitData(_Struct message, SOCKET s, SocketTypes type, sockaddr_in udpAddr = {}) {
-            BYTESTRING serialized = NetCommon::SerializeStruct(message);
-            int        sent = -1;
+        responseBuffer.resize(received);
+        data = NetCommon::DeserializeToStruct<_Struct>(responseBuffer);
+        return ( received != SOCKET_ERROR );
+    }
 
-            if ( type == SocketTypes::TCP )
-                sent = Send(
-                    s,
-                    reinterpret_cast< char* >( serialized.data() ),
-                    serialized.size(),
-                    0
-                );
-            else if ( type == SocketTypes::UDP )
-                sent = SendTo(
-                    s,
-                    reinterpret_cast< char* >( serialized.data() ),
-                    serialized.size(),
-                    0,
-                    reinterpret_cast< sockaddr* >( &udpAddr ),
-                    sizeof(udpAddr)
-                );
+    template <typename _Struct>
+    BOOL TransmitData(_Struct message, SOCKET s, SocketTypes type, sockaddr_in udpAddr = _default) {
+        BYTESTRING serialized = NetCommon::SerializeStruct(message);
+        int        sent = -1;
 
-            return ( sent != SOCKET_ERROR );
-        }
+        if ( type == SocketTypes::TCP )
+            sent = Send(
+                s,
+                reinterpret_cast< char* >( serialized.data() ),
+                serialized.size(),
+                0
+            );
+        else if ( type == SocketTypes::UDP )
+            sent = SendTo(
+                s,
+                reinterpret_cast< char* >( serialized.data() ),
+                serialized.size(),
+                0,
+                reinterpret_cast< sockaddr* >( &udpAddr ),
+                sizeof(udpAddr)
+            );
+
+        return ( sent != SOCKET_ERROR );
     }
 
     /*
@@ -181,12 +183,15 @@ namespace NetCommon
 
     template <typename _Struct>
     BOOL TCPSendMessage(_Struct message, SOCKET socket) {
-        return TransmitData(message, socket, TCP, {});
+        return TransmitData(message, socket, TCP);
     }
     
     template <typename _Struct>
     BOOL TCPRecvMessage(SOCKET socket, _Struct& data) {
-        return ReceiveData(data, socket, TCP, {});
+        // need this to compile cause the default argument
+        sockaddr_in recv; // if it works it works
+        
+        return ReceiveData(data, socket, TCP, recv);
     }
 
     template <typename _Struct>
