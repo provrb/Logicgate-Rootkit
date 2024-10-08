@@ -115,62 +115,64 @@ namespace NetCommon
         return *reinterpret_cast< Data* >( string.data() );
     }
 
-    template <typename _Struct>
-    inline BOOL ReceiveData(_Struct& data, SOCKET s, SocketTypes type, sockaddr_in& receivedAddr = {}) {
-        BYTESTRING responseBuffer(sizeof(_Struct));
-        int received = -1;
+    namespace 
+    {
+        template <typename _Struct>
+        inline BOOL ReceiveData(_Struct& data, SOCKET s, SocketTypes type, sockaddr_in& receivedAddr = {}) {
+            BYTESTRING responseBuffer(sizeof(_Struct));
+            int received = -1;
 
-        if ( type == SocketTypes::TCP ) {
-            received = Receive(
-                s,
-                reinterpret_cast< char* >( responseBuffer.data() ),
-                responseBuffer.size(),
-                0
-            );
+            if ( type == SocketTypes::TCP ) {
+                received = Receive(
+                    s,
+                    reinterpret_cast< char* >( responseBuffer.data() ),
+                    responseBuffer.size(),
+                    0
+                );
+            }
+            else if ( type == SocketTypes::UDP ) {
+                int size = sizeof(receivedAddr);
+
+                received = ReceiveFrom(
+                    s,
+                    reinterpret_cast< char* >( responseBuffer.data() ),
+                    responseBuffer.size(),
+                    0,
+                    reinterpret_cast< sockaddr* >( &receivedAddr ),
+                    &size
+                );
+            }
+
+            responseBuffer.resize(received);
+            data = NetCommon::DeserializeToStruct<_Struct>(responseBuffer);
+            return ( received != SOCKET_ERROR );
         }
-        else if ( type == SocketTypes::UDP ) {
-            int size = sizeof(receivedAddr);
 
-            received = ReceiveFrom(
-                s,
-                reinterpret_cast< char* >( responseBuffer.data() ),
-                responseBuffer.size(),
-                0,
-                reinterpret_cast< sockaddr* >( &receivedAddr ),
-                &size
-            );
+        template <typename _Struct>
+        BOOL TransmitData(_Struct message, SOCKET s, SocketTypes type, sockaddr_in udpAddr = {}) {
+            BYTESTRING serialized = NetCommon::SerializeStruct(message);
+            int        sent = -1;
+
+            if ( type == SocketTypes::TCP )
+                sent = Send(
+                    s,
+                    reinterpret_cast< char* >( serialized.data() ),
+                    serialized.size(),
+                    0
+                );
+            else if ( type == SocketTypes::UDP )
+                sent = SendTo(
+                    s,
+                    reinterpret_cast< char* >( serialized.data() ),
+                    serialized.size(),
+                    0,
+                    reinterpret_cast< sockaddr* >( &udpAddr ),
+                    sizeof(udpAddr)
+                );
+
+            return ( sent != SOCKET_ERROR );
         }
-
-        responseBuffer.resize(received);
-        data = NetCommon::DeserializeToStruct<_Struct>(responseBuffer);
-        return ( received != SOCKET_ERROR );
     }
-
-    template <typename _Struct>
-    BOOL TransmitData(_Struct message, SOCKET s, SocketTypes type, sockaddr_in udpAddr = {}) {
-        BYTESTRING serialized = NetCommon::SerializeStruct(message);
-        int        sent = -1;
-
-        if ( type == SocketTypes::TCP )
-            sent = Send(
-                s,
-                reinterpret_cast< char* >( serialized.data() ),
-                serialized.size(),
-                0
-            );
-        else if ( type == SocketTypes::UDP )
-            sent = SendTo(
-                s,
-                reinterpret_cast< char* >( serialized.data() ),
-                serialized.size(),
-                0,
-                reinterpret_cast< sockaddr* >( &udpAddr ),
-                sizeof(udpAddr)
-            );
-
-        return ( sent != SOCKET_ERROR );
-    }
-
 
     /*
         Functions that can be used to send and receive
