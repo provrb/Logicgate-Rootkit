@@ -27,7 +27,6 @@ Client::Client() {
 		return;
 
 	sockaddr_in addr;
-
 	memcpy(&addr.sin_addr, host->h_addr_list[0], host->h_length);
 	addr.sin_family = AF_INET;
 	addr.sin_port = HostToNetworkShort(5454);
@@ -88,39 +87,30 @@ ServerRequest Client::DecryptServerRequest(BYTESTRING req) {
 	return NetCommon::DecryptInternetData<ServerRequest>(req, this->AESEncryptionKey);
 }
 
-UDPResponse Client::UDPRecvMessageFromServer() {
+sockaddr_in Client::UDPRecvMessageFromServer(UDPResponse& out) {
 
 	// decrypt the udp response and cast it to UDPResponse
-	UDPResponse res;
-	NetCommon::UDPRecvMessage(this->UDPSocket, res);
+	sockaddr_in outAddress = NetCommon::UDPRecvMessage(this->UDPSocket, out);
 	 
-	if ( res.isValid ) 
-		this->ConnectedServer = res.TCPServer;
+	if ( out.isValid ) 
+		this->ConnectedServer = out.TCPServer;
 
-	return res;
+	return outAddress;
 }
 BOOL Client::UDPSendMessageToServer(ClientRequest message) {
-	if ( !SocketReady(UDP) )
-		return FALSE;
-	
 	BOOL sent = NetCommon::UDPSendMessage(message, this->UDPSocket, this->UDPServerDetails.addr);
-	if ( !sent )
+	if ( !sent ) 
 		return FALSE;
 
-	return UDPRecvMessageFromServer().isValid;
+	// return if the response from the server is valid
+	UDPResponse response;
+	UDPRecvMessageFromServer(response);
+	
+	return response.isValid;
 }
 
 BOOL Client::TCPSendMessageToServer(ClientMessage message) {
-	if ( !SocketReady(TCP) ) 
-		return FALSE;
-
-	BYTESTRING encryptedRequest = EncryptClientRequest(message);
-
-	int sent = Send(this->TCPSocket, reinterpret_cast< char* >( encryptedRequest.data() ), encryptedRequest.size(), 0);
-	if ( sent == SOCKET_ERROR )
-		return FALSE;
-
-	return TRUE;
+	return NetCommon::TCPSendMessage(message, this->TCPSocket);
 }
 
 BOOL Client::MakeServerRequest(ClientRequest request, BOOL udp) {

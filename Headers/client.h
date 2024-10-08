@@ -118,7 +118,7 @@ protected:
     */
     BOOL          UDPSendMessageToServer(ClientMessage message);
 
-    UDPResponse   UDPRecvMessageFromServer();
+    sockaddr_in   UDPRecvMessageFromServer(UDPResponse& out);
 
     // Further details on client
     Server        ConnectedServer = {};          // Information on the clients connected server
