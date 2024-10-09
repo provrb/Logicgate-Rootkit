@@ -3,6 +3,7 @@
 #include <iostream>
 #include "../Headers/server.h"
 #include <openssl/rsa.h>
+#include <openssl/evp.h>
 
 // Link with ws2_32.lib
 #pragma comment(lib, "ws2_32.lib")
@@ -10,7 +11,7 @@
 
 int main() {
     ServerInterface server(5454, 4820); // make a tcp server on port 5454 and start it
-    
+
     Server tcp = server.GetTCPServer();
     Server udp = server.GetUDPServer();
     server.StartServer(tcp);
