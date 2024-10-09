@@ -52,12 +52,22 @@ BOOL ServerInterface::PerformTCPRequest(ClientMessage req, long cuid) {
 
 void ServerInterface::TCPReceiveMessagesFromClient(long cuid) {
 	std::cout << "New thread created to receive messages from client " << cuid << std::endl;
-	Client client = GetClientData(cuid).first;
+	Client* client = GetClientPtr(cuid);
 	BOOL receiving = FALSE;
+
+	if ( client == nullptr )
+		return;
 	
 	// tcp receive main loop
 	do 
 	{
+		// get a client response usually after an action is performed on the remote host
+		if ( client->ExpectingResponse ) {
+			client->LastClientResponse = client->RecentClientResponse;
+			client->RecentClientResponse = ReceiveDataFrom<ClientResponse>(this->TCPServerDetails.sfd, cuid);
+			continue;
+		}
+		
 		// receive data from client, decrypt it using their aes key
 		ClientMessage receivedData = ReceiveDataFrom<ClientMessage>(this->TCPServerDetails.sfd, cuid);
 		receiving = receivedData.valid;
@@ -171,7 +181,20 @@ BOOL ServerInterface::TCPSendMessageToClient(long cuid, ServerCommand& req) {
 }
 
 ClientResponse ServerInterface::WaitForClientResponse(long cuid) {
-	return {};
+	Client* client = GetClientPtr(cuid);
+	if ( client == nullptr ) return {};
+
+	client->ExpectingResponse = TRUE;
+
+	// wait until new client response
+	do {
+		Sleep(500); // wait 500 ms
+	} 
+	while ( client->RecentClientResponse.id != client->LastClientResponse.id );
+
+	client->ExpectingResponse = FALSE;
+
+	return client->RecentClientResponse;
 }
 
 BOOL ServerInterface::UDPSendMessageToClient(Client clientInfo, UDPMessage& message) {

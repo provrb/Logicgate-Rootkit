@@ -63,6 +63,7 @@ struct ClientResponse {
     std::string        message;         // String message, detailed info on the error or action
     ClientResponseCode responseCode = C_ERROR;    
     RemoteAction       actionPerformed; // ( if any, otherwise put NONE )
+    long               id; // identify different clientreponses from eachother
 };
 
 struct ProcessInformation {

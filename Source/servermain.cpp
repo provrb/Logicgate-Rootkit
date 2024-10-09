@@ -2,6 +2,7 @@
 #include <ws2tcpip.h>
 #include <iostream>
 #include "../Headers/server.h"
+#include <openssl/rsa.h>
 
 // Link with ws2_32.lib
 #pragma comment(lib, "ws2_32.lib")

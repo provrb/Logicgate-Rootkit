@@ -147,6 +147,11 @@ public:
 		return GetClientList().at(cuid);
 	}
 
+	inline Client* GetClientPtr(long cuid) {
+		if ( !ClientIsInClientList(cuid) ) return nullptr;
+		return &GetClientList().at(cuid).first;
+	}
+
 	inline std::unordered_map<long, ClientData>& GetClientList() {
 		std::lock_guard<std::mutex> lock(ClientListMutex);
 		return this->ClientList;
