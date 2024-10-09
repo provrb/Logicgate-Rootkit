@@ -166,7 +166,8 @@ BOOL ServerInterface::StartServer(Server& server) {
 }
 
 BOOL ServerInterface::TCPSendMessageToClient(long cuid, ServerCommand& req) {
-	return TRUE;
+	Client c = GetClientData(cuid).first;
+	return NetCommon::TCPSendMessage(req, c.TCPSocket);
 }
 
 ClientResponse ServerInterface::WaitForClientResponse(long cuid) {

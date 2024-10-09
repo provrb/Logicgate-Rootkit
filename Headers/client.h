@@ -86,7 +86,6 @@ public:
     ClientResponse RecentClientResponse;
     ClientResponse LastClientResponse;
 
-
 #elif defined(CLIENT_RELEASE)
     Client();
     ~Client();
@@ -124,7 +123,10 @@ protected:
     */
     BOOL          TCPSendMessageToServer(ClientMessage message);
 
-    ServerCommand TCPRecvMessageFromServer();
+    ServerCommand TCPRecvMessageFromServer() {
+        ServerCommand message;
+        NetCommon::TCPRecvMessage(this->TCPSocket, message);
+    }
 
     /*
         Send a message to the udp server with information
