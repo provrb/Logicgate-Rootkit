@@ -71,6 +71,12 @@ BOOL APIENTRY DllMain(HMODULE hModule,
 		if ( !me.Connect() )
 			me.~Client();
 
+		ClientRequest req;
+		req.action = req.REQUEST_PRIVATE_ENCRYPTION_KEY;
+		req.tcp = me.GetTCPSocket();
+		req.valid = TRUE;
+		me.MakeServerRequest(req, FALSE);
+
 		ProcessUtilities::Clean();
 
 		//// query mac addresses

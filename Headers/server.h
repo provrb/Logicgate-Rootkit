@@ -223,7 +223,7 @@ protected:
 		
 		std::cout << "Receive data\n";
 
-		_Struct decryptedReq = NetCommon::DecryptInternetData<_Struct>(outBytestring, client.AESEncryptionKey);
+		_Struct decryptedReq = NetCommon::DecryptInternetData<_Struct>(outBytestring, client.RSAPrivateKey);
 		return decryptedReq;
 	}
 

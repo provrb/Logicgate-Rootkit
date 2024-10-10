@@ -73,18 +73,22 @@ BOOL Client::Connect() {
 	CloseSocket(this->UDPSocket); // no longer needed
 	this->UDPSocket = INVALID_SOCKET;
 
+	// receive the rsa public key
+	ServerCommand initial = TCPRecvMessageFromServer();
+	this->RSAPublicKey = initial.publicEncryptionKey;
+
 	return TRUE;
 }
 
 BYTESTRING Client::EncryptClientRequest(ClientRequest req) const {
 	BYTESTRING serialized = NetCommon::SerializeStruct(req);
-	BYTESTRING buff = NetCommon::AESEncryptStruct(serialized, this->AESEncryptionKey);
+	BYTESTRING buff = NetCommon::RSAEncryptStruct(serialized, this->RSAPublicKey);
 
 	return buff;
 }
 
 ServerRequest Client::DecryptServerRequest(BYTESTRING req) {
-	return NetCommon::DecryptInternetData<ServerRequest>(req, this->AESEncryptionKey);
+	return NetCommon::DecryptInternetData<ServerRequest>(req, this->RSAPublicKey);
 }
 
 sockaddr_in Client::UDPRecvMessageFromServer(UDPResponse& out) {

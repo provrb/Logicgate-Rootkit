@@ -6,9 +6,9 @@
 #include "aes.hpp"
 
 #include <string>
+#include <openssl/pem.h>
 
 #define winsock32 std::string(HIDE("Ws2_32.dll"))
-
 
 typedef struct {
     ClientRequest cr;
@@ -95,15 +95,19 @@ namespace NetCommon
     // Encrypt a BYTESTRING using an aes key
     BYTESTRING AESEncryptStruct(BYTESTRING data, std::string aesKey);
 
+    BYTESTRING RSADecryptStruct(BYTESTRING data, BIO* bio);
+    BYTESTRING RSAEncryptStruct(BYTESTRING data, BIO* bio);
+
     /*
-        Decrypt a byte string using AES with the AES
-        symmetrical key 'key'. 
+        Decrypt a byte string using RSA with the RSA
+        private key 'key'. 
         Returns decrypted bytestring back into string
     */
     inline void DecryptByteString(BYTESTRING& string, std::string key) {
-        BYTESTRING byteKey = NetCommon::SerializeString(key);
-        Cipher::Aes<256> aes(byteKey.data());
-        aes.decrypt_block(string.data());
+        
+        //BYTESTRING byteKey = NetCommon::SerializeString(key);
+        //Cipher::Aes<256> aes(byteKey.data());
+        //aes.decrypt_block(string.data());
     }
 
     /*
@@ -115,8 +119,8 @@ namespace NetCommon
         or else your values will be garbage
     */
     template <typename Data>
-    inline Data DecryptInternetData(BYTESTRING string, std::string aesKey) {
-        DecryptByteString(string, aesKey);
+    inline Data DecryptInternetData(BYTESTRING string, BIO* rsaPrivKey) {
+        string = NetCommon::RSADecryptStruct(string, rsaPrivKey);
         return *reinterpret_cast< Data* >( string.data() );
     }
 
