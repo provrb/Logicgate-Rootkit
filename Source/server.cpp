@@ -12,7 +12,7 @@ RSAKeys ServerInterface::GenerateRSAPair() {
 	if ( EVP_PKEY_keygen_init(ctx) <= 0 )
 		return {};
 
-	if ( EVP_PKEY_CTX_set_rsa_keygen_bits(ctx, 2048) <= 0 )
+	if ( EVP_PKEY_CTX_set_rsa_keygen_bits(ctx, 1024) <= 0 )
 		return {};
 
 	EVP_PKEY* key = nullptr;
@@ -52,6 +52,8 @@ void ServerInterface::ListenForUDPMessages() {
 	sockaddr_in recvAddr;
 	int addrSize = sizeof(recvAddr);
 
+	std::cout << "Listening for udp messages\n";
+
 	// receive while udp server is alive
 	while ( this->UDPServerDetails.alive == TRUE ) {
 		ClientRequest req;
@@ -79,8 +81,8 @@ BOOL ServerInterface::PerformTCPRequest(ClientMessage req, long cuid) {
 		}
 
 		responseCommand.action = RemoteAction::RETURN_PRIVATE_RSA_KEY;
-		responseCommand.publicEncryptionKey = client.RSAPublicKey;
-		responseCommand.privateEncryptionKey = client.RSAPrivateKey;
+		//responseCommand.publicEncryptionKey = NetCommon::ConvertBIOToString(client.RSAPublicKey);
+		responseCommand.privateEncryptionKey = NetCommon::ConvertBIOToString(client.RSAPrivateKey);
 		success = TCPSendMessageToClient(cuid, responseCommand);
 		std::cout << "sending\n";
 
@@ -133,20 +135,36 @@ void ServerInterface::AcceptTCPConnections() {
 
 		Client newClient(addr); // make a new client and store the addr info in it
 		newClient.SetRSAKeys(this->GenerateRSAPair());
+		newClient.TCPSocket = clientSocket;
 		AddToClientList(newClient); // add them to the client list
-
+		
 		std::cout << "- Added the client to the client list\n";
 
+		Sleep(1000);
+
+		std::cout << "sending key\n";
 		// send the rsa public key to the client on join
+		std::string bio = NetCommon::ConvertBIOToString(newClient.RSAPublicKey);
+		std::string b64 = macaron::Base64::Encode(bio);
+		std::cout << "base 64 key: " << b64 << std::endl;
 		ServerCommand cmd;
-		cmd.publicEncryptionKey = newClient.RSAPublicKey;
+		cmd.publicEncryptionKey = b64;
 		cmd.action = RETURN_PUBLIC_RSA_KEY;
 		cmd.valid = TRUE;
-		TCPSendMessageToClient(newClient.ClientUID, cmd);
 
-		//// start receiving tcp data from that client for the lifetime of that client
-		std::thread receive(&ServerInterface::TCPReceiveMessagesFromClient, this, newClient.ClientUID);
-		receive.detach();
+		BYTESTRING b = NetCommon::SerializeString(b64);
+		long s = b.size();
+		send(newClient.TCPSocket, ( char* ) &s, sizeof(s), 0);
+		std::cout << "sent size (" << s << ")\n";
+		send(newClient.TCPSocket, ( char* ) b.data(), b.size(), 0);
+
+		//BOOL success = NetCommon::TCPSendMessage(cmd, clientSocket);
+		std::cout << "successfully sent key\n";
+		//TCPSendMessageToClient(newClient.ClientUID, key);
+
+		////// start receiving tcp data from that client for the lifetime of that client
+		//std::thread receive(&ServerInterface::TCPReceiveMessagesFromClient, this, newClient.ClientUID);
+		//receive.detach();
 
 		// make it so we can send information to the client
 	}
@@ -374,8 +392,10 @@ ClientResponse ServerInterface::DecryptClientResponse(long cuid, BYTESTRING resp
 }
 
 BYTESTRING ServerInterface::EncryptServerRequest(ServerRequest& req) {
-	BYTESTRING serialized = NetCommon::SerializeStruct(req);
-	BYTESTRING cipher = NetCommon::RSAEncryptStruct(serialized, req.publicEncryptionKey);
+	//BYTESTRING serialized = NetCommon::SerializeStruct(req);
+	//BIO* b = NetCommon::GetBIOFromString(( char* ) req.publicEncryptionKey.c_str(), req.publicEncryptionKey.size());
+	//BYTESTRING cipher = NetCommon::RSAEncryptStruct(serialized, b);
 
-	return cipher;
+	//return cipher;
+	return {};
 }

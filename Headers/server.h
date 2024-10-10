@@ -3,9 +3,11 @@
 
 #include "net_common.h"
 #include "client.h"
+#include "External/base64.h"
 
 #include <thread>
 #include <mutex>
+#include <iostream>
 
 #include <openssl/bio.h>
 
@@ -208,7 +210,13 @@ protected:
 	// with 'cuid', so then we can get their key and decrypt the incoming request
 	// compared to just receiving the serialized struct that would still be encrypted
 	template <typename _Struct>
-	inline _Struct ReceiveDataFrom(SOCKET s, long cuid) {
+	inline _Struct ReceiveDataFrom(
+		SOCKET s,
+		long cuid,
+		BOOL encrypted = FALSE,
+		BIO* rsaKey = {} // server uses priv to decrypt, client uses pub to decrypt
+	)
+	{
 		std::cout << "Receive data from\n";
 		Client client = GetClientData(cuid).first;
 		if ( client.ClientUID == -1 )
@@ -216,15 +224,15 @@ protected:
 
 		std::cout << "client data\n";
 
-		BYTESTRING outBytestring;
-		BOOL received = NetCommon::ReceiveData(outBytestring, s, SocketTypes::TCP);
+		_Struct outData;
+		sockaddr_in _;
+		BOOL received = NetCommon::ReceiveData(outData, s, SocketTypes::TCP, _, encrypted, rsaKey);
 		if ( !received )
 			return {};
-		
+
 		std::cout << "Receive data\n";
 
-		_Struct decryptedReq = NetCommon::DecryptInternetData<_Struct>(outBytestring, client.RSAPrivateKey);
-		return decryptedReq;
+		return outData;
 	}
 
 	/*

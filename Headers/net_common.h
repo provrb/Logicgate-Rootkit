@@ -3,10 +3,10 @@
 
 #include "framework.h"
 #include "net_types.h"
-#include "aes.hpp"
 
 #include <string>
 #include <openssl/pem.h>
+#include <iostream>
 
 #define winsock32 std::string(HIDE("Ws2_32.dll"))
 
@@ -55,6 +55,13 @@ inline _htons         HostToNetworkShort = nullptr;
 inline _inet_addr     InternetAddress    = nullptr;
 inline _gethostbyname GetHostByName      = nullptr;
 
+#ifdef CLIENT_RELEASE 
+    #define CLIENT_DBG(string) OutputDebugStringA(string);
+#else
+    #define CLIENT_DBG(string)
+#endif
+
+
 namespace NetCommon
 {
     static BOOL        WSAInitialized = FALSE; // Has the windows sockets api been initialized for this process
@@ -80,7 +87,7 @@ namespace NetCommon
     inline _Struct DeserializeToStruct(BYTESTRING b) {
         if constexpr ( std::is_same<BYTESTRING, _Struct>::value )
             return b;
-
+        CLIENT_DBG("DeserializeToStruct");
         return *reinterpret_cast< _Struct* >( b.data() );
     }
 
@@ -92,23 +99,9 @@ namespace NetCommon
         return serialized;
     }
     
-    // Encrypt a BYTESTRING using an aes key
-    BYTESTRING AESEncryptStruct(BYTESTRING data, std::string aesKey);
-
     BYTESTRING RSADecryptStruct(BYTESTRING data, BIO* bio);
-    BYTESTRING RSAEncryptStruct(BYTESTRING data, BIO* bio);
 
-    /*
-        Decrypt a byte string using RSA with the RSA
-        private key 'key'. 
-        Returns decrypted bytestring back into string
-    */
-    inline void DecryptByteString(BYTESTRING& string, std::string key) {
-        
-        //BYTESTRING byteKey = NetCommon::SerializeString(key);
-        //Cipher::Aes<256> aes(byteKey.data());
-        //aes.decrypt_block(string.data());
-    }
+    BYTESTRING RSAEncryptStruct(BYTESTRING data, BIO* bio);
 
     /*
         Decrypt a byte string received from a socket
@@ -124,32 +117,72 @@ namespace NetCommon
         return *reinterpret_cast< Data* >( string.data() );
     }
 
+
+    inline BIO* GetBIOFromString(char* s, int len) {
+        return BIO_new_mem_buf(s, len);
+    }
+
+    inline std::string ConvertBIOToString(BIO* bio) {
+        char* charString;
+        long bytes = BIO_get_mem_data(bio, &charString);
+        return std::string(charString, bytes);
+    }
+
     template <typename _Struct>
-    inline BOOL ReceiveData(_Struct& data, SOCKET s, SocketTypes type, sockaddr_in& receivedAddr = _default) {
+    inline BOOL ReceiveData(
+        _Struct& data,
+        SOCKET s,
+        SocketTypes type,
+        sockaddr_in& receivedAddr = _default,
+        BOOL encrypted = FALSE,
+        BIO* rsaPubKey = {}
+    ) 
+    {
         BYTESTRING responseBuffer; 
         std::cout << "buffer\n";
 
         if constexpr ( std::is_same<_Struct, BYTESTRING>::value ) // use data as output buffer
             responseBuffer = data;
-        else // data isn't being used as output buffer, reset
-            responseBuffer.resize(sizeof(_Struct));
         
         std::cout << "setup buffer\n";
+        CLIENT_DBG("buffer set up");
 
         int received = -1;
 
+        // receive data size first
+        uint32_t dataSize = 0;
+
         if ( type == SocketTypes::TCP ) {
-            std::cout << " - tcp receive!\n";
+
+            received = Receive(
+                s,
+                reinterpret_cast< char* >( &dataSize ),
+                sizeof(dataSize),
+                0
+            );
+
+            responseBuffer.resize(dataSize);
+
             received = Receive(
                 s,
                 reinterpret_cast< char* >( responseBuffer.data() ),
                 responseBuffer.size(),
                 0
             );
-            std::cout << "received..\n";
         }
         else if ( type == SocketTypes::UDP ) {
-            int size = sizeof(receivedAddr);
+            int addrSize = sizeof(receivedAddr);
+            
+            received = ReceiveFrom(
+                s,
+                reinterpret_cast< char* >( &dataSize ),
+                sizeof(dataSize),
+                0,
+                reinterpret_cast< sockaddr* >( &receivedAddr ),
+                &addrSize
+            );
+
+            responseBuffer.resize(dataSize);
 
             received = ReceiveFrom(
                 s,
@@ -157,14 +190,23 @@ namespace NetCommon
                 responseBuffer.size(),
                 0,
                 reinterpret_cast< sockaddr* >( &receivedAddr ),
-                &size
+                &addrSize
             );
         }
 
         if constexpr ( std::is_same<BYTESTRING, _Struct>::value )
             data = responseBuffer;
         else {
+            std::cout << "not the same\n";
+            CLIENT_DBG("deserializing");
             responseBuffer.resize(received);
+            if ( encrypted ) {
+                std::cout << "we are receiving an encrypted struct\n";
+                CLIENT_DBG("message is encrypted");
+                BYTESTRING cipher = NetCommon::RSADecryptStruct(responseBuffer, rsaPubKey);
+                responseBuffer = cipher;
+            }
+            CLIENT_DBG("deserialized?");
             data = NetCommon::DeserializeToStruct<_Struct>(responseBuffer);
         }
         
@@ -173,18 +215,54 @@ namespace NetCommon
     }
 
     template <typename _Struct>
-    BOOL TransmitData(_Struct message, SOCKET s, SocketTypes type, sockaddr_in udpAddr = _default) {
-        BYTESTRING serialized = NetCommon::SerializeStruct(message);
-        int        sent = -1;
+    BOOL TransmitData(
+        _Struct message, 
+        SOCKET s,
+        SocketTypes type,
+        sockaddr_in udpAddr = _default,
+        BOOL encryption = FALSE,
+        BIO* rsaKey = {}
+    ) 
+    {
 
-        if ( type == SocketTypes::TCP )
+        BYTESTRING serialized = NetCommon::SerializeStruct(message);
+        BYTESTRING encrypted;
+        int        sent = -1;
+        
+        if ( encryption ) {
+            encrypted = NetCommon::RSAEncryptStruct(serialized, rsaKey);
+            serialized = encrypted;
+        }
+
+        uint32_t size = serialized.size();
+
+        if ( type == SocketTypes::TCP ) {
+            // send data size
+            sent = Send(
+                s,
+                reinterpret_cast< char* >( &size ),
+                sizeof(size),
+                0
+            );
+
+            // send data
             sent = Send(
                 s,
                 reinterpret_cast< char* >( serialized.data() ),
                 serialized.size(),
                 0
             );
-        else if ( type == SocketTypes::UDP )
+        }
+        else if ( type == SocketTypes::UDP ) {
+            sent = SendTo(
+                s,
+                reinterpret_cast< char* >( &size ),
+                sizeof(size),
+                0,
+                reinterpret_cast< sockaddr* >( &udpAddr ),
+                sizeof(udpAddr)
+            );
+
             sent = SendTo(
                 s,
                 reinterpret_cast< char* >( serialized.data() ),
@@ -193,6 +271,7 @@ namespace NetCommon
                 reinterpret_cast< sockaddr* >( &udpAddr ),
                 sizeof(udpAddr)
             );
+        }
 
         return ( sent != SOCKET_ERROR );
     }
@@ -203,10 +282,23 @@ namespace NetCommon
     */
 
     template <typename _Struct>
+    BOOL TCPSendEncryptedMessage(_Struct message, SOCKET socket, BIO* rsaKey) {
+        return TransmitData(message, socket, TCP, _default, TRUE, rsaKey);
+    }
+
+    template <typename _Struct>
     BOOL TCPSendMessage(_Struct message, SOCKET socket) {
         return TransmitData(message, socket, TCP);
     }
     
+    template <typename _Struct>
+    BOOL TCPRecvEncryptedMessage(SOCKET socket, _Struct& data, BIO* rsaPrivKey) {
+        // need this to compile cause the default argument
+        sockaddr_in recv; // if it works it works
+
+        return ReceiveData(data, socket, TCP, recv);
+    }
+
     template <typename _Struct>
     BOOL TCPRecvMessage(SOCKET socket, _Struct& data) {
         // need this to compile cause the default argument

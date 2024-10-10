@@ -1,5 +1,4 @@
 #include "../Headers/net_common.h"
-#include "../Headers/aes.hpp"
 #include "../Headers/procutils.h"
 
 #include <vector>
@@ -39,6 +38,8 @@ void NetCommon::LoadWSAFunctions() {
 }
 
 BYTESTRING NetCommon::RSADecryptStruct(BYTESTRING data, BIO* bio) {
+    std::cout << "decrypting a struct!\n";
+
     EVP_PKEY* priv = PEM_read_bio_PrivateKey(bio, nullptr, nullptr, nullptr);
     if ( !priv )
         return {};
@@ -75,6 +76,8 @@ BYTESTRING NetCommon::RSADecryptStruct(BYTESTRING data, BIO* bio) {
     EVP_PKEY_CTX_free(ctx);
 
     out.resize(outLen);
+
+    std::cout << "decrypted the struct!\n";
 
     return out;
 }
@@ -118,13 +121,4 @@ BYTESTRING NetCommon::RSAEncryptStruct(BYTESTRING data, BIO* bio) {
 
     return out;
 }
-
-BYTESTRING NetCommon::AESEncryptStruct(BYTESTRING data, std::string aesKey) {
-    BYTESTRING serializedKey = NetCommon::SerializeString(aesKey);
-    Cipher::Aes<256> aes(serializedKey.data());
-    aes.encrypt_block(data.data());
-
-    return data;
-}
-
 

