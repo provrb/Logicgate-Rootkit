@@ -7,10 +7,12 @@
 #include <thread>
 #include <mutex>
 
+#include <openssl/bio.h>
+
 #define MAX_CON 300 // max clients on a server
 
 // first = public rsa key, second = private rsa key
-using RSAKeys = std::pair<std::string, std::string>;
+using RSAKeys = std::pair<BIO*, BIO*>;
 using ClientData = std::pair<Client, RSAKeys>;
 
 class ServerInterface
@@ -142,7 +144,7 @@ public:
 	*/
 	inline const ClientData GetClientData(long cuid) {
 		if ( !ClientIsInClientList(cuid) )
-			return std::pair<Client, RSAKeys>({}, { "", "" }); // empty tuple
+			return std::pair<Client, RSAKeys>({}, {}); // empty tuple
 
 		return GetClientList().at(cuid);
 	}

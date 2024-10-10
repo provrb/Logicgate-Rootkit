@@ -1,8 +1,49 @@
 #include "../Headers/server.h"
 
-RSAKeys ServerInterface::GenerateRSAPair() {
+#include <openssl/evp.h>
+#include <openssl/rsa.h>
+#include <openssl/pem.h>
 
-	return std::make_pair("empty", "empty");
+RSAKeys ServerInterface::GenerateRSAPair() {
+	EVP_PKEY_CTX* ctx = EVP_PKEY_CTX_new_id(EVP_PKEY_RSA, nullptr);
+	if ( ctx == NULL )
+		return {};
+
+	if ( EVP_PKEY_keygen_init(ctx) <= 0 )
+		return {};
+
+	if ( EVP_PKEY_CTX_set_rsa_keygen_bits(ctx, 2048) <= 0 )
+		return {};
+
+	EVP_PKEY* key = nullptr;
+	if ( EVP_PKEY_keygen(ctx, &key) <= 0 ) {
+		EVP_PKEY_CTX_free(ctx);
+		return {};
+	}
+
+	BIO* priv = BIO_new(BIO_s_mem());
+	BIO* pub  = BIO_new(BIO_s_mem());
+
+	if ( PEM_write_bio_PrivateKey(priv, key, nullptr, nullptr, 0, nullptr, nullptr) <= 0 ) {
+		EVP_PKEY_CTX_free(ctx);
+		BIO_free(priv);
+		BIO_free(pub);
+		EVP_PKEY_free(key);
+		return {};
+	}
+
+	if ( PEM_write_bio_PUBKEY(pub, key) <= 0 ) { 
+		EVP_PKEY_CTX_free(ctx);
+		BIO_free(priv);
+		BIO_free(pub);
+		EVP_PKEY_free(key);
+		return {};
+	}
+
+	EVP_PKEY_CTX_free(ctx);
+	EVP_PKEY_free(key);
+
+	return std::make_pair(priv, pub);
 }
 
 void ServerInterface::ListenForUDPMessages() {
