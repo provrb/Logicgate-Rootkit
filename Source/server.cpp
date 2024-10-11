@@ -57,12 +57,24 @@ void ServerInterface::ListenForUDPMessages() {
 	// receive while udp server is alive
 	while ( this->UDPServerDetails.alive == TRUE ) {
 		ClientRequest req;
-		sockaddr_in addr = NetCommon::UDPRecvMessage(this->UDPServerDetails.sfd, req );
-		
+		sockaddr_in   incomingAddr;
+		BOOL		  received = NetCommon::ReceiveData(req, this->UDPServerDetails.sfd, UDP, incomingAddr);
+		if ( !received )
+			continue;
+
 		std::cout << "Received a message on the UDP socket." << std::endl;
-		PerformUDPRequest(req, addr);
+		PerformUDPRequest(req, incomingAddr);
 	}
 	std::cout << "Not receiving\n";
+}
+
+void ServerInterface::ShutdownServer(BOOL confirm) {
+	if ( !confirm ) return;
+
+	this->TCPServerDetails.alive = FALSE;
+	ShutdownSocket(this->TCPServerDetails.sfd, 2); // shutdown server socket for both read and write
+	CloseSocket(this->TCPServerDetails.sfd);
+	this->TCPServerDetails = {}; // set server details to new blank server structure
 }
 
 BOOL ServerInterface::PerformTCPRequest(ClientMessage req, long cuid) {
@@ -144,19 +156,23 @@ void ServerInterface::AcceptTCPConnections() {
 		// accept
 		sockaddr_in addr = {};
 		int size = sizeof(sockaddr_in);
+		
 		SOCKET clientSocket = AcceptOnSocket(this->TCPServerDetails.sfd, reinterpret_cast<sockaddr*>( &addr ), &size);
 		if ( clientSocket == INVALID_SOCKET )
 			continue;
 
 		std::cout << "Accepted a client on the tcp server." << std::endl;
 
-		Client newClient(addr); // make a new client and store the addr info in it
-		newClient.SetRSAKeys(this->GenerateRSAPair());
-		newClient.TCPSocket = clientSocket;
+		Client  newClient(clientSocket, 0, addr);
+		RSAKeys keys = GenerateRSAPair();
+		newClient.RSAPublicKey  = keys.first;
+		newClient.RSAPrivateKey = keys.second;
+
 		AddToClientList(newClient); // add them to the client list
 		
 		SendTCPClientRSAPublicKey(newClient.ClientUID, newClient.RSAPublicKey);
 		std::cout << "Good connection. Send TCP Client key\n";
+
 		// start receiving tcp data from that client for the lifetime of that client
 		std::thread receive(&ServerInterface::TCPReceiveMessagesFromClient, this, newClient.ClientUID);
 		receive.detach();
@@ -212,7 +228,7 @@ BOOL ServerInterface::StartServer(Server& server) {
 	if ( status == SOCKET_ERROR )
 		return FALSE;
 
-	MarkServerAsAlive(server); // alive once binded
+	server.alive = TRUE;
 
 	// listen if TCP server
 	if ( server.type == SOCK_STREAM ) {
@@ -239,12 +255,7 @@ BOOL ServerInterface::StartServer(Server& server) {
 
 BOOL ServerInterface::TCPSendMessageToClient(long cuid, ServerCommand& req) {
 	Client* c = GetClientData(cuid).first;
-	return NetCommon::TCPSendMessage(req, c->TCPSocket);
-}
-
-
-BOOL ServerInterface::TCPSendMessageToClient(Client client, ServerCommand& req) {
-	return NetCommon::TCPSendMessage(req, client.TCPSocket);
+	return NetCommon::TransmitData(req, c->TCPSocket, TCP);
 }
 
 ClientResponse ServerInterface::WaitForClientResponse(long cuid) {
@@ -266,7 +277,7 @@ ClientResponse ServerInterface::WaitForClientResponse(long cuid) {
 
 BOOL ServerInterface::UDPSendMessageToClient(Client clientInfo, UDPMessage& message) {
 	message.isValid = TRUE;
-	return NetCommon::UDPSendMessage(message, this->UDPServerDetails.sfd, clientInfo.AddressInfo);
+	return NetCommon::TransmitData(message, this->UDPServerDetails.sfd, UDP, clientInfo.AddressInfo);
 }
 
 BOOL ServerInterface::PerformUDPRequest(ClientMessage req, sockaddr_in incomingAddr) {
@@ -281,8 +292,7 @@ BOOL ServerInterface::PerformUDPRequest(ClientMessage req, sockaddr_in incomingA
 
 	switch ( req.action ) {
 	case ClientMessage::CONNECT_CLIENT:	
-		Client client(incomingAddr);
-		client.UDPSocket = req.udp;
+		Client client(req.tcp, req.udp, incomingAddr);
 		
 		std::cout << "Client: " << client.UDPSocket  << std::endl;
 
@@ -293,6 +303,7 @@ BOOL ServerInterface::PerformUDPRequest(ClientMessage req, sockaddr_in incomingA
 		memcpy(&temp.addr.sin_addr, host->h_addr_list[0], host->h_length);
 
 		UDPMessage response = {};
+		response.isValid = TRUE;
 		response.TCPServer = temp;
 
 		if ( UDPSendMessageToClient(client, response) )
@@ -303,13 +314,38 @@ BOOL ServerInterface::PerformUDPRequest(ClientMessage req, sockaddr_in incomingA
 	return success;
 }
 
+/*
+	Get the client data from a client
+	in the client list using CUID.
+
+	return value:
+	.first is Client class
+	.second is rsa keys
+*/
+const ClientData ServerInterface::GetClientData(long cuid) {
+	if ( !ClientIsInClientList(cuid) )
+		return std::pair<Client*, RSAKeys>({}, {}); // empty tuple
+
+	return GetClientList().at(cuid);
+}
+
+Client* ServerInterface::GetClientPtr(long cuid) {
+	if ( !ClientIsInClientList(cuid) ) return nullptr;
+	return this->ClientList.at(cuid).first;
+}
+
+std::unordered_map<long, ClientData>& ServerInterface::GetClientList() {
+	std::lock_guard<std::mutex> lock(ClientListMutex);
+	return this->ClientList;
+}
+
 ClientResponse ServerInterface::PingClient(long cuid) {
 	if ( !ClientIsInClientList(cuid) )
 		return {};
 
 	ClientData clientInfo = GetClientData(cuid);
 	Client*    client     = clientInfo.first;
-	if ( !client->SocketReady(TCP) ) // socket isnt ready so cant ping.
+	if ( client->TCPSocket == INVALID_SOCKET ) // socket isnt ready so cant ping.
 		return {};
 
 	// send the ping to the client over tcp
@@ -330,13 +366,6 @@ BOOL ServerInterface::ClientIsInClientList(long cuid) {
 
 BOOL ServerInterface::AddToClientList(Client client) {
 	std::cout << "Adding client to list\n";
-	long cuid = client.ClientUID;
-	
-	//// generate a cuid that isnt in use if cuid is already generated
-	while ( cuid != -1 && ClientIsInClientList(cuid) ) // keep generating if cuid is in use
-		cuid = client.GenerateCUID();
-	
-	std::cout << "- Locking mutex\n";
 	
 	ClientListMutex.lock();
 	
@@ -351,49 +380,22 @@ BOOL ServerInterface::AddToClientList(Client client) {
 	return TRUE;
 }
 
-BOOL ServerInterface::IsClientAlive(long cuid) {
-	// Check if client is in ClientList and exists
-	if ( !ClientIsInClientList(cuid) )
-		return FALSE; // Client doesn't exist. Nothing returned from GetClientData
-
-	ClientData clientInfo = GetClientData(cuid);
-	Client* client = clientInfo.first;
-
-	if ( client->SocketReady(TCP) == FALSE )
-		return FALSE; // socket not setup 
-
-	// Check if client sends and receives ping
-	if ( PingClient(cuid).responseCode != C_OK )
-		return FALSE; // Client is dead
-
-	return TRUE; // Client is alive
-}
-
-template <typename Data>
-Data ServerInterface::DecryptClientData(BYTESTRING cipher, long cuid) {
-	if ( !ClientIsInClientList(cuid) )
-		return {};
-
-	ClientData  clientInfo    = GetClientData(cuid);
-	BIO*        decryptionKey = clientInfo.second.first;
-	Data        decrypted     = NetCommon::DecryptInternetData<Data>(cipher, decryptionKey);
-	
-	return decrypted;
-}
-
-ClientRequest ServerInterface::DecryptClientRequest(long cuid, BYTESTRING req) {
-	return DecryptClientData<ClientRequest>(req, cuid); // return decrypted clientRequest struct
-}
-
-ClientResponse ServerInterface::DecryptClientResponse(long cuid, BYTESTRING resp) {
-	return DecryptClientData<ClientResponse>(resp, cuid);
-}
-
-BYTESTRING ServerInterface::EncryptServerRequest(ServerRequest& req) {
-	//BYTESTRING serialized = NetCommon::SerializeStruct(req);
-	//BIO* b = NetCommon::GetBIOFromString(( char* ) req.publicEncryptionKey.c_str(), req.publicEncryptionKey.size());
-	//BYTESTRING cipher = NetCommon::RSAEncryptStruct(serialized, b);
-
-	//return cipher;
-	return {};
-}
+//template <typename Data>
+//Data ServerInterface::DecryptClientData(BYTESTRING cipher, long cuid) {
+//	if ( !ClientIsInClientList(cuid) )
+//		return {};
+//
+//	ClientData  clientInfo    = GetClientData(cuid);
+//	BIO*        decryptionKey = clientInfo.second.first;
+//	Data        decrypted     = NetCommon::DecryptInternetData<Data>(cipher, decryptionKey);
+//	
+//	return decrypted;
+//}
+//
+//ClientRequest ServerInterface::DecryptClientRequest(long cuid, BYTESTRING req) {
+//	return DecryptClientData<ClientRequest>(req, cuid); // return decrypted clientRequest struct
+//}
+//
+//ClientResponse ServerInterface::DecryptClientResponse(long cuid, BYTESTRING resp) {
+//	return DecryptClientData<ClientResponse>(resp, cuid);
+//}
