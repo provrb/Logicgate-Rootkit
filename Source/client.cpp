@@ -53,25 +53,30 @@ BOOL Client::Connect() {
 
 	ClientRequest request = {};
 	request.action = ClientRequest::Action::CONNECT_CLIENT;
-	request.udp = this->UDPSocket;
-	request.valid = TRUE;
+	request.udp    = this->UDPSocket;
+	request.valid  = TRUE;
 
-	BOOL validServerResponse = UDPSendMessageToServer(request);
+	BOOL validServerResponse = SendMessageToServer(this->UDPServerDetails, request);
 	if ( !validServerResponse )
 		return FALSE;  
+
+	UDPResponse response;
+	sockaddr_in serverAddr;
+	BOOL received = ReceiveMessageFromServer(this->UDPServerDetails, response, serverAddr);
+	if ( !received )
+		return FALSE;
+
+	this->UDPServerDetails.addr = serverAddr;
+	this->TCPServerDetails = response.TCPServer;
 
 	// connect to tcp server
 	this->TCPSocket = CreateSocket(AF_INET, SOCK_STREAM, 0);
 	if ( this->TCPSocket == INVALID_SOCKET )
 		return FALSE;
 
-	int connect = ConnectSocket(this->TCPSocket, ( sockaddr* ) &this->ConnectedServer.addr, sizeof(this->ConnectedServer.addr));
+	int connect = ConnectSocket(this->TCPSocket, ( sockaddr* ) &this->TCPServerDetails.addr, sizeof(this->TCPServerDetails.addr));
 	if ( connect == SOCKET_ERROR )
 		return FALSE;
-
-	// set everything now that we are connected to tcp server
-	CloseSocket(this->UDPSocket); // no longer needed
-	this->UDPSocket = INVALID_SOCKET;
 	
 	this->RSAPublicKey = GetPublicRSAKeyFromServer();
 	CLIENT_DBG("Connected");
@@ -81,70 +86,48 @@ BOOL Client::Connect() {
 BIO* Client::GetPublicRSAKeyFromServer() {
 	// receive the rsa public key
 	BYTESTRING serialized;
-	
-	CLIENT_DBG("getting rsa pub key");
-	
+		
 	BOOL success = NetCommon::ReceiveData(serialized, this->TCPSocket, TCP);
 	if ( !success )
 		return nullptr;
 	
-	CLIENT_DBG("got key");
-
 	// the base64 encoded ras key
-	std::string base64 = std::string(serialized.begin(), serialized.end());
-	MessageBoxA(NULL, base64.c_str(), "b64", MB_OK);
+	std::string base64 = NetCommon::BytestringToString(serialized);
 	std::string bio = "";
 	macaron::Base64::Decode(base64, bio);
-	MessageBoxA(NULL, bio.c_str(), "bio", MB_OK);
 
 	BIO* pub = NetCommon::GetBIOFromString(( char* ) bio.c_str(), bio.length());
 	return pub;
 }
 
-BYTESTRING Client::EncryptClientRequest(ClientRequest req) const {
-	BYTESTRING serialized = NetCommon::SerializeStruct(req);
-	BYTESTRING buff = NetCommon::RSAEncryptStruct(serialized, this->RSAPublicKey);
-
-	return buff;
-}
-
-ServerRequest Client::DecryptServerRequest(BYTESTRING req) {
-	return NetCommon::DecryptInternetData<ServerRequest>(req, this->RSAPublicKey);
-}
-
-sockaddr_in Client::UDPRecvMessageFromServer(UDPResponse& out) {
-
-	// decrypt the udp response and cast it to UDPResponse
-	sockaddr_in outAddress = NetCommon::UDPRecvMessage(this->UDPSocket, out);
-	 
-	if ( out.isValid ) 
-		this->ConnectedServer = out.TCPServer;
-
-	return outAddress;
-}
-BOOL Client::UDPSendMessageToServer(ClientRequest message) {
-	BOOL sent = NetCommon::UDPSendMessage(message, this->UDPSocket, this->UDPServerDetails.addr);
-	if ( !sent ) 
-		return FALSE;
-
-	// return if the response from the server is valid
-	UDPResponse response;
-	UDPRecvMessageFromServer(response);
+template <typename _Ty>
+BOOL Client::ReceiveMessageFromServer(Server who, _Ty& out, sockaddr_in& outAddr) {
+	if ( who.type == SOCK_STREAM )
+		return NetCommon::TCPRecvMessage(this->TCPSocket, out);
+	else if ( who.type == SOCK_DGRAM ) {
+		outAddr = NetCommon::UDPRecvMessage(this->UDPSocket, out);
+		return TRUE;
+	}
 	
-	return response.isValid;
+	return FALSE;
 }
 
-BOOL Client::TCPSendMessageToServer(ClientMessage message) {
-	return NetCommon::TCPSendMessage(message, this->TCPSocket);
+BOOL Client::SendMessageToServer(Server dest, ClientMessage message) {
+	if ( dest.type == SOCK_STREAM ) // tcp
+		return NetCommon::TCPSendMessage(message, this->TCPSocket);
+	else if ( dest.type == SOCK_DGRAM ) // udp
+		return NetCommon::UDPSendMessage(message, this->UDPSocket, dest.addr);
+	
+	return FALSE;
 }
 
-BOOL Client::TCPSendEncryptedMessageToServer(ClientMessage message) {
-	OutputDebugStringA("sending msg");
-	return NetCommon::TCPSendEncryptedMessage(message, this->TCPSocket, this->RSAPublicKey);
-}
+BOOL Client::SendEncryptedMessageToServer(Server dest, ClientMessage message) {
+	if ( dest.type == SOCK_STREAM ) // tcp
+		return NetCommon::TCPSendEncryptedMessage(message, this->TCPSocket, this->RSAPublicKey);
+	else if ( dest.type == SOCK_DGRAM ) // udp
+		return NetCommon::UDPSendEncryptedMessage(message, this->UDPSocket, dest.addr, this->RSAPublicKey);
 
-BOOL Client::MakeServerRequest(ClientRequest request, BOOL udp) {
-	return udp ? UDPSendMessageToServer(request) : TCPSendMessageToServer(request);
+	return FALSE;
 }
 
 BOOL Client::Disconnect() {
