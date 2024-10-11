@@ -84,8 +84,11 @@ BYTESTRING NetCommon::RSADecryptStruct(BYTESTRING data, BIO* bio) {
 
 BYTESTRING NetCommon::RSAEncryptStruct(BYTESTRING data, BIO* bio) {
     EVP_PKEY* pub = PEM_read_bio_PUBKEY(bio, nullptr, nullptr, nullptr);
-    if ( !pub )
+    if ( !pub ) {
+        std::cout << "bad key when encrypting struct\n";
+        CLIENT_DBG("bad key when encrypting struct");
         return {};
+    }
 
     EVP_PKEY_CTX* ctx = EVP_PKEY_CTX_new(pub, nullptr);
     if ( !ctx ) {

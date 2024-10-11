@@ -15,7 +15,7 @@
 
 // first = public rsa key, second = private rsa key
 using RSAKeys = std::pair<BIO*, BIO*>;
-using ClientData = std::pair<Client, RSAKeys>;
+using ClientData = std::pair<Client*, RSAKeys>;
 
 class ServerInterface
 {
@@ -56,9 +56,12 @@ public:
 	Server         NewServerInstance(SocketTypes serverType, int port);
 
 	BOOL           TCPSendMessageToClient(long cuid, ServerCommand& req);
+	BOOL		   TCPSendMessageToClient(Client client, ServerCommand& req);
 
 	BOOL           TCPSendMessageToClients(ServerCommand& req);
 	
+	BOOL		   SendTCPClientRSAPublicKey(long cuid, BIO* pubKey);
+
 	/*
 		A thread that receives clientRequests from each client that connects.
 
@@ -146,14 +149,14 @@ public:
 	*/
 	inline const ClientData GetClientData(long cuid) {
 		if ( !ClientIsInClientList(cuid) )
-			return std::pair<Client, RSAKeys>({}, {}); // empty tuple
+			return std::pair<Client*, RSAKeys>({}, {}); // empty tuple
 
 		return GetClientList().at(cuid);
 	}
 
 	inline Client* GetClientPtr(long cuid) {
 		if ( !ClientIsInClientList(cuid) ) return nullptr;
-		return &GetClientList().at(cuid).first;
+		return this->ClientList.at(cuid).first;
 	}
 
 	inline std::unordered_map<long, ClientData>& GetClientList() {
@@ -212,21 +215,12 @@ protected:
 	template <typename _Struct>
 	inline _Struct ReceiveDataFrom(
 		SOCKET s,
-		long cuid,
 		BOOL encrypted = FALSE,
 		BIO* rsaKey = {} // server uses priv to decrypt, client uses pub to decrypt
 	)
 	{
-		std::cout << "Receive data from\n";
-		Client client = GetClientData(cuid).first;
-		if ( client.ClientUID == -1 )
-			return {};
-
-		std::cout << "client data\n";
-
 		_Struct outData;
-		sockaddr_in _;
-		BOOL received = NetCommon::ReceiveData(outData, s, SocketTypes::TCP, _, encrypted, rsaKey);
+		BOOL received = NetCommon::ReceiveData(outData, s, SocketTypes::TCP, NetCommon::_default, encrypted, rsaKey);
 		if ( !received )
 			return {};
 

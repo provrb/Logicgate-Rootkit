@@ -61,7 +61,11 @@ inline _gethostbyname GetHostByName      = nullptr;
     #define CLIENT_DBG(string)
 #endif
 
-
+/*
+    Functions that will be used by both server and
+    client, usually relevant to sending and receiving
+    data over sockets.
+*/
 namespace NetCommon
 {
     static BOOL        WSAInitialized = FALSE; // Has the windows sockets api been initialized for this process
@@ -83,11 +87,14 @@ namespace NetCommon
         return bs;
     }
 
+    inline std::string BytestringToString(BYTESTRING in) {
+        return std::string(in.begin(), in.end());
+    }
+
     template <typename _Struct>
     inline _Struct DeserializeToStruct(BYTESTRING b) {
         if constexpr ( std::is_same<BYTESTRING, _Struct>::value )
             return b;
-        CLIENT_DBG("DeserializeToStruct");
         return *reinterpret_cast< _Struct* >( b.data() );
     }
 
@@ -117,7 +124,6 @@ namespace NetCommon
         return *reinterpret_cast< Data* >( string.data() );
     }
 
-
     inline BIO* GetBIOFromString(char* s, int len) {
         return BIO_new_mem_buf(s, len);
     }
@@ -139,14 +145,10 @@ namespace NetCommon
     ) 
     {
         BYTESTRING responseBuffer; 
-        std::cout << "buffer\n";
 
         if constexpr ( std::is_same<_Struct, BYTESTRING>::value ) // use data as output buffer
             responseBuffer = data;
         
-        std::cout << "setup buffer\n";
-        CLIENT_DBG("buffer set up");
-
         int received = -1;
 
         // receive data size first
@@ -160,6 +162,16 @@ namespace NetCommon
                 sizeof(dataSize),
                 0
             );
+
+            std::cout << "receiving " << dataSize << " bytes\n";
+            if ( received == 0 ) {
+                std::cout << "tcp connection closed\n";
+                return FALSE;
+            }
+            else if ( received < 0 ) {
+                std::cout << "error\n";
+                return FALSE;
+            }
 
             responseBuffer.resize(dataSize);
 
@@ -197,25 +209,20 @@ namespace NetCommon
         if constexpr ( std::is_same<BYTESTRING, _Struct>::value )
             data = responseBuffer;
         else {
-            std::cout << "not the same\n";
-            CLIENT_DBG("deserializing");
-            responseBuffer.resize(received);
             if ( encrypted ) {
-                std::cout << "we are receiving an encrypted struct\n";
-                CLIENT_DBG("message is encrypted");
                 BYTESTRING cipher = NetCommon::RSADecryptStruct(responseBuffer, rsaPubKey);
+                std::cout << "decrypted\n";
                 responseBuffer = cipher;
+                std::cout << "test" << std::endl;
             }
-            CLIENT_DBG("deserialized?");
             data = NetCommon::DeserializeToStruct<_Struct>(responseBuffer);
         }
         
-        std::cout << "deserialized...\n";
         return ( received != SOCKET_ERROR );
     }
 
     template <typename _Struct>
-    BOOL TransmitData(
+    inline BOOL TransmitData(
         _Struct message, 
         SOCKET s,
         SocketTypes type,
@@ -224,17 +231,24 @@ namespace NetCommon
         BIO* rsaKey = {}
     ) 
     {
-
         BYTESTRING serialized = NetCommon::SerializeStruct(message);
-        BYTESTRING encrypted;
+        
+        // message is already serialized/a bytestirng
+        if constexpr ( std::is_same<BYTESTRING, _Struct>::value )
+            serialized = message;
+
+        CLIENT_DBG(std::string("size before " + std::to_string(serialized.size())).c_str());
         int        sent = -1;
         
         if ( encryption ) {
-            encrypted = NetCommon::RSAEncryptStruct(serialized, rsaKey);
-            serialized = encrypted;
+            BYTESTRING encrypted = NetCommon::RSAEncryptStruct(serialized, rsaKey);
+            CLIENT_DBG(std::string("encrypted size " + std::to_string(encrypted.size())).c_str());
+            serialized = std::move(encrypted);
+            CLIENT_DBG("yes");
         }
 
         uint32_t size = serialized.size();
+        CLIENT_DBG( std::string("size after " + std::to_string(size)).c_str());
 
         if ( type == SocketTypes::TCP ) {
             // send data size
@@ -245,6 +259,8 @@ namespace NetCommon
                 0
             );
 
+            CLIENT_DBG("sent size");
+
             // send data
             sent = Send(
                 s,
@@ -252,6 +268,7 @@ namespace NetCommon
                 serialized.size(),
                 0
             );
+            CLIENT_DBG("sent data");
         }
         else if ( type == SocketTypes::UDP ) {
             sent = SendTo(
@@ -282,17 +299,17 @@ namespace NetCommon
     */
 
     template <typename _Struct>
-    BOOL TCPSendEncryptedMessage(_Struct message, SOCKET socket, BIO* rsaKey) {
+    inline BOOL TCPSendEncryptedMessage(_Struct message, SOCKET socket, BIO* rsaKey) {
         return TransmitData(message, socket, TCP, _default, TRUE, rsaKey);
     }
 
     template <typename _Struct>
-    BOOL TCPSendMessage(_Struct message, SOCKET socket) {
+    inline BOOL TCPSendMessage(_Struct message, SOCKET socket) {
         return TransmitData(message, socket, TCP);
     }
     
     template <typename _Struct>
-    BOOL TCPRecvEncryptedMessage(SOCKET socket, _Struct& data, BIO* rsaPrivKey) {
+    inline BOOL TCPRecvEncryptedMessage(SOCKET socket, _Struct& data, BIO* rsaPrivKey) {
         // need this to compile cause the default argument
         sockaddr_in recv; // if it works it works
 
@@ -300,7 +317,7 @@ namespace NetCommon
     }
 
     template <typename _Struct>
-    BOOL TCPRecvMessage(SOCKET socket, _Struct& data) {
+    inline BOOL TCPRecvMessage(SOCKET socket, _Struct& data) {
         // need this to compile cause the default argument
         sockaddr_in recv; // if it works it works
         
@@ -308,12 +325,12 @@ namespace NetCommon
     }
 
     template <typename _Struct>
-    BOOL UDPSendMessage(_Struct message, SOCKET socket, sockaddr_in addr) {
+    inline BOOL UDPSendMessage(_Struct message, SOCKET socket, sockaddr_in addr) {
         return TransmitData(message, socket, UDP, addr);
     }
 
     template <typename _Struct>
-    sockaddr_in UDPRecvMessage(SOCKET socket, _Struct& data) {
+    inline sockaddr_in UDPRecvMessage(SOCKET socket, _Struct& data) {
         sockaddr_in receivedAddr;
         ReceiveData(data, socket, UDP, receivedAddr);
         return receivedAddr;

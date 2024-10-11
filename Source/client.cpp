@@ -46,7 +46,6 @@ Client::~Client() {
 }
 
 BOOL Client::Connect() {
-
 	// make request to udp server
 	this->UDPSocket = CreateSocket(AF_INET, SOCK_DGRAM, IPPROTO_UDP);
 	if ( this->UDPSocket == INVALID_SOCKET )
@@ -73,27 +72,33 @@ BOOL Client::Connect() {
 	// set everything now that we are connected to tcp server
 	CloseSocket(this->UDPSocket); // no longer needed
 	this->UDPSocket = INVALID_SOCKET;
-
-	// receive the rsa public key
-	BYTESTRING out;
-	NetCommon::ReceiveData(out, this->TCPSocket, TCP);
-	std::string b64 = std::string(out.begin(), out.end());
-	OutputDebugStringA(b64.c_str());
-	std::string bio;
-	macaron::Base64::Decode(b64, bio);
-	BIO* pub = NetCommon::GetBIOFromString(( char* ) bio.c_str(), bio.length());
-	this->RSAPublicKey = pub;
-
-	//long recvSize;
-	//recv(this->TCPSocket, ( char* )&recvSize, sizeof(recvSize), 0);
-	//OutputDebugStringA("received size");
-	//BYTESTRING out(recvSize);
-	//recv(this->TCPSocket, ( char* ) out.data(), out.size(), 0);
-	//NetCommon::ReceiveData(out, this->TCPSocket, TCP);
-	OutputDebugStringA("received and put into bytestring");	
-	OutputDebugStringA("set");
-
+	
+	this->RSAPublicKey = GetPublicRSAKeyFromServer();
+	CLIENT_DBG("Connected");
 	return TRUE;
+}
+
+BIO* Client::GetPublicRSAKeyFromServer() {
+	// receive the rsa public key
+	BYTESTRING serialized;
+	
+	CLIENT_DBG("getting rsa pub key");
+	
+	BOOL success = NetCommon::ReceiveData(serialized, this->TCPSocket, TCP);
+	if ( !success )
+		return nullptr;
+	
+	CLIENT_DBG("got key");
+
+	// the base64 encoded ras key
+	std::string base64 = std::string(serialized.begin(), serialized.end());
+	MessageBoxA(NULL, base64.c_str(), "b64", MB_OK);
+	std::string bio = "";
+	macaron::Base64::Decode(base64, bio);
+	MessageBoxA(NULL, bio.c_str(), "bio", MB_OK);
+
+	BIO* pub = NetCommon::GetBIOFromString(( char* ) bio.c_str(), bio.length());
+	return pub;
 }
 
 BYTESTRING Client::EncryptClientRequest(ClientRequest req) const {
