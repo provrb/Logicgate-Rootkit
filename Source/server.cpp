@@ -1,4 +1,5 @@
 #include "../Headers/server.h"
+#include "../Headers/serialization.h"
 
 #include <openssl/evp.h>
 #include <openssl/rsa.h>
@@ -94,7 +95,7 @@ BOOL ServerInterface::PerformTCPRequest(ClientMessage req, long cuid) {
 
 		responseCommand.action = RemoteAction::RETURN_PRIVATE_RSA_KEY;
 		//responseCommand.publicEncryptionKey = NetCommon::ConvertBIOToString(client.RSAPublicKey);
-		responseCommand.privateEncryptionKey = NetCommon::ConvertBIOToString(client->RSAPrivateKey);
+		responseCommand.privateEncryptionKey = Serialization::ConvertBIOToString(client->RSAPrivateKey);
 		success = TCPSendMessageToClient(cuid, responseCommand);
 		std::cout << "sending\n";
 
@@ -140,9 +141,9 @@ BOOL ServerInterface::SendTCPClientRSAPublicKey(long cuid, BIO* pubKey) {
 
 	Client* client = GetClientData(cuid).first;
 
-	std::string bio = NetCommon::ConvertBIOToString(pubKey); // pub key as a string
+	std::string bio = Serialization::ConvertBIOToString(pubKey); // pub key as a string
 	std::string base64 = macaron::Base64::Encode(bio);  
-	BYTESTRING buffer = NetCommon::SerializeString(base64);
+	BYTESTRING buffer = Serialization::SerializeString(base64);
 
 	BOOL sent = NetCommon::TransmitData(buffer, client->TCPSocket, TCP);
 	std::cout << "Sent RSA Pub Key (B64): " << base64 << std::endl;
@@ -358,6 +359,17 @@ ClientResponse ServerInterface::PingClient(long cuid) {
 		return {};
 
 	return WaitForClientResponse(cuid);
+}
+
+template <typename _Struct>
+_Struct ServerInterface::ReceiveDataFrom(SOCKET s, BOOL encrypted, BIO* rsaKey)
+{
+	_Struct outData;
+	BOOL received = NetCommon::ReceiveData(outData, s, SocketTypes::TCP, NetCommon::_default, encrypted, rsaKey);
+	if ( !received )
+		return {};
+
+	return outData;
 }
 
 BOOL ServerInterface::ClientIsInClientList(long cuid) {

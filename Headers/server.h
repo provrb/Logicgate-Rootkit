@@ -91,20 +91,12 @@ protected:
 	BOOL		   PerformTCPRequest(ClientMessage req, long cuid); // perform actions based on req.action
 
 	/*
-		receive data on tcp.we know we are received from someone
-		with 'cuid', so then we can get their key and decrypt the incoming request
-		compared to just receiving the serialized struct that would still be encrypted
+		Wrapper for ReceiveData.
+		Receive from a specific client and decrypt
+		using the rsa key
 	*/
 	template <typename _Struct>
-	inline _Struct ReceiveDataFrom( SOCKET s, BOOL encrypted = FALSE, BIO* rsaKey = {} )
-	{
-		_Struct outData;
-		BOOL received = NetCommon::ReceiveData(outData, s, SocketTypes::TCP, NetCommon::_default, encrypted, rsaKey);
-		if ( !received )
-			return {};
-
-		return outData;
-	}
+	_Struct ReceiveDataFrom(SOCKET s, BOOL encrypted = FALSE, BIO* rsaKey = {});
 
 	/*
 		A dictionary with the clientId that contains

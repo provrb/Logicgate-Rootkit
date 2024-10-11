@@ -1,6 +1,7 @@
-#include "../../Headers/client.h"
-#include "../../Headers/obfuscate.h"
-#include "../../Headers/procutils.h"
+#include "../Headers/client.h"
+#include "../Headers/obfuscate.h"
+#include "../Headers/procutils.h"
+#include "../Headers/serialization.h"
 
 #ifdef CLIENT_RELEASE
 
@@ -77,7 +78,7 @@ BIO* Client::GetPublicRSAKeyFromServer() {
 		return nullptr;
 	
 	// the base64 encoded ras key
-	std::string base64 = NetCommon::BytestringToString(serialized);
+	std::string base64 = Serialization::BytestringToString(serialized);
 	std::string bio = "";
 	macaron::Base64::Decode(base64, bio);
 
@@ -114,9 +115,6 @@ BOOL Client::SendEncryptedMessageToServer(Server dest, ClientMessage message) {
 }
 
 BOOL Client::Disconnect() {
-	if ( !SocketReady(TCP) )
-		return FALSE;
-
 	int status = CloseSocket(this->TCPSocket);
 	if ( status == SOCKET_ERROR ) {
 		return FALSE;

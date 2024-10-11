@@ -124,4 +124,3 @@ BYTESTRING NetCommon::RSAEncryptStruct(BYTESTRING data, BIO* bio) {
 
     return out;
 }
-

@@ -37,7 +37,6 @@ public:
     BOOL          Disconnect(); // Disconnect from the tcp server
     BOOL          SendMessageToServer(Server dest, ClientMessage message);
     BOOL          SendEncryptedMessageToServer(Server dest, ClientMessage message);
-    BOOL          SocketReady(SocketTypes type) const; // Check if TCP or UDP socket (depending on 'type') are not invalid
     
     template <typename _Ty>
     BOOL          ReceiveMessageFromServer(Server who, _Ty& out, sockaddr_in& outAddr);

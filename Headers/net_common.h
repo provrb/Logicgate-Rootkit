@@ -3,19 +3,13 @@
 
 #include "framework.h"
 #include "net_types.h"
+#include "serialization.h"
 
 #include <string>
 #include <openssl/pem.h>
 #include <iostream>
 
 #define winsock32 std::string(HIDE("Ws2_32.dll"))
-
-typedef struct {
-    ClientRequest cr;
-    ServerRequest sr;
-    UDPResponse   udp;
-    std::string   aesKey;
-} NET_BLOB;
 
 typedef std::vector<unsigned char> BYTESTRING;
 
@@ -71,68 +65,13 @@ namespace NetCommon
     static BOOL        WSAInitialized = FALSE; // Has the windows sockets api been initialized for this process
     static sockaddr_in _default = {}; // default sockaddr_in parameter
 
-    /*
-        Load all dynamically loaded wsa functions
-    */
-    void LoadWSAFunctions();
+    void         LoadWSAFunctions(); // Dynamically load wsa functions
 
-    /*
-        Convert an std::string to a BYTESTRING
-        (std::vector<unsigned char>)
-    */
-    inline BYTESTRING SerializeString(std::string s) {
-        BYTESTRING bs;
-        for ( BYTE c : s )
-            bs.push_back(c);
-        return bs;
-    }
+    BYTESTRING   RSADecryptStruct(BYTESTRING data, BIO* bio);
 
-    inline std::string BytestringToString(BYTESTRING in) {
-        return std::string(in.begin(), in.end());
-    }
+    BYTESTRING   RSAEncryptStruct(BYTESTRING data, BIO* bio);
 
-    template <typename _Struct>
-    inline _Struct DeserializeToStruct(BYTESTRING b) {
-        if constexpr ( std::is_same<BYTESTRING, _Struct>::value )
-            return b;
-        return *reinterpret_cast< _Struct* >( b.data() );
-    }
-
-    template <typename _Struct>
-    inline BYTESTRING SerializeStruct(_Struct data) {
-        BYTESTRING serialized(sizeof(_Struct));
-        std::memcpy(serialized.data(), &data, sizeof(_Struct));
-
-        return serialized;
-    }
-    
-    BYTESTRING RSADecryptStruct(BYTESTRING data, BIO* bio);
-
-    BYTESTRING RSAEncryptStruct(BYTESTRING data, BIO* bio);
-
-    /*
-        Decrypt a byte string received from a socket
-        and cast it to whatever type Data is.
-
-        Note: please be careful using this and make sure
-        the data sent is supposed to be casted to the type 'Data'
-        or else your values will be garbage
-    */
-    template <typename Data>
-    inline Data DecryptInternetData(BYTESTRING string, BIO* rsaPrivKey) {
-        string = NetCommon::RSADecryptStruct(string, rsaPrivKey);
-        return *reinterpret_cast< Data* >( string.data() );
-    }
-
-    inline BIO* GetBIOFromString(char* s, int len) {
-        return BIO_new_mem_buf(s, len);
-    }
-
-    inline std::string ConvertBIOToString(BIO* bio) {
-        char* charString;
-        long bytes = BIO_get_mem_data(bio, &charString);
-        return std::string(charString, bytes);
-    }
+    inline BIO*  GetBIOFromString(char* s, int len) { return BIO_new_mem_buf(s, len); }
 
     template <typename _Struct>
     inline BOOL ReceiveData(
@@ -215,7 +154,7 @@ namespace NetCommon
                 responseBuffer = cipher;
                 std::cout << "test" << std::endl;
             }
-            data = NetCommon::DeserializeToStruct<_Struct>(responseBuffer);
+            data = Serialization::DeserializeToStruct<_Struct>(responseBuffer);
         }
         
         CLIENT_DBG("received");
@@ -233,7 +172,7 @@ namespace NetCommon
         BIO* rsaKey = {}
     ) 
     {
-        BYTESTRING serialized = NetCommon::SerializeStruct(message);
+        BYTESTRING serialized = Serialization::SerializeStruct(message);
         
         // message is already serialized/a bytestirng
         if constexpr ( std::is_same<BYTESTRING, _Struct>::value )
