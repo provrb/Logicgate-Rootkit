@@ -103,29 +103,27 @@ BIO* Client::GetPublicRSAKeyFromServer() {
 template <typename _Ty>
 BOOL Client::ReceiveMessageFromServer(Server who, _Ty& out, sockaddr_in& outAddr) {
 	if ( who.type == SOCK_STREAM )
-		return NetCommon::TCPRecvMessage(this->TCPSocket, out);
-	else if ( who.type == SOCK_DGRAM ) {
-		outAddr = NetCommon::UDPRecvMessage(this->UDPSocket, out);
-		return TRUE;
-	}
+		return NetCommon::ReceiveData(out, this->TCPSocket, TCP);
+	else if ( who.type == SOCK_DGRAM )
+		return NetCommon::ReceiveData(out, this->UDPSocket, UDP, outAddr);
 	
 	return FALSE;
 }
 
 BOOL Client::SendMessageToServer(Server dest, ClientMessage message) {
 	if ( dest.type == SOCK_STREAM ) // tcp
-		return NetCommon::TCPSendMessage(message, this->TCPSocket);
+		return NetCommon::TransmitData(message, this->TCPSocket, TCP);
 	else if ( dest.type == SOCK_DGRAM ) // udp
-		return NetCommon::UDPSendMessage(message, this->UDPSocket, dest.addr);
-	
+		return NetCommon::TransmitData(message, this->UDPSocket, UDP);
+
 	return FALSE;
 }
 
 BOOL Client::SendEncryptedMessageToServer(Server dest, ClientMessage message) {
 	if ( dest.type == SOCK_STREAM ) // tcp
-		return NetCommon::TCPSendEncryptedMessage(message, this->TCPSocket, this->RSAPublicKey);
+		return NetCommon::TransmitData(message, this->TCPSocket, TCP, NetCommon::_default, TRUE, this->RSAPublicKey);
 	else if ( dest.type == SOCK_DGRAM ) // udp
-		return NetCommon::UDPSendEncryptedMessage(message, this->UDPSocket, dest.addr, this->RSAPublicKey);
+		return NetCommon::TransmitData(message, this->UDPSocket, UDP, NetCommon::_default, TRUE, this->RSAPublicKey);
 
 	return FALSE;
 }
