@@ -196,8 +196,6 @@ namespace NetCommon
                 0
             );
 
-            CLIENT_DBG("sent size");
-
             // send data
             sent = Send(
                 s,
@@ -205,7 +203,6 @@ namespace NetCommon
                 serialized.size(),
                 0
             );
-            CLIENT_DBG("sent data");
         }
         else if ( type == SocketTypes::UDP ) {
             sent = SendTo(

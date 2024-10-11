@@ -35,7 +35,7 @@ public:
 
 	BOOL          Connect(); // Connect to the tcp server
     BOOL          Disconnect(); // Disconnect from the tcp server
-    BOOL          SendMessageToServer(Server dest, ClientMessage message);
+    BOOL          SendMessageToServer(Server dest, ClientMessage message, sockaddr_in udpAddr = NetCommon::_default);
     BOOL          SendEncryptedMessageToServer(Server dest, ClientMessage message);
     
     template <typename _Ty>

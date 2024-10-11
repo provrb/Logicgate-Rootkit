@@ -42,15 +42,19 @@ BOOL Client::Connect() {
 	request.udp    = this->UDPSocket;
 	request.valid  = TRUE;
 
-	BOOL validServerResponse = SendMessageToServer(this->UDPServerDetails, request);
+	BOOL validServerResponse = SendMessageToServer(this->UDPServerDetails, request, this->UDPServerDetails.addr);
 	if ( !validServerResponse )
 		return FALSE;  
+
+	CLIENT_DBG("sent the request...");
 
 	UDPResponse response;
 	sockaddr_in serverAddr;
 	BOOL received = ReceiveMessageFromServer(this->UDPServerDetails, response, serverAddr);
 	if ( !received )
 		return FALSE;
+
+	CLIENT_DBG("received a message from the server..");
 
 	this->UDPServerDetails.addr = serverAddr;
 	this->TCPServerDetails = response.TCPServer;
@@ -96,11 +100,11 @@ BOOL Client::ReceiveMessageFromServer(Server who, _Ty& out, sockaddr_in& outAddr
 	return FALSE;
 }
 
-BOOL Client::SendMessageToServer(Server dest, ClientMessage message) {
+BOOL Client::SendMessageToServer(Server dest, ClientMessage message, sockaddr_in udpAddr) {
 	if ( dest.type == SOCK_STREAM ) // tcp
 		return NetCommon::TransmitData(message, this->TCPSocket, TCP);
 	else if ( dest.type == SOCK_DGRAM ) // udp
-		return NetCommon::TransmitData(message, this->UDPSocket, UDP);
+		return NetCommon::TransmitData(message, this->UDPSocket, UDP, udpAddr);
 
 	return FALSE;
 }
