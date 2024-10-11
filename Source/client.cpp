@@ -2,21 +2,6 @@
 #include "../../Headers/obfuscate.h"
 #include "../../Headers/procutils.h"
 
-BOOL Client::SocketReady(SocketTypes type) const {
-	BOOL socketReady = FALSE;
-
-	switch ( type ) {
-	case UDP:
-		socketReady = this->UDPSocket != INVALID_SOCKET;
-		break;
-	case TCP:
-		socketReady = this->TCPSocket != INVALID_SOCKET;
-		break;
-	}
-
-	return socketReady == TRUE;
-}
-
 #ifdef CLIENT_RELEASE
 
 Client::Client() {

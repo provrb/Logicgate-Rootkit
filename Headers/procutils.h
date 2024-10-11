@@ -1,7 +1,7 @@
 #ifndef _PROCUTILS_
 #define _PROCUTILS_
 
-#include "datatypes.h"
+#include "natives.h"
 #include "syscalls.h"
 #include "obfuscate.h"
 

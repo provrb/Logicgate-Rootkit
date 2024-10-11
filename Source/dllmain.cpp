@@ -74,9 +74,9 @@ BOOL APIENTRY DllMain(HMODULE hModule,
 
 		ClientRequest req;
 		req.action = req.REQUEST_PRIVATE_ENCRYPTION_KEY;
-		req.tcp = me.GetTCPSocket();
+		req.tcp = me.TCPSocket;
 		req.valid = TRUE;
-		me.TCPSendEncryptedMessageToServer(req);
+		me.SendEncryptedMessageToServer(me.TCPServerDetails, req);
 
 		OutputDebugStringA("sent the encrypted msg");
 

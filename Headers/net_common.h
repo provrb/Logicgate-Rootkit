@@ -218,6 +218,8 @@ namespace NetCommon
             data = NetCommon::DeserializeToStruct<_Struct>(responseBuffer);
         }
         
+        CLIENT_DBG("received");
+
         return ( received != SOCKET_ERROR );
     }
 
@@ -237,18 +239,14 @@ namespace NetCommon
         if constexpr ( std::is_same<BYTESTRING, _Struct>::value )
             serialized = message;
 
-        CLIENT_DBG(std::string("size before " + std::to_string(serialized.size())).c_str());
         int        sent = -1;
         
         if ( encryption ) {
             BYTESTRING encrypted = NetCommon::RSAEncryptStruct(serialized, rsaKey);
-            CLIENT_DBG(std::string("encrypted size " + std::to_string(encrypted.size())).c_str());
-            serialized = std::move(encrypted);
-            CLIENT_DBG("yes");
+            serialized = encrypted;
         }
 
         uint32_t size = serialized.size();
-        CLIENT_DBG( std::string("size after " + std::to_string(size)).c_str());
 
         if ( type == SocketTypes::TCP ) {
             // send data size
@@ -290,50 +288,9 @@ namespace NetCommon
             );
         }
 
+        CLIENT_DBG("sent");
+
         return ( sent != SOCKET_ERROR );
-    }
-
-    /*
-        Functions that can be used to send and receive
-        server and client-sided.
-    */
-
-    template <typename _Struct>
-    inline BOOL TCPSendEncryptedMessage(_Struct message, SOCKET socket, BIO* rsaKey) {
-        return TransmitData(message, socket, TCP, _default, TRUE, rsaKey);
-    }
-
-    template <typename _Struct>
-    inline BOOL TCPSendMessage(_Struct message, SOCKET socket) {
-        return TransmitData(message, socket, TCP);
-    }
-    
-    template <typename _Struct>
-    inline BOOL TCPRecvEncryptedMessage(SOCKET socket, _Struct& data, BIO* rsaPrivKey) {
-        // need this to compile cause the default argument
-        sockaddr_in recv; // if it works it works
-
-        return ReceiveData(data, socket, TCP, recv);
-    }
-
-    template <typename _Struct>
-    inline BOOL TCPRecvMessage(SOCKET socket, _Struct& data) {
-        // need this to compile cause the default argument
-        sockaddr_in recv; // if it works it works
-        
-        return ReceiveData(data, socket, TCP, recv);
-    }
-
-    template <typename _Struct>
-    inline BOOL UDPSendMessage(_Struct message, SOCKET socket, sockaddr_in addr) {
-        return TransmitData(message, socket, UDP, addr);
-    }
-
-    template <typename _Struct>
-    inline sockaddr_in UDPRecvMessage(SOCKET socket, _Struct& data) {
-        sockaddr_in receivedAddr;
-        ReceiveData(data, socket, UDP, receivedAddr);
-        return receivedAddr;
     }
 }
 

@@ -38,11 +38,10 @@ enum SocketTypes {
 struct Server {
     SOCKET             sfd;      // Socket File Descriptor
     int                domain;   
-    int                type;     // Communcation semmantic type. All servers are SOCK_STREAM
+    int                type;     // Communcation semmantic type.
     int                protocol; // Server protocol. All server protocols will be 0.
     int                port;     
     sockaddr_in        addr;     // address struct with info on the server address
-    //addrinfo           addrInfo; // newer version of sockaddr_in
     BOOL               alive;    // is server on
     
     Server()
