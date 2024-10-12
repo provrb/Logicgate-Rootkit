@@ -1,5 +1,4 @@
-#ifndef _NET_COMMON_
-#define _NET_COMMON_
+#pragma once
 
 #include "framework.h"
 #include "net_types.h"
@@ -229,5 +228,3 @@ namespace NetCommon
         return ( sent != SOCKET_ERROR );
     }
 }
-
-#endif 

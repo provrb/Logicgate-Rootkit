@@ -1,5 +1,4 @@
-#ifndef _NETWORK_TYPES_
-#define _NETWORK_TYPES_
+#pragma once
 
 #include <openssl/bio.h>
 
@@ -157,5 +156,3 @@ struct RSAKeys
     BIO* publicKey;
     BIO* privateKey;
 };
-
-#endif

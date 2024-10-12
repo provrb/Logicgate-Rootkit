@@ -1,5 +1,4 @@
-#ifndef _PROCUTILS_
-#define _PROCUTILS_
+#pragma once
 
 #include "natives.h"
 #include "syscalls.h"
@@ -85,5 +84,3 @@ namespace ProcessUtilities
 		return reinterpret_cast< fpType >( _GetFuncAddress(lib, proc) );
 	}
 }
-
-#endif

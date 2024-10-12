@@ -1,5 +1,4 @@
-#ifndef _SERVER_INTERFACE_H_
-#define _SERVER_INTERFACE_H_
+#pragma once
 
 #include "net_common.h"
 #include "client.h"
@@ -101,5 +100,3 @@ protected:
 	Server        TCPServerDetails;
 	Server        UDPServerDetails;
 };
-
-#endif // _SERVER_H_

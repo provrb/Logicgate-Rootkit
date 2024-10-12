@@ -1,5 +1,4 @@
-#ifndef _SANDBOX_COMP_
-#define _SANDBOX_COMP_
+#pragma once
 
 #include "framework.h"
 
@@ -33,5 +32,3 @@ namespace SandboxCompromise
 		////Sleep(dist(random));
 	}
 }
-
-#endif
