@@ -81,7 +81,7 @@ namespace ProcessUtilities
 
 	// Get the address of a function and cast it to a function pointer type.
 	template <typename fpType>
-	fpType GetFunctionAddress(HMODULE lib, std::string proc) {
+	inline fpType GetFunctionAddress(HMODULE lib, std::string proc) {
 		return reinterpret_cast< fpType >( _GetFuncAddress(lib, proc) );
 	}
 }
