@@ -1,7 +1,7 @@
-#include "../Headers/client.h"
-#include "../Headers/obfuscate.h"
-#include "../Headers/procutils.h"
-#include "../Headers/serialization.h"
+#include "client.h"
+#include "External/obfuscate.h"
+#include "procutils.h"
+#include "serialization.h"
 
 #ifdef CLIENT_RELEASE
 

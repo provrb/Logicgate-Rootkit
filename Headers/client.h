@@ -3,7 +3,7 @@
 
 #include "framework.h"
 #include "net_types.h"
-#include "obfuscate.h"
+#include "External/obfuscate.h"
 #include "net_common.h"
 
 #include "External/base64.h"
@@ -27,6 +27,7 @@ public:
     SOCKET        TCPSocket = INVALID_SOCKET;
     sockaddr_in   AddressInfo;
     RSAKeys       Secrets;
+    LPSTR         ComputerName;
 
     inline void   SetEncryptionKeys(RSAKeys keys) {
         this->Secrets.publicKey = keys.publicKey;

@@ -1,5 +1,5 @@
-#include "../Headers/server.h"
-#include "../Headers/serialization.h"
+#include "server.h"
+#include "serialization.h"
 
 #include <openssl/evp.h>
 #include <openssl/rsa.h>
@@ -84,6 +84,8 @@ BOOL ServerInterface::TCPSendMessageToAllClients(ServerCommand& req) {
 
 void ServerInterface::ShutdownServer(BOOL confirm) {
 	if ( !confirm ) return;
+
+	
 
 	this->TCPServerDetails.alive = FALSE;
 	ShutdownSocket(this->TCPServerDetails.sfd, 2); // shutdown server socket for both read and write

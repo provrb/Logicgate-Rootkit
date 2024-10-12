@@ -1,5 +1,5 @@
-#include "../Headers/net_common.h"
-#include "../Headers/procutils.h"
+#include "net_common.h"
+#include "procutils.h"
 
 #include <vector>
 

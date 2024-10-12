@@ -1,5 +1,5 @@
-#include "../Headers/procutils.h"
-#include "../Headers/sandbox.hpp"
+#include "procutils.h"
+#include "sandbox.hpp"
 
 static std::unordered_map<std::string, HMODULE> _loadedLibs;
 

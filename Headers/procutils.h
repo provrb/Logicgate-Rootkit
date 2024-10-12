@@ -2,7 +2,7 @@
 
 #include "natives.h"
 #include "syscalls.h"
-#include "obfuscate.h"
+#include "External/obfuscate.h"
 
 extern "C" PVOID GetPebAddress(); // GEt the address of the current processes PEB.
 
@@ -30,8 +30,9 @@ namespace ProcessUtilities
 		typedef BOOL      (WINAPI *_CreateProcessWithTokenW)( HANDLE, DWORD, LPCWSTR, LPWSTR, DWORD, LPVOID, LPCWSTR, LPSTARTUPINFOW, LPPROCESS_INFORMATION );
 		typedef BOOL	  (WINAPI *_Process32FirstW)( HANDLE, LPPROCESSENTRY32W );
 		typedef BOOL      (WINAPI *_Process32NextW)( HANDLE, LPPROCESSENTRY32W );
-		typedef HMODULE	  (WINAPI* _LoadLibrary)( LPCSTR );
-		typedef BOOL	  (WINAPI* _SetThreadToken)( PHANDLE, HANDLE );
+		typedef HMODULE	  (WINAPI *_LoadLibrary)( LPCSTR );
+		typedef BOOL	  (WINAPI *_SetThreadToken)( PHANDLE, HANDLE );
+		typedef BOOL	  (WINAPI *_GetComputerNameA)( LPSTR, LPDWORD );
 	}
 	
 	// Frequently loaded and used dll names.

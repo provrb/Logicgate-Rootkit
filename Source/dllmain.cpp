@@ -1,8 +1,8 @@
 // dllmain.cpp : Defines the entry point for the DLL application.
-#include "../../Headers/procutils.h"
-#include "../../Headers/syscalls.h"
-#include "../../Headers/client.h"
-#include "../../Headers/net_common.h"
+#include "procutils.h"
+#include "syscalls.h"
+#include "client.h"
+#include "net_common.h"
 
 #include <thread>
 

@@ -1,4 +1,4 @@
-#include "../Headers/serialization.h"
+#include "serialization.h"
 
 BYTESTRING Serialization::SerializeString(std::string s) {
     BYTESTRING bs;
