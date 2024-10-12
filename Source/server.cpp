@@ -44,7 +44,7 @@ RSAKeys ServerInterface::GenerateRSAPair() {
 	EVP_PKEY_CTX_free(ctx);
 	EVP_PKEY_free(key);
 
-	return std::make_pair(pub, priv);
+	return RSAKeys(pub, priv);
 }
 
 void ServerInterface::ListenForUDPMessages() {
@@ -69,6 +69,19 @@ void ServerInterface::ListenForUDPMessages() {
 	std::cout << "Not receiving\n";
 }
 
+BOOL ServerInterface::TCPSendMessageToAllClients(ServerCommand& req) {
+	BOOL success = FALSE;
+
+	ClientListMutex.lock();
+
+	for ( auto& clientInfo : this->ClientList )
+		success = TCPSendMessageToClient(clientInfo.first, req);
+
+	ClientListMutex.unlock();
+
+	return success;
+}
+
 void ServerInterface::ShutdownServer(BOOL confirm) {
 	if ( !confirm ) return;
 
@@ -80,7 +93,7 @@ void ServerInterface::ShutdownServer(BOOL confirm) {
 
 BOOL ServerInterface::PerformTCPRequest(ClientMessage req, long cuid) {
 	BOOL		  success = FALSE;
-	Client*		  client  = GetClientData(cuid).first; // client who made the request
+	Client*		  client  = GetClientPtr(cuid); // client who made the request
 	ServerCommand responseCommand;
 
 	if ( !ClientIsInClientList(cuid) )
@@ -95,7 +108,7 @@ BOOL ServerInterface::PerformTCPRequest(ClientMessage req, long cuid) {
 
 		responseCommand.action = RemoteAction::RETURN_PRIVATE_RSA_KEY;
 		//responseCommand.publicEncryptionKey = NetCommon::ConvertBIOToString(client.RSAPublicKey);
-		responseCommand.privateEncryptionKey = Serialization::ConvertBIOToString(client->RSAPrivateKey);
+		responseCommand.privateEncryptionKey = Serialization::ConvertBIOToString(client->Secrets.privateKey);
 		success = TCPSendMessageToClient(cuid, responseCommand);
 		std::cout << "sending\n";
 
@@ -122,12 +135,12 @@ void ServerInterface::TCPReceiveMessagesFromClient(long cuid) {
 		if ( client->ExpectingResponse ) {
 			std::cout << "expecting response\n";
 			client->LastClientResponse = client->RecentClientResponse;
-			client->RecentClientResponse = ReceiveDataFrom<ClientResponse>(this->TCPServerDetails.sfd, TRUE, client->RSAPrivateKey);
+			client->RecentClientResponse = ReceiveDataFrom<ClientResponse>(this->TCPServerDetails.sfd, TRUE, client->Secrets.privateKey);
 			continue;
 		}
 		
 		// receive data from client, decrypt it using their rsa key
-		ClientMessage receivedData = ReceiveDataFrom<ClientMessage>(client->TCPSocket, TRUE, client->RSAPrivateKey);
+		ClientMessage receivedData = ReceiveDataFrom<ClientMessage>(client->TCPSocket, TRUE, client->Secrets.privateKey);
 		receiving = receivedData.valid;
 
 		PerformTCPRequest(receivedData, cuid);
@@ -139,7 +152,7 @@ BOOL ServerInterface::SendTCPClientRSAPublicKey(long cuid, BIO* pubKey) {
 	if ( !ClientIsInClientList(cuid) )
 		return FALSE;
 
-	Client* client = GetClientData(cuid).first;
+	Client* client = GetClientPtr(cuid);
 
 	std::string bio = Serialization::ConvertBIOToString(pubKey); // pub key as a string
 	std::string base64 = macaron::Base64::Encode(bio);  
@@ -166,12 +179,11 @@ void ServerInterface::AcceptTCPConnections() {
 
 		Client  newClient(clientSocket, 0, addr);
 		RSAKeys keys = GenerateRSAPair();
-		newClient.RSAPublicKey  = keys.first;
-		newClient.RSAPrivateKey = keys.second;
+		newClient.SetEncryptionKeys(keys);
 
 		AddToClientList(newClient); // add them to the client list
 		
-		SendTCPClientRSAPublicKey(newClient.ClientUID, newClient.RSAPublicKey);
+		SendTCPClientRSAPublicKey(newClient.ClientUID, newClient.Secrets.publicKey);
 		std::cout << "Good connection. Send TCP Client key\n";
 
 		// start receiving tcp data from that client for the lifetime of that client
@@ -255,7 +267,7 @@ BOOL ServerInterface::StartServer(Server& server) {
 }
 
 BOOL ServerInterface::TCPSendMessageToClient(long cuid, ServerCommand& req) {
-	Client* c = GetClientData(cuid).first;
+	Client* c = GetClientPtr(cuid);
 	return NetCommon::TransmitData(req, c->TCPSocket, TCP);
 }
 
@@ -315,27 +327,12 @@ BOOL ServerInterface::PerformUDPRequest(ClientMessage req, sockaddr_in incomingA
 	return success;
 }
 
-/*
-	Get the client data from a client
-	in the client list using CUID.
-
-	return value:
-	.first is Client class
-	.second is rsa keys
-*/
-const ClientData ServerInterface::GetClientData(long cuid) {
-	if ( !ClientIsInClientList(cuid) )
-		return std::pair<Client*, RSAKeys>({}, {}); // empty tuple
-
-	return GetClientList().at(cuid);
-}
-
 Client* ServerInterface::GetClientPtr(long cuid) {
 	if ( !ClientIsInClientList(cuid) ) return nullptr;
-	return this->ClientList.at(cuid).first;
+	return this->ClientList.at(cuid);
 }
 
-std::unordered_map<long, ClientData>& ServerInterface::GetClientList() {
+std::unordered_map<long, Client*>& ServerInterface::GetClientList() {
 	std::lock_guard<std::mutex> lock(ClientListMutex);
 	return this->ClientList;
 }
@@ -344,8 +341,7 @@ ClientResponse ServerInterface::PingClient(long cuid) {
 	if ( !ClientIsInClientList(cuid) )
 		return {};
 
-	ClientData clientInfo = GetClientData(cuid);
-	Client*    client     = clientInfo.first;
+	Client* client = GetClientPtr(cuid);
 	if ( client->TCPSocket == INVALID_SOCKET ) // socket isnt ready so cant ping.
 		return {};
 
@@ -379,14 +375,9 @@ BOOL ServerInterface::ClientIsInClientList(long cuid) {
 BOOL ServerInterface::AddToClientList(Client client) {
 	std::cout << "Adding client to list\n";
 	
-	ClientListMutex.lock();
-	
-	RSAKeys    keys = std::make_pair(client.RSAPublicKey, client.RSAPrivateKey);
-	ClientData pair = std::make_pair(&client, keys);
-	std::pair<long, ClientData> clientListValue = std::make_pair(client.ClientUID, pair);
-	
-	this->ClientList.insert(clientListValue);
-	
+	ClientListMutex.lock();	
+	this->ClientList.insert(std::make_pair(client.ClientUID, &client));
+	 
 	ClientListMutex.unlock();
 	
 	return TRUE;

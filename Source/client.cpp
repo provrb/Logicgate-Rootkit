@@ -68,7 +68,9 @@ BOOL Client::Connect() {
 	if ( connect == SOCKET_ERROR )
 		return FALSE;
 	
-	this->RSAPublicKey = GetPublicRSAKeyFromServer();
+	RSAKeys key = RSAKeys(GetPublicRSAKeyFromServer(), nullptr);
+	this->SetEncryptionKeys(key);
+
 	CLIENT_DBG("Connected");
 	return TRUE;
 }
@@ -111,9 +113,9 @@ BOOL Client::SendMessageToServer(Server dest, ClientMessage message, sockaddr_in
 
 BOOL Client::SendEncryptedMessageToServer(Server dest, ClientMessage message) {
 	if ( dest.type == SOCK_STREAM ) // tcp
-		return NetCommon::TransmitData(message, this->TCPSocket, TCP, NetCommon::_default, TRUE, this->RSAPublicKey);
+		return NetCommon::TransmitData(message, this->TCPSocket, TCP, NetCommon::_default, TRUE, this->Secrets.publicKey);
 	else if ( dest.type == SOCK_DGRAM ) // udp
-		return NetCommon::TransmitData(message, this->UDPSocket, UDP, NetCommon::_default, TRUE, this->RSAPublicKey);
+		return NetCommon::TransmitData(message, this->UDPSocket, UDP, NetCommon::_default, TRUE, this->Secrets.publicKey);
 
 	return FALSE;
 }
