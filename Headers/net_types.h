@@ -135,20 +135,27 @@ typedef struct {
 */
 struct ClientRequest {
     enum Action {
-        NONE = 0x000000,
-        CONNECT_CLIENT = 0x100000,
-        REQUEST_PUBLIC_ENCRYPTION_KEY = 0x200000,
+        NONE                           = 0x000000,
+        CONNECT_CLIENT                 = 0x100000,
+        REQUEST_PUBLIC_ENCRYPTION_KEY  = 0x200000,
         REQUEST_PRIVATE_ENCRYPTION_KEY = 0x92321,
-        VALIDATE_RANSOM_PAYMENT = 0x300000,
-        REQUEST_RANSOM_BTC_ADDRESS = 0x400000,
-        PING = 0x500000,
+        VALIDATE_RANSOM_PAYMENT        = 0x300000,
+        REQUEST_RANSOM_BTC_ADDRESS     = 0x400000,
+        PING                           = 0x500000,
     };
 
     BOOL              valid;
     Action            action;
     SOCKET            udp;
     SOCKET            tcp;
-    std::string temp;
+    
+    ClientRequest() = default;
+
+    ClientRequest(
+        Action todo, SOCKET tcp = INVALID_SOCKET, SOCKET udp = INVALID_SOCKET
+    ) : valid(TRUE), action(todo), udp(udp), tcp(tcp)
+    {
+    }
 };
 
 typedef ClientRequest ClientMessage;

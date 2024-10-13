@@ -82,12 +82,13 @@ BOOL Client::Connect() {
 	return TRUE;
 }
 
-BYTESTRING Client::MakeTCPRequest(ClientRequest req, RSAKeys pks, BOOL encrypted) {
-	BOOL sent = SendMessageToServer(this->TCPServerDetails, req);
+BYTESTRING Client::MakeTCPRequest(ClientRequest req, BOOL encrypted) {
+
+	BOOL sent = encrypted ? SendEncryptedMessageToServer(this->TCPServerDetails, req) : SendMessageToServer(this->TCPServerDetails, req);
 	if ( !sent ) return {};
 
 	BYTESTRING serverResponse;
-	BOOL received = NetCommon::ReceiveData(serverResponse, this->TCPSocket, TCP);
+	BOOL received = NetCommon::ReceiveData(serverResponse, this->TCPSocket, TCP, NetCommon::_default, encrypted, NetCommon::GetBIOFromString(this->Secrets.strPublicKey));
 	if ( !received ) return {};
 
 	return serverResponse;

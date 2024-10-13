@@ -17,7 +17,7 @@ int main() {
     server.StartServer(udp);
 
     while ( 1 ) {
-        std::this_thread::sleep_for(std::chrono::seconds(1)); // Simple wait to keep the main thread alive
+        std::this_thread::sleep_for(std::chrono::seconds(1));
     }
 
     return 0;
