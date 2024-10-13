@@ -12,7 +12,6 @@
 
 #define MAX_CON 300 // max clients on a server
 
-
 class ServerInterface
 {
 public:

@@ -1,5 +1,4 @@
 #include "procutils.h"
-#include "sandbox.hpp"
 
 static std::unordered_map<std::string, HMODULE> _loadedLibs;
 
@@ -206,7 +205,6 @@ HANDLE ProcessUtilities::CreateProcessAccessToken(DWORD processID) {
 		SysNtClose(process);
 		return NULL;
 	}
-	SandboxCompromise::DelayOperation();
 
 	SysNtClose(process);
 	SysNtClose(processToken);

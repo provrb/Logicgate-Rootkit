@@ -10,9 +10,9 @@ namespace ProcessUtilities
 {
 
 	/*
-	   Commonly used WINAPI function pointers types within
-    	   internal process utility functions. For example,
-	   getting the Windows Service Control Manager.
+		Commonly used WINAPI function pointers types within
+		internal process utility functions. For example,
+		getting the Windows Service Control Manager.
  	*/
 	namespace PPROCFN
 	{
