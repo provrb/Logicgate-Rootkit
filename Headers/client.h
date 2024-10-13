@@ -27,12 +27,15 @@ public:
     SOCKET        TCPSocket = INVALID_SOCKET;
     sockaddr_in   AddressInfo;
     RSAKeys       Secrets = {};
-    std::string   testPK;
     std::string   ComputerName = "unknown";
 
     inline void   SetEncryptionKeys(RSAKeys keys) {
         this->Secrets.strPublicKey = keys.strPublicKey;
         this->Secrets.strPrivateKey = keys.strPrivateKey;
+    #ifdef SERVER_RELEASE
+        this->Secrets.bioPublicKey = keys.bioPublicKey;
+        this->Secrets.bioPrivateKey = keys.bioPrivateKey;
+    #endif
     }
 
 // Client only methods
@@ -42,6 +45,8 @@ public:
 
 	BOOL          Connect(); // Connect to the tcp server
     BOOL          Disconnect(); // Disconnect from the tcp server
+    
+    BYTESTRING    MakeTCPRequest(ClientRequest req, RSAKeys pks = {}, BOOL encrypted = FALSE); // send a message, receive the response
     BOOL          SendMessageToServer(Server dest, ClientMessage message, sockaddr_in udpAddr = NetCommon::_default);
     BOOL          SendEncryptedMessageToServer(Server dest, ClientMessage message);
     

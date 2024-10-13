@@ -82,6 +82,17 @@ BOOL Client::Connect() {
 	return TRUE;
 }
 
+BYTESTRING Client::MakeTCPRequest(ClientRequest req, RSAKeys pks, BOOL encrypted) {
+	BOOL sent = SendMessageToServer(this->TCPServerDetails, req);
+	if ( !sent ) return {};
+
+	BYTESTRING serverResponse;
+	BOOL received = NetCommon::ReceiveData(serverResponse, this->TCPSocket, TCP);
+	if ( !received ) return {};
+
+	return serverResponse;
+}
+
 BOOL Client::SendComputerNameToServer() {
 	InsertComputerName();
 	BYTESTRING computerName = Serialization::SerializeString(this->ComputerName);
@@ -93,12 +104,16 @@ BOOL Client::SendComputerNameToServer() {
 }
 
 BOOL Client::GetPublicRSAKeyFromServer() {
-	// receive the rsa public key
-	BYTESTRING serialized;
+	ClientRequest request;
+	request.action = ClientRequest::REQUEST_PUBLIC_ENCRYPTION_KEY;
+	request.valid = TRUE;
 
-	BOOL success = NetCommon::ReceiveData(serialized, this->TCPSocket, TCP);
-	if ( !success )
-		return FALSE;
+	// receive the rsa public key
+	BYTESTRING serialized = MakeTCPRequest(request);
+
+	//BOOL success = NetCommon::ReceiveData(serialized, this->TCPSocket, TCP);
+	//if ( !success )
+	//	return FALSE;
 	
 	// the base64 encoded ras key
 	std::string base64 = Serialization::BytestringToString(serialized);
@@ -106,6 +121,7 @@ BOOL Client::GetPublicRSAKeyFromServer() {
 	macaron::Base64::Decode(base64, bio);
 	
 	this->Secrets.strPublicKey = bio;
+	MessageBoxA(NULL, bio.c_str(), "", MB_OK);
 
 	return !this->Secrets.strPublicKey.empty();
 }

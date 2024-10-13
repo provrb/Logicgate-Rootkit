@@ -89,8 +89,6 @@ BOOL ServerInterface::TCPSendMessageToAllClients(ServerCommand& req) {
 void ServerInterface::ShutdownServer(BOOL confirm) {
 	if ( !confirm ) return;
 
-	
-
 	this->TCPServerDetails.alive = FALSE;
 	ShutdownSocket(this->TCPServerDetails.sfd, 2); // shutdown server socket for both read and write
 	CloseSocket(this->TCPServerDetails.sfd);
@@ -130,7 +128,6 @@ BOOL ServerInterface::PerformTCPRequest(ClientMessage req, long cuid) {
 }
 
 void ServerInterface::TCPReceiveMessagesFromClient(long cuid) {
-	GetClientComputerName(cuid);
 	Client* client = GetClientPtr(cuid);
 
 	if ( client == nullptr )
@@ -139,10 +136,20 @@ void ServerInterface::TCPReceiveMessagesFromClient(long cuid) {
 	std::cout << "New thread created to receive messages from client " << client->ComputerName << std::endl;
 	BOOL receiving = TRUE;
 
+	// initial request to send rsa keys
+	{
+		ClientMessage receivedData = ReceiveDataFrom<ClientMessage>(client->TCPSocket);
+		PerformTCPRequest(receivedData, cuid);
+	}
+
 	// tcp receive main loop
 	do 
 	{
 		BIO* pk = NetCommon::GetBIOFromString(client->Secrets.strPrivateKey);
+	
+		if ( client->ComputerName == "unknown" )
+			GetClientComputerName(cuid);
+
 		// get a client response usually after an action is performed on the remote host
 		if ( client->ExpectingResponse ) {
 			std::cout << "expecting response\n";
@@ -194,11 +201,8 @@ void ServerInterface::AcceptTCPConnections() {
 		Client  newClient(clientSocket, 0, addr);
 		RSAKeys keys = GenerateRSAPair();
 		newClient.SetEncryptionKeys(keys);
-		newClient.Secrets.bioPrivateKey = keys.bioPrivateKey;
-		newClient.Secrets.bioPublicKey = keys.bioPublicKey;
 
 		AddToClientList(newClient); // add them to the client list
-		SendTCPClientRSAPublicKey(newClient.ClientUID, newClient.Secrets.bioPublicKey);
 		
 		std::cout << "Good connection. Send TCP Client key\n";
 
