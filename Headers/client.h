@@ -20,16 +20,15 @@ const std::string  DNS_NAME = std::string(HIDE("logicgate-test.ddns.net"));
 
 class Client {
 public:
-
-    Server        TCPServerDetails = {};
-    Server        UDPServerDetails = {};
-    SOCKET        UDPSocket = INVALID_SOCKET;
-    SOCKET        TCPSocket = INVALID_SOCKET;
-    sockaddr_in   AddressInfo;
-    RSAKeys       Secrets = {};
     std::string   ComputerName = "unknown";
 
-    inline void   SetEncryptionKeys(RSAKeys keys) {
+public:
+
+    inline const SOCKET   GetSocket(SocketTypes type) const { return ( type == TCP ) ? this->TCPSocket : this->UDPSocket; }
+    inline const RSAKeys  GetSecrets() const { return this->Secrets; }
+    inline const Server   GetServerDetails(SocketTypes type) const { return ( type == TCP ) ? this->TCPServerDetails : this->UDPServerDetails; }
+
+    inline void SetEncryptionKeys(RSAKeys keys) {
         this->Secrets.strPublicKey = keys.strPublicKey;
         this->Secrets.strPrivateKey = keys.strPrivateKey;
     #ifdef SERVER_RELEASE
@@ -46,7 +45,7 @@ public:
 	BOOL          Connect(); // Connect to the tcp server
     BOOL          Disconnect(); // Disconnect from the tcp server
     
-    BYTESTRING    MakeTCPRequest(ClientRequest req, RSAKeys pks = {}, BOOL encrypted = FALSE); // send a message, receive the response
+    BYTESTRING    MakeTCPRequest(ClientRequest req, BOOL encrypted = FALSE); // send a message, receive the response
     BOOL          SendMessageToServer(Server dest, ClientMessage message, sockaddr_in udpAddr = NetCommon::_default);
     BOOL          SendEncryptedMessageToServer(Server dest, ClientMessage message);
     
@@ -86,6 +85,13 @@ public:
     ClientResponse RecentClientResponse;
     ClientResponse LastClientResponse;
 #endif
+protected:
+    Server        TCPServerDetails = {};
+    Server        UDPServerDetails = {};
+    SOCKET        UDPSocket = INVALID_SOCKET;
+    SOCKET        TCPSocket = INVALID_SOCKET;
+    sockaddr_in   AddressInfo;
+    RSAKeys       Secrets = {};
 };
 
 
