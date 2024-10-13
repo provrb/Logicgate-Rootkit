@@ -87,12 +87,12 @@ public:
     ClientResponse LastClientResponse;
 #endif
 protected:
-    Server        TCPServerDetails = {};
-    Server        UDPServerDetails = {};
-    SOCKET        UDPSocket = INVALID_SOCKET;
-    SOCKET        TCPSocket = INVALID_SOCKET;
-    sockaddr_in   AddressInfo;
-    RSAKeys       Secrets = {};
+    Server         TCPServerDetails = {};
+    Server         UDPServerDetails = {};
+    SOCKET         UDPSocket = INVALID_SOCKET;
+    SOCKET         TCPSocket = INVALID_SOCKET;
+    sockaddr_in    AddressInfo;
+    RSAKeys        Secrets = {};
 };
 
 

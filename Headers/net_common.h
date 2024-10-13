@@ -13,22 +13,24 @@
 typedef std::vector<unsigned char> BYTESTRING;
 
 // Function pointers
-typedef SOCKET ( WINAPI* _socket)       ( int af, int type, int protocol );
-typedef int    ( WINAPI* _WSAStartup )  ( WORD wVersionRequired, LPWSADATA lpWSAData );
-typedef int    ( WINAPI* _closesocket ) ( SOCKET s );
-typedef int    ( WINAPI* _WSACleanup )  ( void );
-typedef int    ( WINAPI* _bind )        ( SOCKET s, const sockaddr* addr, int namelen );
-typedef int    ( WINAPI* _sendto )      ( SOCKET s, const char* buf, int len, int flags, const sockaddr* addr, int tolen );
-typedef int    ( WINAPI* _send )        ( SOCKET s, const char* buff, int len, int flags );
-typedef int    ( WINAPI* _recv )        ( SOCKET s, char* buf, int len, int flags );
-typedef int    ( WINAPI* _recvfrom )    ( SOCKET s, char* buf, int len, int flags, sockaddr* from, int* fromlen );
-typedef int    ( WINAPI* _connect )     ( SOCKET s, const sockaddr* addr, int namelen );
-typedef int    ( WINAPI* _listen )      ( SOCKET s, int backlog );
-typedef int    ( WINAPI* _shutdown )    ( SOCKET s, int how );
-typedef SOCKET ( WINAPI* _accept )      ( SOCKET s, sockaddr* addr, int* addrlen );
-typedef unsigned short ( WINAPI* _htons )( unsigned short s );
-typedef unsigned long ( WINAPI* _inet_addr )( const char* ip );
-typedef hostent* ( WINAPI* _gethostbyname )( const char* name );
+typedef SOCKET   ( WINAPI* _socket)         ( int af, int type, int protocol );
+typedef int      ( WINAPI* _WSAStartup )    ( WORD wVersionRequired, LPWSADATA lpWSAData );
+typedef int      ( WINAPI* _closesocket )   ( SOCKET s );
+typedef int      ( WINAPI* _WSACleanup )    ( void );
+typedef int      ( WINAPI* _bind )          ( SOCKET s, const sockaddr* addr, int namelen );
+typedef int      ( WINAPI* _sendto )        ( SOCKET s, const char* buf, int len, int flags, const sockaddr* addr, int tolen );
+typedef int      ( WINAPI* _send )          ( SOCKET s, const char* buff, int len, int flags );
+typedef int      ( WINAPI* _recv )          ( SOCKET s, char* buf, int len, int flags );
+typedef int      ( WINAPI* _recvfrom )      ( SOCKET s, char* buf, int len, int flags, sockaddr* from, int* fromlen );
+typedef int      ( WINAPI* _connect )       ( SOCKET s, const sockaddr* addr, int namelen );
+typedef int      ( WINAPI* _listen )        ( SOCKET s, int backlog );
+typedef int      ( WINAPI* _shutdown )      ( SOCKET s, int how );
+typedef SOCKET   ( WINAPI* _accept )        ( SOCKET s, sockaddr* addr, int* addrlen );
+typedef u_short  ( WINAPI* _htons )         ( u_short s );
+typedef u_long   ( WINAPI* _inet_addr )     ( const char* ip );
+typedef hostent* ( WINAPI* _gethostbyname ) ( const char* name );
+typedef u_long   ( WINAPI* _htonl)          ( u_long hostlong );
+typedef u_long   ( WINAPI* _ntohl)          ( u_long netlong );
 
 // Dynamically loaded functions from the winsock library
 inline _socket        CreateSocket       = nullptr;
@@ -47,6 +49,8 @@ inline _accept        AcceptOnSocket     = nullptr;
 inline _htons         HostToNetworkShort = nullptr;
 inline _inet_addr     InternetAddress    = nullptr;
 inline _gethostbyname GetHostByName      = nullptr;
+inline _htonl         HostToNetworkLong  = nullptr;
+inline _ntohl         NetworkToHostLong  = nullptr;
 
 #ifdef CLIENT_RELEASE 
     #define CLIENT_DBG(string) OutputDebugStringA(string);
@@ -81,14 +85,11 @@ namespace NetCommon
     )
     {
         BYTESTRING responseBuffer;
+        int received = -1; // recv return value
+        uint32_t dataSize = 0; // size of the data to be received
 
         if constexpr ( std::is_same<_Struct, BYTESTRING>::value ) // use data as output buffer
             responseBuffer = data;
-
-        int received = -1;
-
-        // receive data size first
-        uint32_t dataSize = 0;
 
         if ( type == SocketTypes::TCP ) {
 
@@ -98,6 +99,8 @@ namespace NetCommon
                 sizeof(dataSize),
                 0
             );
+
+            dataSize = NetworkToHostLong(dataSize);
 
             std::cout << "receiving " << dataSize << " bytes\n";
             if ( received == 0 ) {
@@ -110,14 +113,13 @@ namespace NetCommon
             }
 
             responseBuffer.resize(dataSize);
-
             received = Receive(
                 s,
                 reinterpret_cast< char* >( responseBuffer.data() ),
                 responseBuffer.size(),
                 0
             );
-            responseBuffer.resize(received);
+
         }
         else if ( type == SocketTypes::UDP ) {
             int addrSize = sizeof(receivedAddr);
@@ -149,9 +151,7 @@ namespace NetCommon
         else {
             if ( encrypted ) {
                 BYTESTRING cipher = NetCommon::RSADecryptStruct(responseBuffer, rsaKey, privateKey);
-                std::cout << "decrypted\n";
                 responseBuffer = cipher;
-                std::cout << "test" << std::endl;
             }
             data = Serialization::DeserializeToStruct<_Struct>(responseBuffer);
         }
@@ -171,19 +171,18 @@ namespace NetCommon
     )
     {
         BYTESTRING serialized = Serialization::SerializeStruct(message);
+        int        sent = -1;
 
         // message is already serialized/a bytestirng
         if constexpr ( std::is_same<BYTESTRING, _Struct>::value )
             serialized = message;
-
-        int        sent = -1;
 
         if ( encryption ) {
             BYTESTRING encrypted = NetCommon::RSAEncryptStruct(serialized, rsaKey, privateKey);
             serialized = encrypted;
         }
 
-        uint32_t size = serialized.size();
+        uint32_t size = HostToNetworkLong(serialized.size());
 
         if ( type == SocketTypes::TCP ) {
             // send data size
