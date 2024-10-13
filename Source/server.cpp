@@ -45,8 +45,10 @@ RSAKeys ServerInterface::GenerateRSAPair() {
 	EVP_PKEY_free(key);
 
 	RSAKeys keys;
-	keys.bioPublicKey = pub;
+	keys.strPublicKey = Serialization::ConvertBIOToString(pub);
+	keys.strPrivateKey = Serialization::ConvertBIOToString(priv);
 	keys.bioPrivateKey = priv;
+	keys.bioPublicKey = pub;
 
 	return keys;
 }
@@ -105,6 +107,9 @@ BOOL ServerInterface::PerformRequest(ClientRequest req, Server on, long cuid, so
 
 	if ( onTCP ) 
 		TCPClient = GetClientPtr(cuid);
+
+	std::cout << "Received a request.\n - Performing Action : " << req.action << std::endl;
+	if ( TCPClient ) std::cout << " - From: " << TCPClient->ComputerName << std::endl;
 
 	switch ( req.action )
 	{
@@ -171,17 +176,16 @@ void ServerInterface::TCPReceiveMessagesFromClient(long cuid) {
 	std::cout << "New thread created to receive messages from client " << client->ComputerName << std::endl;
 	BOOL receiving = TRUE;
 
-	// initial request to send rsa keys
+	// initial request to send rsa keys before we can start encrypted communication
+	// use tcp server because udp is prone to not sending the keys fully
 	{
 		ClientMessage receivedData = ReceiveDataFrom<ClientMessage>(client->GetSocket(TCP));
 		PerformRequest(receivedData, this->TCPServerDetails, cuid);
 	}
 
 	// tcp receive main loop
-	do 
+	do
 	{
-		BIO* pk = NetCommon::GetBIOFromString(client->GetSecrets().strPrivateKey);
-	
 		if ( client->ComputerName == "unknown" )
 			GetClientComputerName(cuid);
 
@@ -189,19 +193,19 @@ void ServerInterface::TCPReceiveMessagesFromClient(long cuid) {
 		if ( client->ExpectingResponse ) {
 			std::cout << "expecting response\n";
 			client->LastClientResponse = client->RecentClientResponse;
-			client->RecentClientResponse = ReceiveDataFrom<ClientResponse>(this->TCPServerDetails.sfd, TRUE, pk);
+			client->RecentClientResponse = ReceiveDataFrom<ClientResponse>(this->TCPServerDetails.sfd, TRUE, client->GetSecrets().bioPrivateKey);
 			continue;
 		}
-		
+
 		// receive data from client, decrypt it using their rsa key
-		ClientMessage receivedData = ReceiveDataFrom<ClientMessage>(client->GetSocket(TCP), TRUE, pk);
+		ClientMessage receivedData = ReceiveDataFrom<ClientMessage>(client->GetSocket(TCP), TRUE, client->GetSecrets().bioPrivateKey);
 		receiving = receivedData.valid;
 
 		std::cout << "Client name: " << client->ComputerName << std::endl;
+		std::cout << "Most recent request: " << receivedData.action << std::endl;
 
 		PerformRequest(receivedData, this->TCPServerDetails, cuid);
-	} 
-	while ( receiving );
+	} while ( receiving );
 }
 
 BOOL ServerInterface::SendTCPClientRSAPublicKey(long cuid, BIO* pubKey) {

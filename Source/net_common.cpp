@@ -42,12 +42,24 @@ void NetCommon::LoadWSAFunctions() {
         WSAInitialized = TRUE;
 }
 
-BYTESTRING NetCommon::RSADecryptStruct(BYTESTRING data, BIO* bio, BOOL privateKey) {
-    std::cout << "decrypting a struct!\n";
+BIO* NetCommon::BIODeepCopy(BIO* in) {
+    BIO* copy = BIO_new(BIO_s_mem());
+    BUF_MEM* buffer;
 
-    EVP_PKEY* priv = privateKey ? PEM_read_bio_PrivateKey(bio, nullptr, nullptr, nullptr) : PEM_read_bio_PUBKEY(bio, nullptr, nullptr, nullptr);
-    if ( !priv )
+    BIO_get_mem_ptr(in, &buffer); // get everything used in 'in' bio
+    BIO_write(copy, buffer->data, buffer->length); // copy all the memory from 'in' to 'copy'
+
+    return copy;
+}
+
+BYTESTRING NetCommon::RSADecryptStruct(BYTESTRING data, BIO* bio, BOOL privateKey) {
+    BIO* copied = NetCommon::BIODeepCopy(bio);
+
+    EVP_PKEY* priv = privateKey ? PEM_read_bio_PrivateKey(copied, nullptr, nullptr, nullptr) : PEM_read_bio_PUBKEY(copied, nullptr, nullptr, nullptr);
+    if ( !priv ) {
+        std::cout << "bad key\n";
         return {};
+    }
 
     EVP_PKEY_CTX* ctx = EVP_PKEY_CTX_new(priv, nullptr);
     if ( !ctx ) {
@@ -88,9 +100,8 @@ BYTESTRING NetCommon::RSADecryptStruct(BYTESTRING data, BIO* bio, BOOL privateKe
 }
 
 BYTESTRING NetCommon::RSAEncryptStruct(BYTESTRING data, BIO* bio, BOOL privateKey) {
-    BIO_reset(bio);
-
-    EVP_PKEY* pub = privateKey ? PEM_read_bio_PrivateKey(bio, nullptr, nullptr, nullptr) : PEM_read_bio_PUBKEY(bio, nullptr, nullptr, nullptr);
+    BIO* copied = BIODeepCopy(bio);
+    EVP_PKEY* pub = privateKey ? PEM_read_bio_PrivateKey(copied, nullptr, nullptr, nullptr) : PEM_read_bio_PUBKEY(copied, nullptr, nullptr, nullptr);
     if ( !pub )
         return {};
 

@@ -72,6 +72,8 @@ namespace NetCommon
     BYTESTRING   RSADecryptStruct(BYTESTRING data, BIO* bio, BOOL privateKey);
     BYTESTRING   RSAEncryptStruct(BYTESTRING data, BIO* bio, BOOL privateKey);
     inline BIO*  GetBIOFromString(std::string s) { return BIO_new_mem_buf(s.c_str(), s.size()); }
+    BIO*         BIODeepCopy(BIO* in);
+
 
     template <typename _Struct>
     inline BOOL ReceiveData(
@@ -104,11 +106,9 @@ namespace NetCommon
 
             std::cout << "receiving " << dataSize << " bytes\n";
             if ( received == 0 ) {
-                std::cout << "tcp connection closed\n";
                 return FALSE;
             }
             else if ( received < 0 ) {
-                std::cout << "error\n";
                 return FALSE;
             }
 
@@ -119,7 +119,7 @@ namespace NetCommon
                 responseBuffer.size(),
                 0
             );
-
+            responseBuffer.resize(received);
         }
         else if ( type == SocketTypes::UDP ) {
             int addrSize = sizeof(receivedAddr);
