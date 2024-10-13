@@ -51,10 +51,7 @@ BOOL Client::Connect() {
 	if ( this->UDPSocket == INVALID_SOCKET )
 		return FALSE;
 
-	ClientRequest request = {};
-	request.action = ClientRequest::Action::CONNECT_CLIENT;
-	request.udp    = this->UDPSocket;
-	request.valid  = TRUE;
+	ClientRequest request(ClientRequest::CONNECT_CLIENT, 0, this->UDPSocket);
 
 	BOOL validServerResponse = SendMessageToServer(this->UDPServerDetails, request, this->UDPServerDetails.addr);
 	if ( !validServerResponse )
@@ -105,16 +102,10 @@ BOOL Client::SendComputerNameToServer() {
 }
 
 BOOL Client::GetPublicRSAKeyFromServer() {
-	ClientRequest request;
-	request.action = ClientRequest::REQUEST_PUBLIC_ENCRYPTION_KEY;
-	request.valid = TRUE;
+	ClientRequest request(ClientRequest::REQUEST_PUBLIC_ENCRYPTION_KEY, this->TCPSocket);
 
 	// receive the rsa public key
 	BYTESTRING serialized = MakeTCPRequest(request);
-
-	//BOOL success = NetCommon::ReceiveData(serialized, this->TCPSocket, TCP);
-	//if ( !success )
-	//	return FALSE;
 	
 	// the base64 encoded ras key
 	std::string base64 = Serialization::BytestringToString(serialized);

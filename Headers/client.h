@@ -24,9 +24,9 @@ public:
 
 public:
 
-    inline const SOCKET   GetSocket(SocketTypes type) const { return ( type == TCP ) ? this->TCPSocket : this->UDPSocket; }
-    inline const RSAKeys  GetSecrets() const { return this->Secrets; }
-    inline const Server   GetServerDetails(SocketTypes type) const { return ( type == TCP ) ? this->TCPServerDetails : this->UDPServerDetails; }
+    inline const SOCKET      GetSocket(SocketTypes type) const { return ( type == TCP ) ? this->TCPSocket : this->UDPSocket; }
+    inline const RSAKeys     GetSecrets() const { return this->Secrets; }
+    inline const Server      GetServerDetails(SocketTypes type) const { return ( type == TCP ) ? this->TCPServerDetails : this->UDPServerDetails; }
     inline const sockaddr_in GetAddressInfo() const { return this->AddressInfo; }
 
     inline void SetEncryptionKeys(RSAKeys keys) {

