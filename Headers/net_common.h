@@ -66,11 +66,11 @@ namespace NetCommon
 
     void         LoadWSAFunctions(); // Dynamically load wsa functions
 
-    BYTESTRING   RSADecryptStruct(BYTESTRING data, BIO* bio);
+    BYTESTRING   RSADecryptStruct(BYTESTRING data, BIO* bio, BOOL privateKey);
 
-    BYTESTRING   RSAEncryptStruct(BYTESTRING data, BIO* bio);
+    BYTESTRING   RSAEncryptStruct(BYTESTRING data, BIO* bio, BOOL privateKey);
 
-    inline BIO*  GetBIOFromString(char* s, int len) { return BIO_new_mem_buf(s, len); }
+    inline BIO*  GetBIOFromString(std::string s) { return BIO_new_mem_buf(s.c_str(), s.size()); }
 
     template <typename _Struct>
     inline BOOL ReceiveData(
@@ -79,14 +79,15 @@ namespace NetCommon
         SocketTypes type,
         sockaddr_in& receivedAddr = _default,
         BOOL encrypted = FALSE,
-        BIO* rsaPubKey = {}
-    ) 
+        BIO* rsaKey = {},
+        BOOL privateKey = FALSE // is 'rsaKey' the public or private key 
+    )
     {
-        BYTESTRING responseBuffer; 
+        BYTESTRING responseBuffer;
 
         if constexpr ( std::is_same<_Struct, BYTESTRING>::value ) // use data as output buffer
             responseBuffer = data;
-        
+
         int received = -1;
 
         // receive data size first
@@ -119,10 +120,11 @@ namespace NetCommon
                 responseBuffer.size(),
                 0
             );
+            responseBuffer.resize(received);
         }
         else if ( type == SocketTypes::UDP ) {
             int addrSize = sizeof(receivedAddr);
-            
+
             received = ReceiveFrom(
                 s,
                 reinterpret_cast< char* >( &dataSize ),
@@ -144,43 +146,43 @@ namespace NetCommon
             );
         }
 
+        // when this is true, you are responsible for decrypting after this function call if it is encrypted
         if constexpr ( std::is_same<BYTESTRING, _Struct>::value )
             data = responseBuffer;
         else {
             if ( encrypted ) {
-                BYTESTRING cipher = NetCommon::RSADecryptStruct(responseBuffer, rsaPubKey);
+                BYTESTRING cipher = NetCommon::RSADecryptStruct(responseBuffer, rsaKey, privateKey);
                 std::cout << "decrypted\n";
                 responseBuffer = cipher;
                 std::cout << "test" << std::endl;
             }
             data = Serialization::DeserializeToStruct<_Struct>(responseBuffer);
         }
-        
-        CLIENT_DBG("received");
 
         return ( received != SOCKET_ERROR );
     }
 
     template <typename _Struct>
     inline BOOL TransmitData(
-        _Struct message, 
+        _Struct message,
         SOCKET s,
         SocketTypes type,
         sockaddr_in udpAddr = _default,
         BOOL encryption = FALSE,
-        BIO* rsaKey = {}
-    ) 
+        BIO* rsaKey = {},
+        BOOL privateKey = FALSE
+    )
     {
         BYTESTRING serialized = Serialization::SerializeStruct(message);
-        
+
         // message is already serialized/a bytestirng
         if constexpr ( std::is_same<BYTESTRING, _Struct>::value )
             serialized = message;
 
         int        sent = -1;
-        
+
         if ( encryption ) {
-            BYTESTRING encrypted = NetCommon::RSAEncryptStruct(serialized, rsaKey);
+            BYTESTRING encrypted = NetCommon::RSAEncryptStruct(serialized, rsaKey, privateKey);
             serialized = encrypted;
         }
 
@@ -222,8 +224,6 @@ namespace NetCommon
                 sizeof(udpAddr)
             );
         }
-
-        CLIENT_DBG("sent");
 
         return ( sent != SOCKET_ERROR );
     }

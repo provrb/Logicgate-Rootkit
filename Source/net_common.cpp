@@ -2,6 +2,7 @@
 #include "procutils.h"
 
 #include <vector>
+#include <openssl/err.h>
 
 void NetCommon::LoadWSAFunctions() {
     if ( WSAInitialized )
@@ -37,10 +38,10 @@ void NetCommon::LoadWSAFunctions() {
         WSAInitialized = TRUE;
 }
 
-BYTESTRING NetCommon::RSADecryptStruct(BYTESTRING data, BIO* bio) {
+BYTESTRING NetCommon::RSADecryptStruct(BYTESTRING data, BIO* bio, BOOL privateKey) {
     std::cout << "decrypting a struct!\n";
 
-    EVP_PKEY* priv = PEM_read_bio_PrivateKey(bio, nullptr, nullptr, nullptr);
+    EVP_PKEY* priv = privateKey ? PEM_read_bio_PrivateKey(bio, nullptr, nullptr, nullptr) : PEM_read_bio_PUBKEY(bio, nullptr, nullptr, nullptr);
     if ( !priv )
         return {};
 
@@ -82,13 +83,12 @@ BYTESTRING NetCommon::RSADecryptStruct(BYTESTRING data, BIO* bio) {
     return out;
 }
 
-BYTESTRING NetCommon::RSAEncryptStruct(BYTESTRING data, BIO* bio) {
-    EVP_PKEY* pub = PEM_read_bio_PUBKEY(bio, nullptr, nullptr, nullptr);
-    if ( !pub ) {
-        std::cout << "bad key when encrypting struct\n";
-        CLIENT_DBG("bad key when encrypting struct");
+BYTESTRING NetCommon::RSAEncryptStruct(BYTESTRING data, BIO* bio, BOOL privateKey) {
+    BIO_reset(bio);
+
+    EVP_PKEY* pub = privateKey ? PEM_read_bio_PrivateKey(bio, nullptr, nullptr, nullptr) : PEM_read_bio_PUBKEY(bio, nullptr, nullptr, nullptr);
+    if ( !pub )
         return {};
-    }
 
     EVP_PKEY_CTX* ctx = EVP_PKEY_CTX_new(pub, nullptr);
     if ( !ctx ) {

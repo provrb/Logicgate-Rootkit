@@ -12,6 +12,7 @@
 
 #define MAX_CON 300 // max clients on a server
 
+
 class ServerInterface
 {
 public:
@@ -57,12 +58,13 @@ public:
 	ClientResponse    WaitForClientResponse(long cuid);
 	
 	BOOL              UDPSendMessageToClient(Client clientInfo, UDPMessage& message);
+	BOOL			  GetClientComputerName(long client);
 	void              ListenForUDPMessages();
 	BOOL              AddToClientList(Client client);
 	ClientResponse    PingClient(long cuid);
 	BOOL              ClientIsInClientList(long cuid);
 	Client*           GetClientPtr(long cuid);
-	std::unordered_map<long, Client*>& GetClientList();
+	std::unordered_map<long, Client>& GetClientList();
 	inline BOOL       IsServerRunning(const Server& s) const { return s.alive; }
 	inline Server     GetTCPServer() const { return this->TCPServerDetails; }
 	inline Server     GetUDPServer() const { return this->UDPServerDetails; }
@@ -95,7 +97,7 @@ protected:
 		Information about the connected client alongside its private and public
 		uniquely generated rsa key for all connected clients
 	*/
-	std::unordered_map<long, Client*> ClientList;
+	std::unordered_map<long, Client> ClientList;
 	std::mutex    ClientListMutex; // concurrency
 	Server        TCPServerDetails;
 	Server        UDPServerDetails;

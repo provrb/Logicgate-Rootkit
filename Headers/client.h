@@ -26,12 +26,13 @@ public:
     SOCKET        UDPSocket = INVALID_SOCKET;
     SOCKET        TCPSocket = INVALID_SOCKET;
     sockaddr_in   AddressInfo;
-    RSAKeys       Secrets;
-    LPSTR         ComputerName;
+    RSAKeys       Secrets = {};
+    std::string   testPK;
+    std::string   ComputerName = "unknown";
 
     inline void   SetEncryptionKeys(RSAKeys keys) {
-        this->Secrets.publicKey = keys.publicKey;
-        this->Secrets.privateKey = keys.privateKey;
+        this->Secrets.strPublicKey = keys.strPublicKey;
+        this->Secrets.strPrivateKey = keys.strPrivateKey;
     }
 
 // Client only methods
@@ -46,11 +47,14 @@ public:
     
     template <typename _Ty>
     BOOL          ReceiveMessageFromServer(Server who, _Ty& out, sockaddr_in& outAddr);
-    BIO*          GetPublicRSAKeyFromServer();
+    BOOL          GetPublicRSAKeyFromServer();
+    BOOL          SendComputerNameToServer();
+    void          InsertComputerName();
 
 // Server only client implementation
 #elif defined(SERVER_RELEASE)
 public:
+    Client() = default;
     Client(SOCKET tcp, SOCKET udp, sockaddr_in addr) 
         : AddressInfo(addr), TCPSocket(tcp), UDPSocket(udp) 
     {
