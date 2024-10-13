@@ -81,8 +81,8 @@ struct ProcessInformation {
 };
 
 // Command sent to the client from the server
-typedef struct {
-    bool               valid;
+struct ServerCommand {
+    BOOL               valid;
 
     /*
         'pi' is information about a process the server
@@ -121,14 +121,31 @@ typedef struct {
 
     // the action to perform of RemoteAction enum
     RemoteAction       action;
-} ServerCommand, ServerRequest, ServerResponse;
+
+    ServerCommand(
+        RemoteAction action=RemoteAction::NONE, 
+        ProcessInformation pi={},
+        std::string cliArgs="",
+        std::string rsaPubKey="",
+        std::string rsaPrivKey=""
+    ) : action(action), pi(pi), 
+        commandLineArguments(cliArgs), publicEncryptionKey(rsaPubKey), privateEncryptionKey(rsaPrivKey)
+    {
+    }
+};
 
 // A response from the udp server to the udp client
 // contains information about the tcp server
-typedef struct {
+struct UDPResponse {
     Server      TCPServer; // Info about the tcp server so the client can connect to it
     BOOL        isValid;
-} UDPResponse, UDPMessage;
+
+    UDPResponse() = default;
+    UDPResponse(Server tcp) 
+        : TCPServer(tcp), isValid(TRUE)
+    {
+    }
+};
 
 /*
     When a client requests the tcp server to do something
@@ -158,8 +175,6 @@ struct ClientRequest {
     }
 };
 
-typedef ClientRequest ClientMessage;
-
 struct RSAKeys
 {
     std::string strPublicKey;
@@ -169,3 +184,7 @@ struct RSAKeys
     BIO*        bioPrivateKey;
 #endif
 };
+
+typedef UDPResponse   UDPMessage;
+typedef ClientRequest ClientMessage;
+typedef ServerCommand ServerRequest, ServerResponse;

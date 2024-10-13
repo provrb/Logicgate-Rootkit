@@ -80,8 +80,7 @@ protected:
 	inline BOOL       IsRansomPaid(Client client) { return TRUE; } // return true always. 
 				      
 	RSAKeys		      GenerateRSAPair();
-	BOOL              PerformUDPRequest(ClientMessage req, sockaddr_in incomingAddr); // perform actions based on req.action
-	BOOL		      PerformTCPRequest(ClientMessage req, long cuid); // perform actions based on req.action
+	BOOL			  PerformRequest(ClientRequest req, Server on, long cuid = -1, sockaddr_in incoming = NetCommon::_default);
 
 	/*
 		Wrapper for ReceiveData.
