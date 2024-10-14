@@ -1,3 +1,5 @@
+#pragma once
+
 #include "framework.h"
 
 #define RTL_MAX_DRIVE_LETTERS 32
@@ -7,6 +9,7 @@
 
 #define OBJ_KERNEL_HANDLE                   0x00000200L
 #define OBJ_INHERIT 0x00000002
+#define OBJ_CASE_INSENSITIVE                0x00000040L
 
 typedef ULONG GDI_HANDLE_BUFFER[GDI_HANDLE_BUFFER_SIZE];
 typedef struct _LEAP_SECOND_DATA* PLEAP_SECOND_DATA;
@@ -17,6 +20,25 @@ typedef struct _UNICODE_STRING {
 	USHORT MaximumLength;
 	PWSTR  Buffer;
 } UNICODE_STRING, * PUNICODE_STRING;
+
+typedef struct _KEY_VALUE_PARTIAL_INFORMATION
+{
+    ULONG TitleIndex;
+    ULONG Type;
+    ULONG DataLength;
+    _Field_size_bytes_(DataLength) UCHAR Data[1];
+} KEY_VALUE_PARTIAL_INFORMATION, * PKEY_VALUE_PARTIAL_INFORMATION;
+
+typedef enum _KEY_VALUE_INFORMATION_CLASS
+{
+    KeyValueBasicInformation, // KEY_VALUE_BASIC_INFORMATION
+    KeyValueFullInformation, // KEY_VALUE_FULL_INFORMATION
+    KeyValuePartialInformation, // KEY_VALUE_PARTIAL_INFORMATION
+    KeyValueFullInformationAlign64,
+    KeyValuePartialInformationAlign64,  // KEY_VALUE_PARTIAL_INFORMATION_ALIGN64
+    KeyValueLayerInformation, // KEY_VALUE_LAYER_INFORMATION
+    MaxKeyValueInfoClass
+} KEY_VALUE_INFORMATION_CLASS;
 
 typedef enum _LDR_DLL_LOAD_REASON
 {

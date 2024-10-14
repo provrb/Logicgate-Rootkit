@@ -3,14 +3,19 @@
 #include "net_common.h"
 #include "client.h"
 #include "External/base64.h"
+#include "External/json.hpp"
 
 #include <thread>
 #include <mutex>
 #include <iostream>
-
 #include <openssl/bio.h>
 
 #define MAX_CON 300 // max clients on a server
+
+const std::string STATE_SAVE_PATH = "C:\\Users\\ethan\\source\\repos\\DLL\\DLL\\";
+const std::string STATE_FILE_NAME = "server_state.json";
+
+typedef nlohmann::json JSON;
 
 class ServerInterface
 {
@@ -35,6 +40,16 @@ public:
 	BOOL              TCPSendMessageToClient(long cuid, ServerCommand& req);
 	BOOL              TCPSendMessageToAllClients(ServerCommand& req);
 	BOOL		      SendTCPClientRSAPublicKey(long cuid, BIO* pubKey);
+	BOOL			  SaveServerState(); // save the server state in a json file
+	JSON			  ReadServerStateFile(); // parse server state file as json
+	Client*			  GetClientSaveFile(long cuid); // get properties of a client from the server save file
+	inline BOOL       IsClientInSaveFile(std::string machineGUID) {
+		JSON file = ReadServerStateFile();
+		if ( !file.empty() && file.contains("client_list") )
+			return file["client_list"].contains(machineGUID);
+
+		return FALSE;
+	}
 
 	/*
 		A thread that receives clientRequests from each client that connects.
@@ -57,7 +72,8 @@ public:
 	ClientResponse    WaitForClientResponse(long cuid);
 	
 	BOOL              UDPSendMessageToClient(Client clientInfo, UDPMessage& message);
-	BOOL			  GetClientComputerName(long client);
+	BOOL			  GetClientComputerName(long cuid);
+	BOOL			  GetClientMachineGUID(long cuid);
 	void              ListenForUDPMessages();
 	BOOL              AddToClientList(Client client);
 	ClientResponse    PingClient(long cuid);

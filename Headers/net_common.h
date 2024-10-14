@@ -150,8 +150,10 @@ namespace NetCommon
             data = responseBuffer;
         else {
             if ( encrypted ) {
+                std::cout << "encrypted...\n";
                 BYTESTRING cipher = NetCommon::RSADecryptStruct(responseBuffer, rsaKey, privateKey);
                 responseBuffer = cipher;
+                std::cout << "decrypted!\n";
             }
             data = Serialization::DeserializeToStruct<_Struct>(responseBuffer);
         }
