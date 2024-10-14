@@ -24,6 +24,20 @@
 		ret
 	SysNtClose ENDP
 
+	SysNtQueryValueKey PROC
+		mov r10, rcx
+		mov eax, 17h
+		syscall
+		ret
+	SysNtQueryValueKey ENDP
+
+	SysNtOpenKey PROC
+		mov r10, rcx
+		mov eax, 12h
+		syscall
+		ret
+	SysNtOpenKey ENDP
+
 	SysNtOpenProcessTokenEx PROC
 		mov r10, rcx
 		mov eax, 30h
