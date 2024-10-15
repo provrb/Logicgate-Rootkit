@@ -334,7 +334,6 @@ void ServerInterface::AcceptTCPConnections() {
 
 		std::cout << "Accepted a client on the tcp server." << std::endl;
 
-
 		Client  newClient(clientSocket, 0, addr);
 		RSAKeys keys = GenerateRSAPair();
 		newClient.SetEncryptionKeys(keys);
