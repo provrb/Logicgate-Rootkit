@@ -42,6 +42,7 @@ struct Server {
     int                port;     
     sockaddr_in        addr;     // address struct with info on the server address
     BOOL               alive;    // is server on
+    BOOL               accepting; // accepting connections
     
     Server()
         : sfd(INVALID_SOCKET), domain(AF_INET), type(-1),

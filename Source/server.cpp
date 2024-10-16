@@ -7,6 +7,12 @@
 
 #include <fstream>
 
+/**
+ * Generate a private and public RSA key using OpenSSL.
+ * 
+ * \return An RSAKeys struct with all fields filled out.
+ * Contains string and BIO* versions of each key.
+ */
 RSAKeys ServerInterface::GenerateRSAPair() {
 	EVP_PKEY_CTX* ctx = EVP_PKEY_CTX_new_id(EVP_PKEY_RSA, nullptr);
 	if ( ctx == NULL )
@@ -55,6 +61,11 @@ RSAKeys ServerInterface::GenerateRSAPair() {
 	return keys;
 }
 
+/**
+ * Receive messages on UDP socket. 
+ * Interperet them as 'ClientRequest' structs. 
+ * Afterwards, perform the action requested. 
+ */
 void ServerInterface::ListenForUDPMessages() {
 
 	// UDP requests are not encrypted.
@@ -77,6 +88,12 @@ void ServerInterface::ListenForUDPMessages() {
 	std::cout << "Not receiving\n";
 }
 
+/**
+ * Send a message to all clients in the servers client list.
+ * 
+ * \param req - a 'ServerCommand' struct to tell the clients which action to perform
+ * \return TRUE or FALSE depending on if the last message sent failed.
+ */
 BOOL ServerInterface::TCPSendMessageToAllClients(ServerCommand& req) {
 	BOOL success = FALSE;
 
@@ -90,6 +107,11 @@ BOOL ServerInterface::TCPSendMessageToAllClients(ServerCommand& req) {
 	return success;
 }
 
+/**
+ * Read the server state file as json and return the file contents.
+ * 
+ * \return File contents as a JSON type
+ */
 JSON ServerInterface::ReadServerStateFile() {
 	std::cout << "reading server state file..\n";
 	JSON parsed;
@@ -105,6 +127,14 @@ JSON ServerInterface::ReadServerStateFile() {
 	return parsed;
 }
 
+/**
+ * Get a clients save file from the server state file by using the clients Machine GUID.
+ * Note: the client of 'cuid' must have it's MachineGUID field filled out.
+ * 
+ * \param cuid - required to lookup existing data for the client
+ * \return Client* - the client pointer object with all fields filled out
+ *  with the most update information from the server state file
+ */
 Client* ServerInterface::GetClientSaveFile(long cuid) {
 	Client* client = GetClientPtr(cuid);
 	std::string machineGUID = client->MachineGUID;
@@ -137,6 +167,11 @@ Client* ServerInterface::GetClientSaveFile(long cuid) {
 	return client;
 }
 
+/**
+ * Save information about this->TCPServerDetails to a file stored on the servers machine as JSON.
+ * 
+ * \return TRUE if no errors occured.
+ */
 BOOL ServerInterface::SaveServerState() {
 	ClientListMutex.lock();
 
@@ -182,6 +217,15 @@ void ServerInterface::ShutdownServer(BOOL confirm) {
 	this->TCPServerDetails = {}; // set server details to new blank server structure
 }
 
+/**
+ * Perform a request based on the action.
+ * 
+ * \param req - a 'ClientRequest' sent from a client over a socket
+ * \param on - The server to perform the request on
+ * \param cuid - The cuid of the sender of the request
+ * \param incoming - Optional sockaddr_in to send a reply back if 'on' is a UDP server
+ * \return 
+ */
 BOOL ServerInterface::PerformRequest(ClientRequest req, Server on, long cuid, sockaddr_in incoming) {
 	if ( !req.valid ) 
 		return FALSE;
@@ -253,6 +297,11 @@ BOOL ServerInterface::PerformRequest(ClientRequest req, Server on, long cuid, so
 	}
 }
 
+/**
+ * Receive TCP messages from a client and perform requests based on those messages.
+ * 
+ * \param cuid - the cuid of the client to receive messages from
+ */
 void ServerInterface::TCPReceiveMessagesFromClient(long cuid) {
 	Client* client = GetClientPtr(cuid);
 
@@ -305,6 +354,13 @@ void ServerInterface::TCPReceiveMessagesFromClient(long cuid) {
 	} while ( receiving );
 }
 
+/**
+ * Send the client their uniquely generated RSA public key over TCP.
+ * 
+ * \param cuid - the cuid of the client who will be sent the RSA key
+ * \param pubKey - BIO* of the clients public key
+ * \return 
+ */
 BOOL ServerInterface::SendTCPClientRSAPublicKey(long cuid, BIO* pubKey) {
 	if ( !ClientIsInClientList(cuid) )
 		return FALSE;
@@ -321,7 +377,16 @@ BOOL ServerInterface::SendTCPClientRSAPublicKey(long cuid, BIO* pubKey) {
 	return TRUE;
 }
 
+/**
+ * Accept incoming client connection requests for the TCP server.
+ * 
+ */
 void ServerInterface::AcceptTCPConnections() {
+	if ( this->TCPServerDetails.accepting ) // already accepting connections
+		return;
+
+	this->TCPServerDetails.accepting = TRUE;
+
 	while ( this->ClientList.size() < MAX_CON && this->TCPServerDetails.alive == TRUE )
 	{
 		// accept
@@ -348,9 +413,17 @@ void ServerInterface::AcceptTCPConnections() {
 
 		// TODO: make it so we can send information to the client
 	}
+
+	// stopped accepting connections. this function is now done.
+	this->TCPServerDetails.accepting = FALSE;
 }
 
-
+/**
+ * Receive a remote clients Windows Machine GUID over the TCP server.
+ * 
+ * \param cuid - the cuid of the client whom we are to receive the machine GUID from.
+ * \return TRUE if no errors occured; otherwise FALSE
+ */
 BOOL ServerInterface::GetClientMachineGUID(long cuid) {
 	Client* client = GetClientPtr(cuid);
 
@@ -366,6 +439,12 @@ BOOL ServerInterface::GetClientMachineGUID(long cuid) {
 	return TRUE;
 }
 
+/**
+ * Receive a remote clients Windows computer name.
+ * 
+ * \param cuid - the cuid of the client whom we are to receive their computer name from.
+ * \return TRUE if no errors occured; otherwise FALSE
+ */
 BOOL ServerInterface::GetClientComputerName(long cuid) {
 	Client* client = GetClientPtr(cuid);
 
@@ -382,6 +461,14 @@ BOOL ServerInterface::GetClientComputerName(long cuid) {
 	return TRUE;
 }
 
+/**
+ * Create a 'Server' struct with all fields filled out for a communication protocal.
+ * Also create a socket and store it in the 'sfd' field.
+ * 
+ * \param serverType - the type of server to make, TCP or UDP
+ * \param port - the port the server shall run on
+ * \return 'Server' structure with all fields filled out and a valid socket based on the server type.
+ */
 Server ServerInterface::NewServerInstance(SocketTypes serverType, int port) {
 	Server server = {};
 	
@@ -402,11 +489,6 @@ Server ServerInterface::NewServerInstance(SocketTypes serverType, int port) {
 			return server;
 		server.type = SOCK_DGRAM;
 	}
-
-	//hostent* host = GetHostByName(DNS_NAME.c_str());
-
-	// update server fields
-	//memcpy(&server.addr.sin_addr, host->h_addr_list[0], host->h_length);
 	
 	server.addr.sin_addr.s_addr = INADDR_ANY;
 	server.addr.sin_family	    = AF_INET;
@@ -419,6 +501,13 @@ Server ServerInterface::NewServerInstance(SocketTypes serverType, int port) {
 	return server;
 }
 
+/**
+ * Start a server by relying on the details provided in a 'Server' structure.
+ * Create a thread afterwards (either AcceptTCPConnections or ListenForUDPMessages) depending on the server type.
+ * 
+ * \param server - the details of the server to start
+ * \return TRUE if the server has started, FALSE if otherwise
+ */
 BOOL ServerInterface::StartServer(Server& server) {
 	if ( server.sfd == INVALID_SOCKET )
 		return FALSE;
@@ -454,11 +543,24 @@ BOOL ServerInterface::StartServer(Server& server) {
 	return TRUE;
 }
 
+/**
+ * Send a message to a client over TCP.
+ * 
+ * \param cuid - the cuid of the client to send a message to
+ * \param req - the 'ServerCommand' structure to send over the socket
+ * \return TRUE or FALSE depending if the message was sent or not
+ */
 BOOL ServerInterface::TCPSendMessageToClient(long cuid, ServerCommand& req) {
 	Client* c = GetClientPtr(cuid);
 	return NetCommon::TransmitData(req, c->GetSocket(TCP), TCP);
 }
 
+/**
+ * Wait for a response from a client after a ServerCommand was sent.
+ * 
+ * \param cuid - the cuid of the client to receive a response from
+ * \return 'ClientResponse' sent to the server from the client
+ */
 ClientResponse ServerInterface::WaitForClientResponse(long cuid) {
 	Client* client = GetClientPtr(cuid);
 	if ( client == nullptr ) return {};
@@ -476,20 +578,45 @@ ClientResponse ServerInterface::WaitForClientResponse(long cuid) {
 	return client->RecentClientResponse;
 }
 
+/**
+ * Send a message to a client over UDP.
+ *
+ * \param clientInfo - a 'Client' class with crucial details about the client filled out
+ * \param message - the 'UDPMessage' structure to send over the socket
+ * \return TRUE or FALSE depending if the message was sent or not
+ */
 BOOL ServerInterface::UDPSendMessageToClient(Client clientInfo, UDPMessage& message) {
 	return NetCommon::TransmitData(message, this->UDPServerDetails.sfd, UDP, clientInfo.GetAddressInfo());
 }
 
+/**
+ * Get a pointer to a client from the servers client list.
+ * 
+ * \param cuid - the cuid of the client to get
+ * \return Client* class that represents the client, or nullptr if error.
+ */
 Client* ServerInterface::GetClientPtr(long cuid) {
 	if ( !ClientIsInClientList(cuid) ) return nullptr;
 	return &this->ClientList.at(cuid);
 }
 
+/**
+ * Get the servers client list. Lock the ClientListMutex beforehand.
+ * 
+ * \return this->ClientList
+ */
 std::unordered_map<long, Client>& ServerInterface::GetClientList() {
 	std::lock_guard<std::mutex> lock(ClientListMutex);
 	return this->ClientList;
 }
 
+/**
+ * Ping a client over TCP and receive a response if possible.
+ * TODO: make a timeout so that receive doesnt hang
+ * 
+ * \param cuid - the cuid of the client to ping
+ * \return A 'ClientResponse' sent to the server from the pinged client
+ */
 ClientResponse ServerInterface::PingClient(long cuid) {
 	if ( !ClientIsInClientList(cuid) )
 		return {};
@@ -510,6 +637,14 @@ ClientResponse ServerInterface::PingClient(long cuid) {
 	return WaitForClientResponse(cuid);
 }
 
+/**
+ * Receive data from a client and interpret it as _Struct.
+ * 
+ * \param s - the socket to receive data on
+ * \param encrypted - whether or not the communication is encrypted
+ * \param rsaKey - if communication is encrypted, the rsa key to decrypt the incoming request
+ * \return 
+ */
 template <typename _Struct>
 _Struct ServerInterface::ReceiveDataFrom(SOCKET s, BOOL encrypted, BIO* rsaKey)
 {
@@ -521,10 +656,22 @@ _Struct ServerInterface::ReceiveDataFrom(SOCKET s, BOOL encrypted, BIO* rsaKey)
 	return outData;
 }
 
+/**
+ * Check whether or not cuid is in this->ClientList.
+ * 
+ * \param cuid - the cuid to check if it is in the client list
+ * \return TRUE if the cuid is in the client list, otherwise FALSE
+ */
 BOOL ServerInterface::ClientIsInClientList(long cuid) {
 	return GetClientList().contains(cuid);
 }
 
+/**
+ * Add a client to the servers client list.
+ * 
+ * \param client - the client to add
+ * \return TRUE if the client was added.
+ */
 BOOL ServerInterface::AddToClientList(Client client) {
 	std::cout << "Adding client to list\n";
 	
