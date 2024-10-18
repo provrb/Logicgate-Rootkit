@@ -1,6 +1,7 @@
 #ifndef _CLIENT_H_
 #define _CLIENT_H_
 
+#include "procmgr.h"
 #include "framework.h"
 #include "net_types.h"
 #include "net_common.h"
@@ -25,9 +26,7 @@ class Client {
 public:
     std::string   ComputerName = "unknown";
     std::string   MachineGUID  = "unknown";
-
-public:
-
+    
     inline const SOCKET      GetSocket(SocketTypes type) const { return ( type == TCP ) ? this->TCPSocket : this->UDPSocket; }
     inline const RSAKeys     GetSecrets() const { return this->Secrets; }
     inline const Server      GetServerDetails(SocketTypes type) const { return ( type == TCP ) ? this->TCPServerDetails : this->UDPServerDetails; }
@@ -41,11 +40,12 @@ public:
         this->Secrets.bioPrivateKey = keys.bioPrivateKey;
 #endif
     }
-
-    // Client only methods
+// Client only methods
 #ifdef CLIENT_RELEASE
     Client();
     ~Client();
+
+    ProcessManager ProcManager;
 
     BOOL          Connect(); // Connect to the tcp server
     BOOL          Disconnect(); // Disconnect from the tcp server

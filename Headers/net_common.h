@@ -74,7 +74,6 @@ namespace NetCommon
     inline BIO*  GetBIOFromString(std::string s) { return BIO_new_mem_buf(s.c_str(), s.size()); }
     BIO*         BIODeepCopy(BIO* in);
 
-
     template <typename _Struct>
     inline BOOL ReceiveData(
         _Struct& data,

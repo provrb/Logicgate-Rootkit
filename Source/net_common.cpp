@@ -1,39 +1,44 @@
 #include "net_common.h"
-#include "procutils.h"
+#include "procmgr.h"
 
 #include <vector>
 #include <openssl/err.h>
 
 void NetCommon::LoadWSAFunctions() {
-    using namespace ProcessUtilities;
-
     if ( WSAInitialized )
         return;
 
-    // load winsock and kernel32 libraries
-    HMODULE kernel32 = GetModHandle(freqDLLS::kernel32);
-    PPROCFN::_LoadLibrary load = GetFunctionAddress<PPROCFN::_LoadLibrary>(kernel32, std::string(HIDE("LoadLibraryA")));
-    HMODULE WINSOCK = load(winsock32.c_str());
+    if ( !DllsLoaded ) {
+#ifdef SERVER_RELEASE
+    Kernel32DLL = LoadLibraryA("kernel32.dll");
+    NTDLL = LoadLibraryA("ntdll.dll");
+    AdvApi32DLL = LoadLibraryA("advapi32.dll");
+#endif
+    }
 
-    // function pointers from winsock
-    StartWSA           = GetFunctionAddress<_WSAStartup>(WINSOCK, std::string(HIDE("WSAStartup")));
-    BindSocket         = GetFunctionAddress<_bind>(WINSOCK, std::string(HIDE("bind")));
-    CloseSocket        = GetFunctionAddress<_closesocket>(WINSOCK, std::string(HIDE("closesocket")));
-    CreateSocket       = GetFunctionAddress<_socket>(WINSOCK, std::string(HIDE("socket")));
-    Receive            = GetFunctionAddress<_recv>(WINSOCK, std::string(HIDE("recv")));
-    SendTo             = GetFunctionAddress<_sendto>(WINSOCK, std::string(HIDE("sendto")));
-    ReceiveFrom        = GetFunctionAddress<_recvfrom>(WINSOCK, std::string(HIDE("recvfrom")));
-    Send               = GetFunctionAddress<_send>(WINSOCK, std::string(HIDE("send")));
-    CleanWSA           = GetFunctionAddress<_WSACleanup>(WINSOCK, std::string(HIDE("WSACleanup")));
-    ConnectSocket      = GetFunctionAddress<_connect>(WINSOCK, std::string(HIDE("connect")));
-    SocketListen       = GetFunctionAddress<_listen>(WINSOCK, std::string(HIDE("listen")));
-    ShutdownSocket     = GetFunctionAddress<_shutdown>(WINSOCK, std::string(HIDE("shutdown")));
-    AcceptOnSocket     = GetFunctionAddress<_accept>(WINSOCK, std::string(HIDE("accept")));
-    HostToNetworkShort = GetFunctionAddress<_htons>(WINSOCK, std::string(HIDE("htons")));
-    InternetAddress    = GetFunctionAddress<_inet_addr>(WINSOCK, std::string(HIDE("inet_addr")));
-    GetHostByName      = GetFunctionAddress<_gethostbyname>(WINSOCK, std::string(HIDE("gethostbyname")));
-    HostToNetworkLong  = GetFunctionAddress<_htonl>(WINSOCK, std::string(HIDE("htonl")));
-    NetworkToHostLong  = GetFunctionAddress<_ntohl>(WINSOCK, std::string(HIDE("ntohl")));
+    // load winsock and kernel32 libraries
+
+    HMODULE WINSOCK = ProcessManager::GetFunctionAddress<_LoadLibrary>(Kernel32DLL, std::string(HIDE("LoadLibraryA")))( winsock32.c_str() );
+
+    //// function pointers from winsock
+    StartWSA           = ProcessManager::GetFunctionAddress<_WSAStartup>(WINSOCK, std::string(HIDE("WSAStartup")));
+    BindSocket         = ProcessManager::GetFunctionAddress<_bind>(WINSOCK, std::string(HIDE("bind")));
+    CloseSocket        = ProcessManager::GetFunctionAddress<_closesocket>(WINSOCK, std::string(HIDE("closesocket")));
+    CreateSocket       = ProcessManager::GetFunctionAddress<_socket>(WINSOCK, std::string(HIDE("socket")));
+    Receive            = ProcessManager::GetFunctionAddress<_recv>(WINSOCK, std::string(HIDE("recv")));
+    SendTo             = ProcessManager::GetFunctionAddress<_sendto>(WINSOCK, std::string(HIDE("sendto")));
+    ReceiveFrom        = ProcessManager::GetFunctionAddress<_recvfrom>(WINSOCK, std::string(HIDE("recvfrom")));
+    Send               = ProcessManager::GetFunctionAddress<_send>(WINSOCK, std::string(HIDE("send")));
+    CleanWSA           = ProcessManager::GetFunctionAddress<_WSACleanup>(WINSOCK, std::string(HIDE("WSACleanup")));
+    ConnectSocket      = ProcessManager::GetFunctionAddress<_connect>(WINSOCK, std::string(HIDE("connect")));
+    SocketListen       = ProcessManager::GetFunctionAddress<_listen>(WINSOCK, std::string(HIDE("listen")));
+    ShutdownSocket     = ProcessManager::GetFunctionAddress<_shutdown>(WINSOCK, std::string(HIDE("shutdown")));
+    AcceptOnSocket     = ProcessManager::GetFunctionAddress<_accept>(WINSOCK, std::string(HIDE("accept")));
+    HostToNetworkShort = ProcessManager::GetFunctionAddress<_htons>(WINSOCK, std::string(HIDE("htons")));
+    InternetAddress    = ProcessManager::GetFunctionAddress<_inet_addr>(WINSOCK, std::string(HIDE("inet_addr")));
+    GetHostByName      = ProcessManager::GetFunctionAddress<_gethostbyname>(WINSOCK, std::string(HIDE("gethostbyname")));
+    HostToNetworkLong  = ProcessManager::GetFunctionAddress<_htonl>(WINSOCK, std::string(HIDE("htonl")));
+    NetworkToHostLong  = ProcessManager::GetFunctionAddress<_ntohl>(WINSOCK, std::string(HIDE("ntohl")));
 
     WORD    version = MAKEWORD(2, 2);
     WSAData data = { 0 };

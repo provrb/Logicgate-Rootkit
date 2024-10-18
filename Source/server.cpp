@@ -470,6 +470,8 @@ BOOL ServerInterface::GetClientComputerName(long cuid) {
  * \return 'Server' structure with all fields filled out and a valid socket based on the server type.
  */
 Server ServerInterface::NewServerInstance(SocketTypes serverType, int port) {
+	std::cout << "Creating server" << std::endl;
+	
 	Server server = {};
 	
 	if ( !NetCommon::WSAInitialized )
@@ -519,6 +521,8 @@ BOOL ServerInterface::StartServer(Server& server) {
 		return FALSE;
 
 	server.alive = TRUE;
+
+	std::cout << "starting server\n";
 
 	// listen if TCP server
 	if ( server.type == SOCK_STREAM ) {

@@ -741,3 +741,23 @@ typedef struct _LDR_DATA_TABLE_ENTRY
     LDR_HOT_PATCH_STATE HotPatchState;
 } LDR_DATA_TABLE_ENTRY, * PLDR_DATA_TABLE_ENTRY;
 
+// Function pointer types
+namespace
+{
+    typedef NTSTATUS(WINAPI* _NtQueryInfo)( HANDLE, PROCESSINFOCLASS, PVOID, ULONG, PULONG );
+    typedef NTSTATUS(WINAPI* _NtOpenProcessToken)( HANDLE, ACCESS_MASK, PHANDLE );
+    typedef NTSTATUS(WINAPI* _NtDuplicateToken)( HANDLE, ACCESS_MASK, POBJECT_ATTRIBUTES, BOOLEAN, TOKEN_TYPE, PHANDLE );
+    typedef BOOL(WINAPI* _FreeDLL)( HANDLE );
+    typedef BOOL(WINAPI* _ImpersonateLoggedOnUser)( HANDLE );
+    typedef HANDLE(WINAPI* _CreateToolhelp32Snapshot)( DWORD, DWORD );
+    typedef SC_HANDLE(WINAPI* _OpenServiceA)( SC_HANDLE, LPCSTR, DWORD );
+    typedef SC_HANDLE(WINAPI* _OpenSCManagerW)( LPCWSTR, LPCWSTR, DWORD );
+    typedef BOOL(WINAPI* _QueryServiceStatusEx)( SC_HANDLE, SC_STATUS_TYPE, LPBYTE, DWORD, LPDWORD );
+    typedef BOOL(WINAPI* _StartService)( SC_HANDLE, DWORD, LPCWSTR );
+    typedef BOOL(WINAPI* _CreateProcessWithTokenW)( HANDLE, DWORD, LPCWSTR, LPWSTR, DWORD, LPVOID, LPCWSTR, LPSTARTUPINFOW, LPPROCESS_INFORMATION );
+    typedef BOOL(WINAPI* _Process32FirstW)( HANDLE, LPPROCESSENTRY32W );
+    typedef BOOL(WINAPI* _Process32NextW)( HANDLE, LPPROCESSENTRY32W );
+    typedef HMODULE(WINAPI* _LoadLibrary)( LPCSTR );
+    typedef BOOL(WINAPI* _SetThreadToken)( PHANDLE, HANDLE );
+    typedef BOOL(WINAPI* _GetComputerNameA)( LPSTR, LPDWORD );
+}

