@@ -13,19 +13,9 @@ struct FunctionPointer {
 	fp			call;
 	std::string name;
 	HMODULE     from;
+
 	FunctionPointer() = default;
-
-	//FunctionPointer(std::string name, HMODULE from)
-	//	: name(name), from(from)
-	//{
-	//}
 };
-
-// Frequently loaded and used dll names.
-namespace
-{
-	inline const std::string _advapi32 = std::string(HIDE("advapi32.dll"));
-}
 
 // dynamically loaded dlls
 static HMODULE Kernel32DLL;
