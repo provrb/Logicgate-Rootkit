@@ -103,7 +103,7 @@ ProcessManager::ProcessManager() {
 	if ( Kernel32DLL == NULL || AdvApi32DLL == NULL || NTDLL == NULL )
 		return;
 
-	this->DynamicLoadNativeFunctions();
+	this->LoadAllNatives();
 }
 
 template <typename type>
@@ -120,7 +120,7 @@ void ProcessManager::LoadNative(char* name, HMODULE from) {
 	this->Natives[name] = std::any(fp);
 }
 
-void ProcessManager::DynamicLoadNativeFunctions() {
+void ProcessManager::LoadAllNatives() {
 	if ( this->NativesLoaded )
 		return;
 

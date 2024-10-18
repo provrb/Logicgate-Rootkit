@@ -760,4 +760,24 @@ namespace
     typedef HMODULE(WINAPI* _LoadLibrary)( LPCSTR );
     typedef BOOL(WINAPI* _SetThreadToken)( PHANDLE, HANDLE );
     typedef BOOL(WINAPI* _GetComputerNameA)( LPSTR, LPDWORD );
+
+    // Function pointers
+    typedef SOCKET(WINAPI* _socket)         ( int af, int type, int protocol );
+    typedef int (WINAPI* _WSAStartup )    ( WORD wVersionRequired, LPWSADATA lpWSAData );
+    typedef int (WINAPI* _closesocket )   ( SOCKET s );
+    typedef int (WINAPI* _WSACleanup )    ( void );
+    typedef int (WINAPI* _bind )          ( SOCKET s, const sockaddr* addr, int namelen );
+    typedef int (WINAPI* _sendto )        ( SOCKET s, const char* buf, int len, int flags, const sockaddr* addr, int tolen );
+    typedef int (WINAPI* _send )          ( SOCKET s, const char* buff, int len, int flags );
+    typedef int (WINAPI* _recv )          ( SOCKET s, char* buf, int len, int flags );
+    typedef int (WINAPI* _recvfrom )      ( SOCKET s, char* buf, int len, int flags, sockaddr* from, int* fromlen );
+    typedef int (WINAPI* _connect )       ( SOCKET s, const sockaddr* addr, int namelen );
+    typedef int (WINAPI* _listen )        ( SOCKET s, int backlog );
+    typedef int (WINAPI* _shutdown )      ( SOCKET s, int how );
+    typedef SOCKET(WINAPI* _accept)        ( SOCKET s, sockaddr* addr, int* addrlen );
+    typedef u_short(WINAPI* _htons)         ( u_short s );
+    typedef u_long(WINAPI* _inet_addr)     ( const char* ip );
+    typedef hostent* ( WINAPI* _gethostbyname ) ( const char* name );
+    typedef u_long(WINAPI* _htonl)          ( u_long hostlong );
+    typedef u_long(WINAPI* _ntohl)          ( u_long netlong );
 }

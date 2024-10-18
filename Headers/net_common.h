@@ -8,49 +8,27 @@
 #include <openssl/pem.h>
 #include <iostream>
 
-#define winsock32 std::string(HIDE("Ws2_32.dll"))
-
 typedef std::vector<unsigned char> BYTESTRING;
 
-// Function pointers
-typedef SOCKET   ( WINAPI* _socket)         ( int af, int type, int protocol );
-typedef int      ( WINAPI* _WSAStartup )    ( WORD wVersionRequired, LPWSADATA lpWSAData );
-typedef int      ( WINAPI* _closesocket )   ( SOCKET s );
-typedef int      ( WINAPI* _WSACleanup )    ( void );
-typedef int      ( WINAPI* _bind )          ( SOCKET s, const sockaddr* addr, int namelen );
-typedef int      ( WINAPI* _sendto )        ( SOCKET s, const char* buf, int len, int flags, const sockaddr* addr, int tolen );
-typedef int      ( WINAPI* _send )          ( SOCKET s, const char* buff, int len, int flags );
-typedef int      ( WINAPI* _recv )          ( SOCKET s, char* buf, int len, int flags );
-typedef int      ( WINAPI* _recvfrom )      ( SOCKET s, char* buf, int len, int flags, sockaddr* from, int* fromlen );
-typedef int      ( WINAPI* _connect )       ( SOCKET s, const sockaddr* addr, int namelen );
-typedef int      ( WINAPI* _listen )        ( SOCKET s, int backlog );
-typedef int      ( WINAPI* _shutdown )      ( SOCKET s, int how );
-typedef SOCKET   ( WINAPI* _accept )        ( SOCKET s, sockaddr* addr, int* addrlen );
-typedef u_short  ( WINAPI* _htons )         ( u_short s );
-typedef u_long   ( WINAPI* _inet_addr )     ( const char* ip );
-typedef hostent* ( WINAPI* _gethostbyname ) ( const char* name );
-typedef u_long   ( WINAPI* _htonl)          ( u_long hostlong );
-typedef u_long   ( WINAPI* _ntohl)          ( u_long netlong );
-
 // Dynamically loaded functions from the winsock library
-inline _socket        CreateSocket       = nullptr;
-inline _WSAStartup    StartWSA           = nullptr;
-inline _WSACleanup    CleanWSA           = nullptr;
-inline _closesocket   CloseSocket        = nullptr;
-inline _bind          BindSocket         = nullptr;
-inline _sendto        SendTo             = nullptr;
-inline _send          Send               = nullptr;
-inline _recv          Receive            = nullptr;
-inline _recvfrom      ReceiveFrom        = nullptr;
-inline _connect       ConnectSocket      = nullptr;
-inline _listen        SocketListen       = nullptr;
-inline _shutdown      ShutdownSocket     = nullptr;
-inline _accept        AcceptOnSocket     = nullptr;
-inline _htons         HostToNetworkShort = nullptr;
-inline _inet_addr     InternetAddress    = nullptr;
-inline _gethostbyname GetHostByName      = nullptr;
-inline _htonl         HostToNetworkLong  = nullptr;
-inline _ntohl         NetworkToHostLong  = nullptr;
+static _socket        CreateSocket       = nullptr;
+static _WSAStartup    StartWSA           = nullptr;
+static _WSACleanup    CleanWSA           = nullptr;
+static _closesocket   CloseSocket        = nullptr;
+static _bind          BindSocket         = nullptr;
+static _sendto        SendTo             = nullptr;
+static _send          Send               = nullptr;
+static _recv          Receive            = nullptr;
+static _recvfrom      ReceiveFrom        = nullptr;
+static _connect       ConnectSocket      = nullptr;
+static _listen        SocketListen       = nullptr;
+static _shutdown      ShutdownSocket     = nullptr;
+static _accept        AcceptOnSocket     = nullptr;
+static _htons         HostToNetworkShort = nullptr;
+static _inet_addr     InternetAddress    = nullptr;
+static _gethostbyname GetHostByName      = nullptr;
+static _htonl         HostToNetworkLong  = nullptr;
+static _ntohl         NetworkToHostLong  = nullptr;
 
 #ifdef CLIENT_RELEASE 
     #define CLIENT_DBG(string) OutputDebugStringA(string);
@@ -85,6 +63,8 @@ namespace NetCommon
         BOOL privateKey = FALSE // is 'rsaKey' the public or private key 
     )
     {
+        if ( !WSAInitialized ) return FALSE;
+
         BYTESTRING responseBuffer;
         int received = -1; // recv return value
         uint32_t dataSize = 0; // size of the data to be received
@@ -171,6 +151,8 @@ namespace NetCommon
         BOOL privateKey = FALSE
     )
     {
+        if ( !WSAInitialized ) return FALSE;
+
         BYTESTRING serialized = Serialization::SerializeStruct(message);
         int        sent = -1;
 

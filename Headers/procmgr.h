@@ -6,7 +6,14 @@
 
 #include <any>
 
-extern "C" PVOID GetPebAddress(); // GEt the address of the current processes PEB.
+extern "C" PVOID GetPebAddress(); // Get the address of the current processes PEB.
+
+// dynamically loaded dlls
+static HMODULE Kernel32DLL;
+static HMODULE NTDLL;
+static HMODULE AdvApi32DLL;
+
+static BOOL    DllsLoaded = FALSE;
 
 template <typename fp>
 struct FunctionPointer {
@@ -16,12 +23,6 @@ struct FunctionPointer {
 
 	FunctionPointer() = default;
 };
-
-// dynamically loaded dlls
-static HMODULE Kernel32DLL;
-static HMODULE NTDLL;
-static HMODULE AdvApi32DLL;
-static BOOL    DllsLoaded = FALSE;
 
 class ProcessManager {
 public:
@@ -53,7 +54,7 @@ public:
 	);
 
 	template <typename fp>
-	inline FunctionPointer<fp> GetNative(char* name) {
+	inline const FunctionPointer<fp> GetNative(char* name) {
 		if ( !this->Natives.contains(name) )
 			return {};
 
@@ -78,15 +79,14 @@ public:
 	}
 
 private:
-	std::unordered_map<std::string, HMODULE> LoadedDLLs;
+	std::unordered_map<std::string, HMODULE>  LoadedDLLs;
 	std::unordered_map<std::string, std::any> Natives; // native function pointers
 
 	BOOL NativesLoaded = FALSE;
 
 	template <typename type>
 	void			   LoadNative(char* name, HMODULE from);
-
-	void			   DynamicLoadNativeFunctions();
+	void			   LoadAllNatives();
 	static FARPROC     GetFunctionAddressInternal(HMODULE lib, std::string procedure); // Get a function pointer to an export function 'procedure' located in 'lib'
 	HMODULE            GetLoadedModule(std::string libName); // Get the handle of a dll 'libname'};
 };

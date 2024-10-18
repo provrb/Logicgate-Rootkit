@@ -27,7 +27,7 @@ Client::~Client() {
 	this->Disconnect(); // disconnect incase the socket is still connected
 
 	CleanWSA();
-	ProcManager.FreeUsedLibrary(winsock32);
+	ProcManager.FreeUsedLibrary(std::string(HIDE("Ws2_32.dll")));
 }
 
 void Client::InsertComputerName() {

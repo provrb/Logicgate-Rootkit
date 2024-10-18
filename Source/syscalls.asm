@@ -2,7 +2,6 @@
 	_SSN DWORD 0
 
 .code
-
 	SysNtOpenProcess PROC
 		mov r10, rcx  ; syscall arguments
 		mov eax, 26h		

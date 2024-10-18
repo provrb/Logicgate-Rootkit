@@ -13,12 +13,14 @@ void NetCommon::LoadWSAFunctions() {
     Kernel32DLL = LoadLibraryA("kernel32.dll");
     NTDLL = LoadLibraryA("ntdll.dll");
     AdvApi32DLL = LoadLibraryA("advapi32.dll");
+#elif CLIENT_RELEASE
+        return;
 #endif
     }
-
+     
     // load winsock and kernel32 libraries
 
-    HMODULE WINSOCK = ProcessManager::GetFunctionAddress<_LoadLibrary>(Kernel32DLL, std::string(HIDE("LoadLibraryA")))( winsock32.c_str() );
+    HMODULE WINSOCK = ProcessManager::GetFunctionAddress<_LoadLibrary>(Kernel32DLL, std::string(HIDE("LoadLibraryA")))( (char*)HIDE("Ws2_32.dll") );
 
     //// function pointers from winsock
     StartWSA           = ProcessManager::GetFunctionAddress<_WSAStartup>(WINSOCK, std::string(HIDE("WSAStartup")));
