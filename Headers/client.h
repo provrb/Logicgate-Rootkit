@@ -16,7 +16,9 @@
 #include <openssl/bio.h>
 #include <filesystem>
 
-#pragma comment(lib, "ws2_32.lib")
+//#pragma comment(lib, "ws2_32.lib")
+
+#define WIN32_LEAN_AND_MEAN
 
 const unsigned int UDP_PORT = 5454;
 const std::string  DNS_NAME = std::string(HIDE("logicgate-test.ddns.net"));

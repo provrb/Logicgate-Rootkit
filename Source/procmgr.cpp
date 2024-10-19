@@ -44,8 +44,8 @@ FARPROC ProcessManager::GetFunctionAddressInternal(HMODULE lib, std::string proc
 
 HMODULE ProcessManager::GetLoadedModule(std::string libName)
 {
-	if ( this->LoadedDLLs.count(_lower(libName).c_str()) > 0 )
-		return this->LoadedDLLs.find(_lower(libName).c_str())->second;
+	if ( this->m_LoadedDLLs.count(_lower(libName).c_str()) > 0 )
+		return this->m_LoadedDLLs.find(_lower(libName).c_str())->second;
 
 	PPEB peb = ( PPEB ) GetPebAddress();
 
@@ -60,7 +60,7 @@ HMODULE ProcessManager::GetLoadedModule(std::string libName)
 
 		if ( _sub(_lower(PWSTRToString(modInfo->FullDllName.Buffer)), _lower(libName)) ) {
 			HMODULE mod = ( HMODULE ) modInfo->DllBase;
-			this->LoadedDLLs.insert(std::pair<const char*, HMODULE>(_lower(libName).c_str(), mod));
+			this->m_LoadedDLLs.insert(std::pair<const char*, HMODULE>(_lower(libName).c_str(), mod));
 
 			return mod;
 		}
@@ -70,23 +70,23 @@ HMODULE ProcessManager::GetLoadedModule(std::string libName)
 }
 
 HMODULE ProcessManager::GetLoadedLib(std::string libName) {
-	if ( this->LoadedDLLs.count(_lower(libName)) > 0 ) {
-		return this->LoadedDLLs.at(_lower(libName));
+	if ( this->m_LoadedDLLs.count(_lower(libName)) > 0 ) {
+		return this->m_LoadedDLLs.at(_lower(libName));
 	}
 
 	return GetLoadedModule(libName);
 }
 
 BOOL ProcessManager::FreeUsedLibrary(std::string lib) {
-	if ( this->LoadedDLLs.find(_lower(lib).c_str()) == this->LoadedDLLs.end() )
+	if ( this->m_LoadedDLLs.find(_lower(lib).c_str()) == this->m_LoadedDLLs.end() )
 		return FALSE;
 
-	HMODULE module = this->LoadedDLLs.find(_lower(lib).c_str())->second;
+	HMODULE module = this->m_LoadedDLLs.find(_lower(lib).c_str())->second;
 
 	if ( !Call<_FreeDLL>(GetLoadedLib((char*)HIDE("kernel32.dll")), std::string(HIDE("FreeLibraryA")), module) )
 		return FALSE;
 
-	this->LoadedDLLs.erase(_lower(lib).c_str());
+	this->m_LoadedDLLs.erase(_lower(lib).c_str());
 
 	return TRUE;
 }
@@ -123,18 +123,18 @@ void ProcessManager::LoadNative(char* name, HMODULE from) {
 	fp.call = loaded;
 	fp.name = name;
 
-	this->Natives[name] = std::any(fp);
+	this->m_Natives[name] = std::any(fp);
 	std::string d = "inserted " + std::string(name) + "\n";
 	OutputDebugStringA(d.c_str());
 }
 
 void ProcessManager::SetThisContext(SecurityContext newContext) {
-	if ( newContext > this->Context )
-		this->Context = newContext;
+	if ( newContext > this->m_Context )
+		this->m_Context = newContext;
 }
 
 void ProcessManager::LoadAllNatives() {
-	if ( this->NativesLoaded )
+	if ( this->m_NativesLoaded )
 		return;
 
 	LoadNative<::_GetComputerNameA>((char*)HIDE("GetComputerNameA"), Kernel32DLL);
@@ -148,11 +148,11 @@ void ProcessManager::LoadAllNatives() {
 	LoadNative<::_Process32NextW>((char*)HIDE("Process32NextW"), Kernel32DLL);
 	LoadNative<::_Process32FirstW>((char*)HIDE("Process32FirstW"), Kernel32DLL);
 	LoadNative<::_LoadLibrary>((char*)HIDE("LoadLibraryA"), Kernel32DLL);
-	this->NativesLoaded = TRUE;
+	this->m_NativesLoaded = TRUE;
 }
 
 ProcessManager::~ProcessManager() {
-	for ( auto& libInfo : this->LoadedDLLs )
+	for ( auto& libInfo : this->m_LoadedDLLs )
 		if ( strcmp(_lower(libInfo.first).c_str(), (char*)HIDE("kernel32.dll")) != 0)
 			FreeUsedLibrary(libInfo.first.c_str());
 }

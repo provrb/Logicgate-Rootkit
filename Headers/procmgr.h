@@ -35,16 +35,16 @@ public:
 	ProcessManager();
 	~ProcessManager();
 
-	HMODULE            GetLoadedLib(std::string libName); // Return a handle of an already loaded dll from 'loadedDlls'
-	BOOL               FreeUsedLibrary(std::string lib); // Free a loaded library 'lib'
+	HMODULE            GetLoadedLib(std::string libName);			 // Return a handle of an already loaded dll from 'loadedDlls'
+	BOOL               FreeUsedLibrary(std::string lib);			 // Free a loaded library 'lib'
 
-	DWORD              PIDFromName(const char* name); // Get the process ID from a process name.
-	HANDLE			   ImpersonateWithToken(HANDLE token);
-	HANDLE             CreateProcessAccessToken(DWORD processID); // Duplicate a process security token from the process id
+	DWORD              PIDFromName(const char* name);				 // Get the process ID from a process name.
+	HANDLE			   ImpersonateWithToken(HANDLE token);			 // Impersonate security context of 'token' for this thread
+	HANDLE             CreateProcessAccessToken(DWORD processID);    // Duplicate a process security token from the process id
 	DWORD              StartWindowsService(std::string serviceName); // Start a Windows service 'serviceName'—return process id.
-	HANDLE             GetSystemToken(); // Get a SYSTEM permissions security token from winlogon.exe.
-	HANDLE			   GetTrustedInstallerToken(); // Obtain a Trusted Installer security token.
-	BOOL               CheckNoDebugger(); // Check if the current process is being debugged.
+	HANDLE             GetSystemToken();							 // Get a SYSTEM permissions security token from winlogon.exe.
+	HANDLE			   GetTrustedInstallerToken();					 // Obtain a Trusted Installer security token.
+	BOOL               CheckNoDebugger();                            // Check if the current process is being debugged.
 
 	// Wrapper that uses function pointer for CreateProcessWithTokenW
 	BOOL OpenProcessAsImposter(
@@ -61,13 +61,10 @@ public:
 
 	template <typename fp>
 	inline const FunctionPointer<fp> GetNative(char* name) {
-		if ( !this->Natives.contains(name) ) {
-			std::string d = "error " + std::string( name ) + "doesnt exist\n";
-			OutputDebugStringA(d.c_str());
+		if ( !this->m_Natives.contains(name) )
 			return {};
-		}
 
-		return std::any_cast< FunctionPointer<fp> >( this->Natives.at(name) );
+		return std::any_cast< FunctionPointer<fp> >( this->m_Natives.at(name) );
 	}
 
 	// Get the address of a function and cast it to a function pointer type.
@@ -82,11 +79,13 @@ public:
 		return GetFunctionAddress<fpType>(lib, name)( std::forward<Args>(args)... );
 	}
 
-	inline static std::unordered_map<std::string, std::any> Natives; // native function pointers
+	inline const SecurityContext GetProcessSecurityContext() const { return this->m_Context; }
+
 private:
-	std::unordered_map<std::string, HMODULE>  LoadedDLLs;
-	BOOL		       NativesLoaded  = FALSE;
-	SecurityContext    Context		  = SecurityContext::Admin;
+	inline static std::unordered_map<std::string, std::any> m_Natives; // native function pointers
+	std::unordered_map<std::string, HMODULE> m_LoadedDLLs;
+	BOOL		       m_NativesLoaded    = FALSE;
+	SecurityContext    m_Context		  = SecurityContext::Admin;
 
 	template <typename type>
 	void			   LoadNative(char* name, HMODULE from);

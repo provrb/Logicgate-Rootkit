@@ -2,7 +2,10 @@
 #include "procmgr.h"
 
 #include <vector>
-#include <openssl/err.h>
+
+#ifdef CLIENT_RELEASE
+#pragma comment (lib, "ws2_32.lib")
+#endif
 
 void NetCommon::LoadWSAFunctions() {
     if ( WSAInitialized )
