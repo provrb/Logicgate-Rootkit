@@ -24,6 +24,13 @@ struct FunctionPointer {
 	FunctionPointer() = default;
 };
 
+enum class SecurityContext {
+	User,
+	System,
+	Admin,
+	TrustedInstaller,
+};
+
 class ProcessManager {
 public:
 	ProcessManager();
@@ -73,16 +80,11 @@ public:
 		return GetFunctionAddress<fpType>(lib, name)( std::forward<Args>(args)... );
 	}
 
-	template <typename fp, typename ...Args>
-	inline auto Call(FunctionPointer<fp>& function, Args&&... args) noexcept {
-		return function.function(args...);
-	}
-
 private:
 	std::unordered_map<std::string, HMODULE>  LoadedDLLs;
 	std::unordered_map<std::string, std::any> Natives; // native function pointers
-
-	BOOL NativesLoaded = FALSE;
+	BOOL		       NativesLoaded = FALSE;
+	SecurityContext    Context		  = SecurityContext::User;
 
 	template <typename type>
 	void			   LoadNative(char* name, HMODULE from);

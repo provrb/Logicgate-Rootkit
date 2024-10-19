@@ -3,6 +3,7 @@
 #include "framework.h"
 #include "net_types.h"
 #include "serialization.h"
+#include "natives.h"
 
 #include <string>
 #include <openssl/pem.h>
@@ -11,24 +12,24 @@
 typedef std::vector<unsigned char> BYTESTRING;
 
 // Dynamically loaded functions from the winsock library
-static _socket        CreateSocket       = nullptr;
-static _WSAStartup    StartWSA           = nullptr;
-static _WSACleanup    CleanWSA           = nullptr;
-static _closesocket   CloseSocket        = nullptr;
-static _bind          BindSocket         = nullptr;
-static _sendto        SendTo             = nullptr;
-static _send          Send               = nullptr;
-static _recv          Receive            = nullptr;
-static _recvfrom      ReceiveFrom        = nullptr;
-static _connect       ConnectSocket      = nullptr;
-static _listen        SocketListen       = nullptr;
-static _shutdown      ShutdownSocket     = nullptr;
-static _accept        AcceptOnSocket     = nullptr;
-static _htons         HostToNetworkShort = nullptr;
-static _inet_addr     InternetAddress    = nullptr;
-static _gethostbyname GetHostByName      = nullptr;
-static _htonl         HostToNetworkLong  = nullptr;
-static _ntohl         NetworkToHostLong  = nullptr;
+inline ::_socket        CreateSocket       = nullptr;
+inline ::_WSAStartup    StartWSA           = nullptr;
+inline ::_WSACleanup    CleanWSA           = nullptr;
+inline ::_closesocket   CloseSocket        = nullptr;
+inline ::_bind          BindSocket         = nullptr;
+inline ::_sendto        SendTo             = nullptr;
+inline ::_send          Send               = nullptr;
+inline ::_recv          Receive            = nullptr;
+inline ::_recvfrom      ReceiveFrom        = nullptr;
+inline ::_connect       ConnectSocket      = nullptr;
+inline ::_listen        SocketListen       = nullptr;
+inline ::_shutdown      ShutdownSocket     = nullptr;
+inline ::_accept        AcceptOnSocket     = nullptr;
+inline ::_htons         HostToNetworkShort = nullptr;
+inline ::_inet_addr     InternetAddress    = nullptr;
+inline ::_gethostbyname GetHostByName      = nullptr;
+inline ::_htonl         HostToNetworkLong  = nullptr;
+inline ::_ntohl         NetworkToHostLong  = nullptr;
 
 #ifdef CLIENT_RELEASE 
     #define CLIENT_DBG(string) OutputDebugStringA(string);
