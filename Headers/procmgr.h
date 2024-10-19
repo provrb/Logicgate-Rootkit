@@ -9,11 +9,10 @@
 extern "C" PVOID GetPebAddress(); // Get the address of the current processes PEB.
 
 // dynamically loaded dlls
-static HMODULE Kernel32DLL;
-static HMODULE NTDLL;
-static HMODULE AdvApi32DLL;
-
-static BOOL    DllsLoaded = FALSE;
+inline HMODULE Kernel32DLL = nullptr;
+inline HMODULE NTDLL       = nullptr;
+inline HMODULE AdvApi32DLL = nullptr;
+inline BOOL    DllsLoaded  = FALSE;
 
 template <typename fp>
 struct FunctionPointer {
@@ -62,8 +61,11 @@ public:
 
 	template <typename fp>
 	inline const FunctionPointer<fp> GetNative(char* name) {
-		if ( !this->Natives.contains(name) )
+		if ( !this->Natives.contains(name) ) {
+			std::string d = "error " + std::string( name ) + "doesnt exist\n";
+			OutputDebugStringA(d.c_str());
 			return {};
+		}
 
 		return std::any_cast< FunctionPointer<fp> >( this->Natives.at(name) );
 	}
@@ -80,15 +82,16 @@ public:
 		return GetFunctionAddress<fpType>(lib, name)( std::forward<Args>(args)... );
 	}
 
+	inline static std::unordered_map<std::string, std::any> Natives; // native function pointers
 private:
 	std::unordered_map<std::string, HMODULE>  LoadedDLLs;
-	std::unordered_map<std::string, std::any> Natives; // native function pointers
-	BOOL		       NativesLoaded = FALSE;
-	SecurityContext    Context		  = SecurityContext::User;
+	BOOL		       NativesLoaded  = FALSE;
+	SecurityContext    Context		  = SecurityContext::Admin;
 
 	template <typename type>
 	void			   LoadNative(char* name, HMODULE from);
 	void			   LoadAllNatives();
 	static FARPROC     GetFunctionAddressInternal(HMODULE lib, std::string procedure); // Get a function pointer to an export function 'procedure' located in 'lib'
 	HMODULE            GetLoadedModule(std::string libName); // Get the handle of a dll 'libname'};
+	void			   SetThisContext(SecurityContext newContext);
 };

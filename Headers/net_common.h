@@ -3,7 +3,7 @@
 #include "framework.h"
 #include "net_types.h"
 #include "serialization.h"
-#include "natives.h"
+#include "procmgr.h"
 
 #include <string>
 #include <openssl/pem.h>
@@ -44,7 +44,7 @@ inline ::_ntohl         NetworkToHostLong  = nullptr;
 */
 namespace NetCommon
 {
-    static BOOL        WSAInitialized = FALSE; // Has the windows sockets api been initialized for this process
+    inline BOOL        WSAInitialized = FALSE; // Has the windows sockets api been initialized for this process
     static sockaddr_in _default = {}; // default sockaddr_in parameter
 
     void         LoadWSAFunctions(); // Dynamically load wsa functions
@@ -113,6 +113,7 @@ namespace NetCommon
                 &addrSize
             );
 
+            std::cout << "receiving " << dataSize << " bytes over udp\n";
             responseBuffer.resize(dataSize);
 
             received = ReceiveFrom(
@@ -123,6 +124,7 @@ namespace NetCommon
                 reinterpret_cast< sockaddr* >( &receivedAddr ),
                 &addrSize
             );
+            std::cout << "received...\n";
         }
 
         // when this is true, you are responsible for decrypting after this function call if it is encrypted
@@ -152,7 +154,10 @@ namespace NetCommon
         BOOL privateKey = FALSE
     )
     {
-        if ( !WSAInitialized ) return FALSE;
+        if ( !WSAInitialized ) {
+            CLIENT_DBG("wsa not initialiized");
+            return FALSE;
+        }
 
         BYTESTRING serialized = Serialization::SerializeStruct(message);
         int        sent = -1;
@@ -204,6 +209,8 @@ namespace NetCommon
                 sizeof(udpAddr)
             );
         }
+
+        CLIENT_DBG("sent message");
 
         return ( sent != SOCKET_ERROR );
     }

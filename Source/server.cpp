@@ -342,14 +342,12 @@ void ServerInterface::TCPReceiveMessagesFromClient(long cuid) {
 
 	if ( client->GetMachineGUID() == "unknown" )
 		GetClientComputerName(cuid);
+
 	if ( client->GetMachineGUID() == "unknown" )
 		GetClientMachineGUID(cuid);
 
-	if ( IsClientInSaveFile(client->GetMachineGUID()) ) {
+	if ( IsClientInSaveFile(client->GetMachineGUID()) )
 		GetClientSaveFile(client->ClientUID);
-	}
-
-	std::cout << ";\n";
 
 	SaveServerState();
 
@@ -361,7 +359,7 @@ void ServerInterface::TCPReceiveMessagesFromClient(long cuid) {
 		if ( client->ExpectingResponse ) {
 			std::cout << "expecting response\n";
 			client->LastClientResponse = client->RecentClientResponse;
-			client->RecentClientResponse = ReceiveDataFrom<ClientResponse>(this->m_TCPServerDetails.sfd, TRUE, client->GetSecrets().bioPrivateKey);
+			client->RecentClientResponse = ReceiveDataFrom<ClientResponse>(client->GetSocket(TCP), TRUE, client->GetSecrets().bioPrivateKey);
 			continue;
 		}
 

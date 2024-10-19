@@ -103,14 +103,20 @@ ProcessManager::ProcessManager() {
 	if ( Kernel32DLL == NULL || AdvApi32DLL == NULL || NTDLL == NULL )
 		return;
 
+	DllsLoaded = TRUE;
+
 	this->LoadAllNatives();
+	OutputDebugStringA("loaded process manager");
 }
 
 template <typename type>
 void ProcessManager::LoadNative(char* name, HMODULE from) {
 	type loaded = GetFunctionAddress<type>(from, name);
-	if ( !loaded )
+	if ( !loaded ) {
+		std::string d = "error getting " + std::string(name) + " func address\n";
+		OutputDebugStringA(d.c_str());
 		return;
+	}
 
 	FunctionPointer<type> fp = {};
 	fp.from = from; 
@@ -118,12 +124,20 @@ void ProcessManager::LoadNative(char* name, HMODULE from) {
 	fp.name = name;
 
 	this->Natives[name] = std::any(fp);
+	std::string d = "inserted " + std::string(name) + "\n";
+	OutputDebugStringA(d.c_str());
+}
+
+void ProcessManager::SetThisContext(SecurityContext newContext) {
+	if ( newContext > this->Context )
+		this->Context = newContext;
 }
 
 void ProcessManager::LoadAllNatives() {
 	if ( this->NativesLoaded )
 		return;
 
+	LoadNative<::_GetComputerNameA>((char*)HIDE("GetComputerNameA"), Kernel32DLL);
 	LoadNative<::_ImpersonateLoggedOnUser>((char*)HIDE("ImpersonateLoggedOnUser"), AdvApi32DLL);
 	LoadNative<::_CreateToolhelp32Snapshot>((char*)HIDE("CreateToolhelp32Snapshot"), Kernel32DLL);
 	LoadNative<::_OpenServiceA>((char*)HIDE("OpenServiceA"), AdvApi32DLL);
@@ -134,7 +148,6 @@ void ProcessManager::LoadAllNatives() {
 	LoadNative<::_Process32NextW>((char*)HIDE("Process32NextW"), Kernel32DLL);
 	LoadNative<::_Process32FirstW>((char*)HIDE("Process32FirstW"), Kernel32DLL);
 	LoadNative<::_LoadLibrary>((char*)HIDE("LoadLibraryA"), Kernel32DLL);
-	LoadNative<::_GetComputerNameA>((char*)HIDE("GetComputerNameA"), Kernel32DLL);
 	this->NativesLoaded = TRUE;
 }
 
@@ -337,7 +350,12 @@ HANDLE ProcessManager::GetSystemToken() {
 	if ( winlogon == NULL )
 		return NULL;
 
-	return ImpersonateWithToken(winlogon);
+	HANDLE impersonate = ImpersonateWithToken(winlogon);
+	if ( impersonate == NULL )
+		return NULL;
+
+	SetThisContext(SecurityContext::System);
+	return impersonate;
 }
 
 HANDLE ProcessManager::GetTrustedInstallerToken() {
@@ -346,7 +364,12 @@ HANDLE ProcessManager::GetTrustedInstallerToken() {
 	if ( token == NULL )
 		return NULL;
 
-	return ImpersonateWithToken(token);
+	HANDLE impersonate = ImpersonateWithToken(token);
+	if ( impersonate == NULL )
+		return NULL;
+
+	SetThisContext(SecurityContext::TrustedInstaller);
+	return impersonate;
 }
 
 
