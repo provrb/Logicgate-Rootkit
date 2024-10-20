@@ -23,6 +23,9 @@ Client::Client() {
 	this->m_UDPServerDetails.domain = AF_INET;
 	this->m_UDPServerDetails.port = 5454;
 	this->m_UDPServerDetails.type = SOCK_DGRAM;
+
+	SetRemoteMachineGUID();
+	SetRemoteComputerName();
 }
 
 Client::~Client() {
@@ -39,14 +42,11 @@ void Client::SetRemoteComputerName() {
 	// get computer name
 	BOOL success = GetComputerNameA(buffer, &buffSize);
 	if ( success ) {
-		OutputDebugStringA("set this computer name");
 		this->m_ComputerName = buffer;
 	}
 }
 
 BOOL Client::Connect() {
-	OutputDebugStringA("connecting");
-
 	// make request to udp server
 	this->m_UDPSocket = CreateSocket(AF_INET, SOCK_DGRAM, IPPROTO_UDP);
 	if ( this->m_UDPSocket == INVALID_SOCKET )
@@ -76,13 +76,10 @@ BOOL Client::Connect() {
 	if ( connect == SOCKET_ERROR )
 		return FALSE;
 
-	OutputDebugStringA("connected");
 
 	GetPublicRSAKeyFromServer();
 	SendComputerNameToServer();
-	OutputDebugStringA("sent computer name\n");
 	SendMachineGUIDToServer();
-	OutputDebugStringA("sent machine guid\n");
 	return TRUE;
 }
 
@@ -138,22 +135,11 @@ BYTESTRING Client::MakeTCPRequest(const ClientRequest& req, BOOL encrypted) {
 }
 
 BOOL Client::SendComputerNameToServer() {
-	SetRemoteComputerName();
-	BYTESTRING computerName = Serialization::SerializeString(this->m_ComputerName);
-
-	BIO* key = NetCommon::GetBIOFromString(this->m_Secrets.strPublicKey);
-	BOOL success = NetCommon::TransmitData(computerName, this->m_TCPSocket, TCP, NetCommon::_default, TRUE, key, FALSE);
-	BIO_free(key);
-	return success;
+	return SendMessageToServer(this->m_ComputerName);
 }
 
 BOOL Client::SendMachineGUIDToServer() {
-	SetRemoteMachineGUID();
-	BYTESTRING guid = Serialization::SerializeString(this->m_MachineGUID);
-	BIO* key = NetCommon::GetBIOFromString(this->m_Secrets.strPublicKey);
-	BOOL success = NetCommon::TransmitData(guid, this->m_TCPSocket, TCP, NetCommon::_default, TRUE, key, FALSE);
-	BIO_free(key);
-	return success;
+	return SendMessageToServer(this->m_MachineGUID);
 }
 
 BOOL Client::GetPublicRSAKeyFromServer() {
@@ -171,6 +157,20 @@ BOOL Client::GetPublicRSAKeyFromServer() {
 	MessageBoxA(NULL, bio.c_str(), "", MB_OK);
 
 	return !this->m_Secrets.strPublicKey.empty();
+}
+
+BOOL Client::SendMessageToServer(std::string message, BOOL encrypted) {
+	BYTESTRING serialized = Serialization::SerializeString(message);
+	BOOL	   success    = FALSE;
+
+	if ( encrypted ) {
+		BIO* key = NetCommon::GetBIOFromString(this->m_Secrets.strPublicKey);
+		success = NetCommon::TransmitData(serialized, this->m_TCPSocket, TCP, NetCommon::_default, TRUE, key, FALSE);
+		BIO_free(key);
+	} else
+		success = NetCommon::TransmitData(serialized, this->m_TCPSocket, TCP);
+
+	return success;
 }
 
 template <typename _Ty>
@@ -204,6 +204,9 @@ BOOL Client::SendEncryptedMessageToServer(const Server& dest, ClientMessage mess
 }
 
 BOOL Client::Disconnect() {
+	ClientRequest disconnectRequest(ClientRequest::kDisconnectClient);
+	MakeTCPRequest(disconnectRequest, TRUE);
+
 	CloseSocket(this->m_UDPSocket);
 	int status = CloseSocket(this->m_TCPSocket);
 	if ( status == SOCKET_ERROR )
@@ -221,6 +224,24 @@ Client::Client(SOCKET tcp, SOCKET udp, sockaddr_in addr)
 	std::mt19937 rng(gen());
 	std::uniform_int_distribution<std::mt19937::result_type> dist(1, 100000);
 	this->ClientUID = dist(rng);
+}
+
+void Client::Disconnect() {
+	if ( this->m_UDPSocket != INVALID_SOCKET )
+		CloseSocket(this->m_UDPSocket);
+
+	if ( this->m_TCPSocket != INVALID_SOCKET )
+		CloseSocket(this->m_TCPSocket);
+
+	if ( this->GetSecrets().bioPrivateKey )
+		BIO_free(this->m_Secrets.bioPrivateKey);
+
+	if ( this->GetSecrets().bioPublicKey )
+		BIO_free(this->m_Secrets.bioPublicKey);
+
+	this->Alive = FALSE;
+
+	std::cout << "Disconnected from the server." << std::endl;
 }
 
 #endif

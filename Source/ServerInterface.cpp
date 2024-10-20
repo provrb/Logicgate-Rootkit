@@ -1,5 +1,5 @@
-#include "server.h"
-#include "serialization.h"
+#include "ServerInterface.h"
+#include "Serialization.h"
 
 #include <openssl/evp.h>
 #include <openssl/rsa.h>
@@ -264,6 +264,17 @@ BOOL ServerInterface::PerformRequest(ClientRequest req, Server on, long cuid, so
 
 	switch ( req.action )
 	{
+	case ClientRequest::kDisconnectClient:
+		SaveServerState();
+
+		this->m_ClientListMutex.lock();
+		this->m_ClientList.erase(cuid);
+		this->m_ClientListMutex.unlock();
+		
+		TCPClient->Disconnect();
+		TCPClient = nullptr;
+		success = TRUE;
+		break;
 	// connect client to tcp server on udp request
 	case ClientRequest::kConnectClient: 
 	{
@@ -331,7 +342,6 @@ void ServerInterface::TCPReceiveMessagesFromClient(long cuid) {
 		return;
 
 	std::cout << "New thread created to receive messages from client " << client->GetDesktopName() << std::endl;
-	BOOL receiving = TRUE;
 
 	// initial request to send rsa keys before we can start encrypted communication
 	// use tcp server because udp is prone to not sending the keys fully
@@ -365,13 +375,13 @@ void ServerInterface::TCPReceiveMessagesFromClient(long cuid) {
 
 		// receive data from client, decrypt it using their rsa key
 		ClientMessage receivedData = ReceiveDataFrom<ClientMessage>(client->GetSocket(TCP), TRUE, client->GetSecrets().bioPrivateKey);
-		receiving = receivedData.valid;
 
 		std::cout << "Client name: " << client->GetMachineGUID() << std::endl;
 		std::cout << "Most recent request: " << receivedData.action << std::endl;
 
-		PerformRequest(receivedData, this->m_TCPServerDetails, cuid);
-	} while ( receiving );
+		BOOL performed = PerformRequest(receivedData, this->m_TCPServerDetails, cuid);
+	} while ( client->Alive );
+	std::cout << "Stopped receiving from a client\n";
 }
 
 /**

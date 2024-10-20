@@ -1,9 +1,9 @@
 #pragma once
 
-#include "framework.h"
-#include "net_types.h"
-#include "serialization.h"
-#include "procmgr.h"
+#include "Framework.h"
+#include "NetworkTypes.h"
+#include "Serialization.h"
+#include "ProcessManager.h"
 
 #include <string>
 #include <openssl/pem.h>

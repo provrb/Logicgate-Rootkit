@@ -1,6 +1,6 @@
 #pragma once
 
-#include "framework.h"
+#include "Framework.h"
 
 #define RTL_MAX_DRIVE_LETTERS 32
 #define GDI_HANDLE_BUFFER_SIZE32 34

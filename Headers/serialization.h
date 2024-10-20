@@ -1,7 +1,7 @@
 #pragma once
 
-#include "framework.h"
-#include "net_types.h"
+#include "Framework.h"
+#include "NetworkTypes.h"
 
 typedef std::vector<unsigned char> BYTESTRING;
 

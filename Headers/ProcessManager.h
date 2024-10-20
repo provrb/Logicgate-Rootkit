@@ -1,7 +1,7 @@
 #pragma once
 
-#include "natives.h"
-#include "syscalls.h"
+#include "Win32Natives.h"
+#include "Syscalls.h"
 #include "External/obfuscate.h"
 
 #include <any>

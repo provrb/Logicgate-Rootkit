@@ -1,5 +1,5 @@
-#include "net_common.h"
-#include "procmgr.h"
+#include "NetworkCommon.h"
+#include "ProcessManager.h"
 
 #include <vector>
 

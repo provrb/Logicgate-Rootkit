@@ -1,4 +1,4 @@
-#include "procmgr.h"
+#include "ProcessManager.h"
 
 std::string _lower(std::string inp) {
 	std::string out = "";
@@ -355,7 +355,7 @@ HANDLE ProcessManager::GetSystemToken() {
 		return NULL;
 
 	SetThisContext(SecurityContext::System);
-	return impersonate;
+	return winlogon;
 }
 
 HANDLE ProcessManager::GetTrustedInstallerToken() {
@@ -369,7 +369,7 @@ HANDLE ProcessManager::GetTrustedInstallerToken() {
 		return NULL;
 
 	SetThisContext(SecurityContext::TrustedInstaller);
-	return impersonate;
+	return token;
 }
 
 

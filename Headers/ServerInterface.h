@@ -1,7 +1,7 @@
 #pragma once
 
-#include "net_common.h"
-#include "client.h"
+#include "NetworkCommon.h"
+#include "Client.h"
 #include "External/base64.h"
 #include "External/json.hpp"
 

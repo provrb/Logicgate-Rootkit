@@ -1,5 +1,5 @@
 #pragma once
-#include "framework.h"
+#include "Framework.h"
 
 extern "C" NTSTATUS SysNtOpenProcess(
 	PHANDLE            ProcessHandle,

