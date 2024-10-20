@@ -9,28 +9,28 @@ multiple vulnerabilities to create a sophisticated piece of malware, and my expl
 ## Summary
 This project is a remote access trojan that uses both TCP and UDP sockets for communication.
 The payload is inside of a DLL that impersonates Microsofts
-legitimate "mlang.dll" to bypass UAC and escalate privellages when paired with
-a System32 movk directory alongside DLL hijacking.
+legitimate "mlang.dll" to bypass UAC and escalate privileges when paired with
+a System32 mock directory alongside DLL hijacking.
 
 Firstly, the client sends a message over the UDP socket to receive details on 
-the TCP server (IP address and port) tk establish a connection. This is a unique way to 
-chnage the port and IP adress of the command and control center without any
-reprecussions. If the client doesn't get a responde with the TCP server details, the C2 server is
+the TCP server (IP address and port) to establish a connection. This is a unique way to 
+change the port and IP address of the command and control center without any
+repercussions. If the client doesn't get a response with the TCP server details, the C2 server is
 not alive.
 
 Afterwards, the client establishes a connection with the C2 server over TCP and
 sends its Windows machine globally unique identifier.
 The server attempts to read any client save data if the client was previously
 connected to the server by parsing a JSON save file and using this machine GUID as the key.
-This means that Client information can be saved. For example, a clients RSA private key
-to decrypt incoming requests om the server. This enforces consistency and ensures that
-anything encrypted with a Clients public key is not lost when the C2 server or client disconnects.
-In conclusion, any crucial data is stored from a client snd loaded on join.
+This means that Client information can be saved. For example, a client's RSA private key
+can decrypt incoming requests on the server. This enforces consistency and ensures that
+anything encrypted with a Client public key is not lost when the C2 server or client disconnects.
+In conclusion, any crucial data is stored from a client and loaded on join.
 If not, the server saves the data to the JSON file.
 
-The seever can make requests to the client to perform actions on the temote host, and the
+The server can request the client to perform actions on the remote host, and the
 client responds with details regarding this. An RSA key pair is used for encrypted
-communication and to encrypt and decrypt files on the remote host.
+communication and to encrypt and decrypt files on the remote host. 
 
 This write-up explains my experience making this project. 
 
