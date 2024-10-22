@@ -17,8 +17,6 @@
 #include <openssl/bio.h>
 #include <filesystem>
 
-//#pragma comment(lib, "ws2_32.lib")
-
 #define WIN32_LEAN_AND_MEAN
 
 const unsigned int UDP_PORT = 5454;
@@ -32,10 +30,9 @@ public:
     void               SetMachineGUID(auto name) { this->m_MachineGUID = name; }
     void               SetEncryptionKeys(RSAKeys& keys) { this->m_Secrets = keys; }
 private:
-    std::string        m_ComputerName = "unknown";  // remote host computer name. e.g DESKTOP-AJDU31S
-    std::string        m_MachineGUID  = "unknown";  // remote host windows machine guid. e.g 831js9fka29-ajs93j19sa82....
+    std::string        m_ComputerName = "";  // remote host computer name. e.g DESKTOP-AJDU31S
+    std::string        m_MachineGUID  = "";  // remote host windows machine guid. e.g 831js9fka29-ajs93j19sa82....
     RSAKeys            m_Secrets      = {};         // Client RSA keys saved as strings
-    LGCrypto           m_Cryptography = m_Secrets;  // Cryptography handler
     SOCKET             m_UDPSocket    = INVALID_SOCKET;
     SOCKET             m_TCPSocket    = INVALID_SOCKET;
 
@@ -46,7 +43,7 @@ public:
     BOOL               Connect();                   // Connect to the tcp server
     BOOL               Disconnect();                // Disconnect from the tcp server
     BYTESTRING         MakeTCPRequest(const ClientRequest& req, BOOL encrypted = FALSE); // send a message, receive the response
-    BOOL               SendMessageToServer(const Server& dest, ClientMessage message, sockaddr_in udpAddr = NetCommon::_default);
+    BOOL               SendMessageToServer(const Server& dest, ClientMessage message);
     BOOL               SendMessageToServer(std::string message, BOOL encrypted = TRUE); // Send a encrypted string to TCP server
     BOOL               SendEncryptedMessageToServer(const Server& dest, ClientMessage message);
     BOOL               ListenForServerCommands();   // listen for commands from the server and perform them

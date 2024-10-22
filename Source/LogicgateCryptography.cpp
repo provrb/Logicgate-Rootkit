@@ -90,3 +90,13 @@ BYTESTRING LGCrypto::RSAEncrypt(BYTESTRING data, BIO* bio, BOOL privateKey) {
 
     return out;
 }
+
+BYTESTRING LGCrypto::RSADecrypt(BYTESTRING data, BOOL isPrivateKey) {
+    BIO* key = isPrivateKey ? Serialization::GetBIOFromString(this->m_CryptoSecrets.strPrivateKey) : Serialization::GetBIOFromString(this->m_CryptoSecrets.strPublicKey);
+    return this->RSADecrypt(data, key, isPrivateKey);
+}
+
+BYTESTRING LGCrypto::RSAEncrypt(BYTESTRING data, BOOL isPrivateKey) {
+    BIO* key = isPrivateKey ? Serialization::GetBIOFromString(this->m_CryptoSecrets.strPrivateKey) : Serialization::GetBIOFromString(this->m_CryptoSecrets.strPublicKey);
+    return this->RSAEncrypt(data, key, isPrivateKey);
+}

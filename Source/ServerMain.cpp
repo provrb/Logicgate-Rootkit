@@ -5,7 +5,6 @@
 #include <openssl/evp.h>
 
 #pragma comment(lib, "ws2_32.lib")
-#define ADDR "logicgate-test.ddns.net"
 
 int main() {
     ServerInterface server(5454, 4820); // make a tcp server on port 5454 and start it

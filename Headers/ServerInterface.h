@@ -10,11 +10,6 @@
 #include <iostream>
 #include <openssl/bio.h>
 
-#define MAX_CON 300 // max clients on a server
-
-const std::string STATE_SAVE_PATH = "C:\\Users\\ethan\\source\\repos\\DLL\\DLL\\";
-const std::string STATE_FILE_NAME = "server_state.json";
-
 using JSON = nlohmann::json;
 
 class ServerInterface
@@ -56,6 +51,7 @@ public:
 	*/
 	ClientResponse    WaitForClientResponse(long cuid);
 	
+	std::unordered_map<long, Client>& GetClientList();
 	BOOL              UDPSendMessageToClient(Client clientInfo, UDPMessage& message);
 	BOOL			  GetClientComputerName(long cuid);
 	BOOL			  GetClientMachineGUID(long cuid);
@@ -64,10 +60,10 @@ public:
 	ClientResponse    PingClient(long cuid);
 	BOOL              ClientIsInClientList(long cuid);
 	Client*           GetClientPtr(long cuid);
-	std::unordered_map<long, Client>& GetClientList();
 	inline BOOL       IsServerRunning(const Server& s) const { return s.alive; }
-	inline Server     GetTCPServer() const { return this->m_TCPServerDetails; }
-	inline Server     GetUDPServer() const { return this->m_UDPServerDetails; }
+	inline Server     GetTCPServer()				   const { return this->m_TCPServerDetails; }
+	inline Server     GetUDPServer()				   const { return this->m_UDPServerDetails; }
+	const auto        ReadConfig()					   const { return this->m_Config; };
 
 protected:
 	/*
@@ -79,8 +75,7 @@ protected:
 		May be implemented someday...
 	*/
 	inline BOOL       IsRansomPaid(Client client) { return TRUE; } // return true always. 
-				      
-	RSAKeys		      GenerateRSAPair();
+	RSAKeys		      GenerateRSAPair(); // only in server file so this logic isn't implemented client side
 	BOOL			  PerformRequest(ClientRequest req, Server on, long cuid = -1, sockaddr_in incoming = NetCommon::_default);
 
 	/*
@@ -89,7 +84,7 @@ protected:
 		using the rsa key
 	*/
 	template <typename _Struct>
-	_Struct ReceiveDataFrom(SOCKET s, BOOL encrypted = FALSE, BIO* rsaKey = {});
+	_Struct           ReceiveDataFrom(SOCKET s, BOOL encrypted = FALSE, BIO* rsaKey = {});
 
 private:
 	/*
@@ -101,4 +96,17 @@ private:
 	std::mutex    m_ClientListMutex; // concurrency
 	Server        m_TCPServerDetails;
 	Server        m_UDPServerDetails;
+
+	struct {
+		std::string serverStatePath      = "C:\\Users\\ethan\\source\\repos\\DLL\\DLL";
+		std::string serverStateFilename  = "server_state.json";
+		std::string serverStateFullPath  = serverStatePath + "\\" + serverStateFilename;
+		std::string serverConfigPath	 = "C:\\Users\\ethan\\source\\repos\\DLL\\DLL";
+		std::string serverConfigFilename = "server_conf.json";
+		std::string serverConfigFilePath = serverConfigPath + "\\" + serverConfigFilename;
+		std::string domainName           = DNS_NAME; // DNS tcp server is running on, from Client.h
+		const int   maxConnections       = 100; // re build to change max connections
+		long        TCPPort              = -1;  // Setup alongside ServerInterface constructor
+		long        UDPPort              = -1;  // Setup alongside ServerInterface constructor
+	} m_Config;
 };

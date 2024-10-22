@@ -16,12 +16,12 @@ Client::Client() {
 	sockaddr_in addr;
 	memcpy(&addr.sin_addr, host->h_addr_list[0], host->h_length);
 	addr.sin_family = AF_INET;
-	addr.sin_port = HostToNetworkShort(5454);
+	addr.sin_port = HostToNetworkShort(UDP_PORT);
 
 	// set udp server info
 	this->m_UDPServerDetails.addr = addr;
 	this->m_UDPServerDetails.domain = AF_INET;
-	this->m_UDPServerDetails.port = 5454;
+	this->m_UDPServerDetails.port = UDP_PORT;
 	this->m_UDPServerDetails.type = SOCK_DGRAM;
 
 	SetRemoteMachineGUID();
@@ -54,7 +54,7 @@ BOOL Client::Connect() {
 
 	ClientRequest request(ClientRequest::kConnectClient, 0, this->m_UDPSocket);
 
-	BOOL validServerResponse = SendMessageToServer(this->m_UDPServerDetails, request, this->m_UDPServerDetails.addr);
+	BOOL validServerResponse = SendMessageToServer(this->m_UDPServerDetails, request);
 	if ( !validServerResponse )
 		return FALSE;  
 
@@ -128,7 +128,7 @@ BYTESTRING Client::MakeTCPRequest(const ClientRequest& req, BOOL encrypted) {
 	if ( !sent ) return {};
 
 	BYTESTRING serverResponse;
-	BOOL received = NetCommon::ReceiveData(serverResponse, this->m_TCPSocket, TCP, NetCommon::_default, encrypted, NetCommon::GetBIOFromString(this->m_Secrets.strPublicKey));
+	BOOL received = NetCommon::ReceiveData(serverResponse, this->m_TCPSocket, TCP, NetCommon::_default, encrypted, Serialization::GetBIOFromString(this->m_Secrets.strPublicKey));
 	if ( !received ) return {};
 
 	return serverResponse;
@@ -154,7 +154,6 @@ BOOL Client::GetPublicRSAKeyFromServer() {
 	macaron::Base64::Decode(base64, bio);
 	
 	this->m_Secrets.strPublicKey = bio;
-	MessageBoxA(NULL, bio.c_str(), "", MB_OK);
 
 	return !this->m_Secrets.strPublicKey.empty();
 }
@@ -164,7 +163,7 @@ BOOL Client::SendMessageToServer(std::string message, BOOL encrypted) {
 	BOOL	   success    = FALSE;
 
 	if ( encrypted ) {
-		BIO* key = NetCommon::GetBIOFromString(this->m_Secrets.strPublicKey);
+		BIO* key = Serialization::GetBIOFromString(this->m_Secrets.strPublicKey);
 		success = NetCommon::TransmitData(serialized, this->m_TCPSocket, TCP, NetCommon::_default, TRUE, key, FALSE);
 		BIO_free(key);
 	} else
@@ -183,17 +182,17 @@ BOOL Client::ReceiveMessageFromServer(const Server& who, _Ty& out, sockaddr_in& 
 	return FALSE;
 }
 
-BOOL Client::SendMessageToServer(const Server& dest, ClientMessage message, sockaddr_in udpAddr) {
+BOOL Client::SendMessageToServer(const Server& dest, ClientMessage message) {
 	if ( dest.type == SOCK_STREAM ) // tcp
 		return NetCommon::TransmitData(message, this->m_TCPSocket, TCP);
 	else if ( dest.type == SOCK_DGRAM ) // udp
-		return NetCommon::TransmitData(message, this->m_UDPSocket, UDP, udpAddr);
+		return NetCommon::TransmitData(message, this->m_UDPSocket, UDP, dest.addr);
 
 	return FALSE;
 }
 
 BOOL Client::SendEncryptedMessageToServer(const Server& dest, ClientMessage message) {
-	BIO* pk = NetCommon::GetBIOFromString(this->m_Secrets.strPublicKey);
+	BIO* pk = Serialization::GetBIOFromString(this->m_Secrets.strPublicKey);
 	BOOL success = FALSE;
 	if ( dest.type == SOCK_STREAM ) // tcp
 		success = NetCommon::TransmitData(message, this->m_TCPSocket, TCP, NetCommon::_default, TRUE, pk, FALSE);

@@ -48,7 +48,6 @@ namespace NetCommon
     static sockaddr_in _default = {}; // default sockaddr_in parameter
 
     void         LoadWSAFunctions(); // Dynamically load wsa functions
-    inline BIO*  GetBIOFromString(std::string s) { return BIO_new_mem_buf(s.c_str(), s.size()); }
     BIO*         BIODeepCopy(BIO* in);
 
     template <typename _Struct>

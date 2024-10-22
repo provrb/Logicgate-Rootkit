@@ -137,12 +137,12 @@ BOOL ServerInterface::TCPSendMessageToAllClients(ServerCommand& req) {
 JSON ServerInterface::ReadServerStateFile() {
 	std::cout << "reading server state file..\n";
 	JSON parsed;
-	if ( std::filesystem::file_size(STATE_SAVE_PATH + STATE_FILE_NAME) == 0 ) {
+	if ( std::filesystem::file_size(ReadConfig().serverStateFullPath) == 0 ) {
 		std::cout << "empty\n";
 		return parsed;
 	}
 	
-	std::ifstream input(STATE_SAVE_PATH + STATE_FILE_NAME);
+	std::ifstream input(ReadConfig().serverStateFullPath);
 
 	input >> parsed;  // Attempt to parse the JSON
 	std::cout << "done\n";
@@ -200,11 +200,14 @@ BOOL ServerInterface::SaveServerState() {
 	std::cout << "Saving server state\n";
 
 	JSON data = ReadServerStateFile();
-	data["server_state"] = {
-		{"clients",  this->m_ClientList.size()},
-		{"udp_port", this->m_UDPServerDetails.port},
-		{"tcp_port", this->m_TCPServerDetails.port},
-		{"tcp_dns",  DNS_NAME},
+	data["server_info"] = {
+		{"connections",		   this->m_ClientList.size()},
+		{"max_connections",    ReadConfig().maxConnections},
+		{"server_state_path",  ReadConfig().serverStateFullPath},
+		{"server_config_path", ReadConfig().serverConfigFilePath},
+		{"udp_port",           ReadConfig().UDPPort},
+		{"tcp_port",           ReadConfig().TCPPort},
+		{"tcp_dns",            ReadConfig().domainName},
 	};
 	
 	for ( auto& iter : this->m_ClientList ) {
@@ -222,7 +225,7 @@ BOOL ServerInterface::SaveServerState() {
 
 	std::cout << data.dump(4) << std::endl;
 
-	std::ofstream outFile(STATE_SAVE_PATH + STATE_FILE_NAME);
+	std::ofstream outFile(ReadConfig().serverStateFullPath);
 	outFile << std::setw(4) << data << std::endl;
 	outFile.close();
 
@@ -417,7 +420,7 @@ void ServerInterface::AcceptTCPConnections() {
 
 	this->m_TCPServerDetails.accepting = TRUE;
 
-	while ( this->m_ClientList.size() < MAX_CON && this->m_TCPServerDetails.alive == TRUE )
+	while ( this->m_ClientList.size() < ReadConfig().maxConnections && this->m_TCPServerDetails.alive == TRUE )
 	{
 		// accept
 		sockaddr_in addr = {};
@@ -515,11 +518,13 @@ Server ServerInterface::NewServerInstance(SocketTypes serverType, int port) {
 			return server;
 
 		server.type = SOCK_STREAM;
+		m_Config.TCPPort = port;
 	} else if ( serverType == UDP) {
 		server.sfd = CreateSocket(AF_INET, SOCK_DGRAM, IPPROTO_UDP);
 		if ( server.sfd == INVALID_SOCKET )
 			return server;
 		server.type = SOCK_DGRAM;
+		m_Config.UDPPort = port;
 	}
 	
 	server.addr.sin_addr.s_addr = INADDR_ANY;

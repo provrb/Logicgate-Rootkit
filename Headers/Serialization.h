@@ -22,6 +22,7 @@ namespace Serialization {
         return serialized;
     }
 
+    inline BIO*   GetBIOFromString(std::string s) { return BIO_new_mem_buf(s.c_str(), s.size()); }
     std::string   ConvertBIOToString(BIO* bio);
     std::string   BytestringToString(BYTESTRING in);
     BYTESTRING    SerializeString(std::string s);
