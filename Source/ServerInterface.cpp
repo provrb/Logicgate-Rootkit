@@ -462,7 +462,7 @@ BOOL ServerInterface::GetClientMachineGUID(long cuid) {
 	if ( !received )
 		return FALSE;
 
-	BYTESTRING decrypted = NetCommon::RSADecryptStruct(machienGUID, client->GetSecrets().bioPrivateKey, TRUE);
+	BYTESTRING decrypted = LGCrypto::RSADecrypt(machienGUID, client->GetSecrets().bioPrivateKey, TRUE);
 	std::string machineGuid = Serialization::BytestringToString(decrypted);
 	client->SetMachineGUID(machineGuid);
 	std::cout << "Got machine GUID: " << client->GetMachineGUID() << std::endl;
@@ -483,7 +483,7 @@ BOOL ServerInterface::GetClientComputerName(long cuid) {
 	if ( !received )
 		return FALSE;
 
-	BYTESTRING decrypted = NetCommon::RSADecryptStruct(computerNameSerialized, client->GetSecrets().bioPrivateKey, TRUE);
+	BYTESTRING decrypted = LGCrypto::RSADecrypt(computerNameSerialized, client->GetSecrets().bioPrivateKey, TRUE);
 	std::string computerName = Serialization::BytestringToString(decrypted);
 	client->SetDesktopName(computerName);
 	std::cout << "Got client computer naem: " << client->GetDesktopName() << std::endl;

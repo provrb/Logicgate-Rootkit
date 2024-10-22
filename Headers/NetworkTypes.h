@@ -1,6 +1,11 @@
 #pragma once
 
 #include <openssl/bio.h>
+#include <vector>
+
+#include "Win32Natives.h"
+
+typedef std::vector<unsigned char> BYTESTRING;
 
 // Response codes sent from the client to the server
 // Usually after a remoteaction is completed

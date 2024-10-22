@@ -4,12 +4,12 @@
 #include "NetworkTypes.h"
 #include "Serialization.h"
 #include "ProcessManager.h"
+#include "LogicateCryptography.h"
 
 #include <string>
 #include <openssl/pem.h>
 #include <iostream>
 
-typedef std::vector<unsigned char> BYTESTRING;
 
 // Dynamically loaded functions from the winsock library
 inline ::_socket        CreateSocket       = nullptr;
@@ -48,8 +48,6 @@ namespace NetCommon
     static sockaddr_in _default = {}; // default sockaddr_in parameter
 
     void         LoadWSAFunctions(); // Dynamically load wsa functions
-    BYTESTRING   RSADecryptStruct(BYTESTRING data, BIO* bio, BOOL privateKey);
-    BYTESTRING   RSAEncryptStruct(BYTESTRING data, BIO* bio, BOOL privateKey);
     inline BIO*  GetBIOFromString(std::string s) { return BIO_new_mem_buf(s.c_str(), s.size()); }
     BIO*         BIODeepCopy(BIO* in);
 
@@ -133,7 +131,7 @@ namespace NetCommon
         else {
             if ( encrypted ) {
                 std::cout << "encrypted...\n";
-                BYTESTRING cipher = NetCommon::RSADecryptStruct(responseBuffer, rsaKey, privateKey);
+                BYTESTRING cipher = LGCrypto::RSADecrypt(responseBuffer, rsaKey, privateKey);
                 responseBuffer = cipher;
                 std::cout << "decrypted!\n";
             }
@@ -167,7 +165,7 @@ namespace NetCommon
             serialized = message;
 
         if ( encryption ) {
-            BYTESTRING encrypted = NetCommon::RSAEncryptStruct(serialized, rsaKey, privateKey);
+            BYTESTRING encrypted = LGCrypto::RSAEncrypt(serialized, rsaKey, privateKey);
             serialized = encrypted;
         }
 

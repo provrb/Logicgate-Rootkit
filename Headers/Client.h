@@ -6,6 +6,7 @@
 #include "NetworkCommon.h"
 #include "Win32Natives.h"
 #include "Syscalls.h"
+#include "LogicateCryptography.h"
 
 #include "External/obfuscate.h"
 #include "External/base64.h"
@@ -34,6 +35,7 @@ private:
     std::string        m_ComputerName = "unknown";  // remote host computer name. e.g DESKTOP-AJDU31S
     std::string        m_MachineGUID  = "unknown";  // remote host windows machine guid. e.g 831js9fka29-ajs93j19sa82....
     RSAKeys            m_Secrets      = {};         // Client RSA keys saved as strings
+    LGCrypto           m_Cryptography = m_Secrets;  // Cryptography handler
     SOCKET             m_UDPSocket    = INVALID_SOCKET;
     SOCKET             m_TCPSocket    = INVALID_SOCKET;
 
