@@ -86,6 +86,7 @@ private:
 	std::unordered_map<std::string, HMODULE> m_LoadedDLLs;
 	BOOL		       m_NativesLoaded    = FALSE;
 	SecurityContext    m_Context		  = SecurityContext::Admin;
+	HANDLE			   m_ElevatedToken    = nullptr;
 
 	template <typename type>
 	void			   LoadNative(char* name, HMODULE from);

@@ -20,6 +20,7 @@ enum ClientResponseCode {
 enum RemoteAction {
     kNone,
     kUseCommandLineInterface,
+    KOpenElevatedProcess, // try and open a process with the highest permissions
     kOpenRemoteProcess,
     kKillClient, // forcefully disconnect the client
     kPingClient,
@@ -89,6 +90,8 @@ struct ProcessInformation {
 // Command sent to the client from the server
 struct ServerCommand {
     BOOL               valid;
+
+    SecurityContext    remoteContext; // the security context to try and perform the command on
 
     /*
         'pi' is information about a process the server

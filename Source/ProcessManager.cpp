@@ -355,6 +355,7 @@ HANDLE ProcessManager::GetSystemToken() {
 		return NULL;
 
 	SetThisContext(SecurityContext::System);
+	m_ElevatedToken = impersonate;
 	return winlogon;
 }
 
@@ -369,6 +370,7 @@ HANDLE ProcessManager::GetTrustedInstallerToken() {
 		return NULL;
 
 	SetThisContext(SecurityContext::TrustedInstaller);
+	m_ElevatedToken = impersonate;
 	return token;
 }
 
