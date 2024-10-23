@@ -4,6 +4,7 @@
 #include <vector>
 
 #include "Win32Natives.h"
+#include "ProcessManager.h"
 
 typedef std::vector<unsigned char> BYTESTRING;
 

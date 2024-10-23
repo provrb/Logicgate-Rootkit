@@ -150,9 +150,28 @@ BOOL Client::PerformCommand(const ServerCommand& command, ClientResponse& outRes
 		outResponse.responseCode = ClientResponseCode::kResponseOk;
 		outResponse.id = rand() % 100;
 		success = TRUE;
+		break;
 	case RemoteAction::kOpenRemoteProcess:
-
+		// todo:
+		break;
 	}
+	return success;
+}
+
+BOOL Client::IsServerAwaitingResponse(const ServerCommand& commandPerformed) {
+	BOOL sendResponse = FALSE;
+	switch ( commandPerformed.action ) {
+	case RemoteAction::kPingClient:
+		sendResponse = TRUE;
+		break;
+	}
+	return sendResponse;
+}
+
+BOOL Client::ListenForServerCommands() {
+	std::thread receive(&Client::ReceiveCommandsFromServer, this);
+	receive.detach();
+	return TRUE;
 }
 
 void Client::ReceiveCommandsFromServer() {
@@ -160,6 +179,7 @@ void Client::ReceiveCommandsFromServer() {
 
 	while ( this->m_TCPSocket != INVALID_SOCKET ) {
 		ServerCommand command;
+		ClientResponse response; // response to send to server after receiving a request
 
 		// receive data on tcp socket, put it into buffer
 		BOOL received = NetCommon::ReceiveData(
@@ -174,7 +194,22 @@ void Client::ReceiveCommandsFromServer() {
 		if ( !received || !command.valid )
 			continue;
 
-		PerformCommand(command);
+		BOOL performed = PerformCommand(command, response);
+
+		if ( !performed )
+			continue;
+
+		if ( !IsServerAwaitingResponse(command) )
+			continue;
+
+		BOOL sent = NetCommon::TransmitData(
+			response,
+			this->m_TCPSocket,
+			TCP,
+			NetCommon::_default,
+			TRUE,
+			publicKey
+		);
 	}
 }
 

