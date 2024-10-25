@@ -49,11 +49,7 @@ void NetCommon::LoadWSAFunctions() {
 
     if ( StartWSA(version, &data) == 0 ) {
         WSAInitialized = TRUE;
-        CLIENT_DBG("init");
-        std::cout << "initialized wsa and functions";
     }
-
-    OutputDebugStringA("loaded");
 }
 
 BIO* NetCommon::BIODeepCopy(BIO* in) {

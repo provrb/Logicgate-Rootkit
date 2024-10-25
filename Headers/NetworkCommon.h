@@ -81,7 +81,6 @@ namespace NetCommon
 
             dataSize = NetworkToHostLong(dataSize);
 
-            std::cout << "receiving " << dataSize << " bytes\n";
             if ( received == 0 ) {
                 return FALSE;
             }
@@ -110,7 +109,6 @@ namespace NetCommon
                 &addrSize
             );
 
-            std::cout << "receiving " << dataSize << " bytes over udp\n";
             responseBuffer.resize(dataSize);
 
             received = ReceiveFrom(
@@ -121,7 +119,6 @@ namespace NetCommon
                 reinterpret_cast< sockaddr* >( &receivedAddr ),
                 &addrSize
             );
-            std::cout << "received...\n";
         }
 
         // when this is true, you are responsible for decrypting after this function call if it is encrypted
@@ -129,10 +126,8 @@ namespace NetCommon
             data = responseBuffer;
         else {
             if ( encrypted ) {
-                std::cout << "encrypted...\n";
                 BYTESTRING cipher = LGCrypto::RSADecrypt(responseBuffer, rsaKey, privateKey);
                 responseBuffer = cipher;
-                std::cout << "decrypted!\n";
             }
             data = Serialization::DeserializeToStruct<_Struct>(responseBuffer);
         }

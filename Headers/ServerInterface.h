@@ -85,6 +85,7 @@ protected:
 	*/
 	template <typename _Struct>
 	_Struct           ReceiveDataFrom(SOCKET s, BOOL encrypted = FALSE, BIO* rsaKey = {});
+	void			  RunUserInputOnClients();
 
 private:
 	/*

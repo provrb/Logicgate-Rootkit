@@ -8,7 +8,6 @@ BYTESTRING LGCrypto::RSADecrypt(BYTESTRING data, BIO* bio, BOOL privateKey) {
 
     EVP_PKEY* priv = privateKey ? PEM_read_bio_PrivateKey(copied, nullptr, nullptr, nullptr) : PEM_read_bio_PUBKEY(copied, nullptr, nullptr, nullptr);
     if ( !priv ) {
-        std::cout << "bad key\n";
         return {};
     }
 
@@ -44,8 +43,6 @@ BYTESTRING LGCrypto::RSADecrypt(BYTESTRING data, BIO* bio, BOOL privateKey) {
     EVP_PKEY_CTX_free(ctx);
 
     out.resize(outLen);
-
-    std::cout << "decrypted the struct!\n";
 
     return out;
 }

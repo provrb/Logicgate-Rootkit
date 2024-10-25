@@ -313,8 +313,6 @@ void Client::Disconnect() {
 		BIO_free(this->m_Secrets.bioPublicKey);
 
 	this->Alive = FALSE;
-
-	std::cout << "Disconnected from the server." << std::endl;
 }
 
 #endif

