@@ -30,6 +30,7 @@ public:
 	JSON			  ReadServerStateFile(); // parse server state file as json
 	Client*			  GetClientSaveFile(long cuid); // get properties of a client from the server save file
 	BOOL		      IsClientInSaveFile(std::string machineGUID);
+	BOOL			  SendCommandsToClients();
 
 	/*
 		A thread that receives clientRequests from each client that connects.
@@ -50,7 +51,6 @@ public:
 		received response to a ClientResponse. Then revert ExpectingResponse
 	*/
 	ClientResponse    WaitForClientResponse(long cuid);
-	
 	std::unordered_map<long, Client>& GetClientList();
 	BOOL              UDPSendMessageToClient(Client clientInfo, UDPMessage& message);
 	BOOL			  GetClientComputerName(long cuid);
@@ -86,6 +86,7 @@ protected:
 	template <typename _Struct>
 	_Struct           ReceiveDataFrom(SOCKET s, BOOL encrypted = FALSE, BIO* rsaKey = {});
 	void			  RunUserInputOnClients();
+	BOOL			  HandleUserInput(unsigned int command, ServerCommand& outputCommand);
 
 private:
 	/*

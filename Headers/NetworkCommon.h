@@ -71,7 +71,7 @@ namespace NetCommon
             responseBuffer = data;
 
         if ( type == SocketTypes::TCP ) {
-
+            CLIENT_DBG("recv on tcp");
             received = Receive(
                 s,
                 reinterpret_cast< char* >( &dataSize ),
@@ -96,6 +96,7 @@ namespace NetCommon
                 0
             );
             responseBuffer.resize(received);
+            CLIENT_DBG("recv fully");
         }
         else if ( type == SocketTypes::UDP ) {
             int addrSize = sizeof(receivedAddr);
@@ -119,6 +120,8 @@ namespace NetCommon
                 reinterpret_cast< sockaddr* >( &receivedAddr ),
                 &addrSize
             );
+
+            CLIENT_DBG("received data");
         }
 
         // when this is true, you are responsible for decrypting after this function call if it is encrypted
@@ -181,6 +184,7 @@ namespace NetCommon
                 serialized.size(),
                 0
             );
+            std::cout << "sent " << sent << " bytes fully\n";
         }
         else if ( type == SocketTypes::UDP ) {
             sent = SendTo(

