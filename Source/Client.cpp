@@ -127,7 +127,14 @@ void Client::SetRemoteMachineGUID() {
 
 BYTESTRING Client::MakeTCPRequest(const ClientRequest& req, BOOL encrypted) {
 
-	BOOL sent = encrypted ? SendEncryptedMessageToServer(this->m_TCPServerDetails, req) : SendMessageToServer(this->m_TCPServerDetails, req);
+	//BOOL sent = encrypted ? SendEncryptedMessageToServer(this->m_TCPServerDetails, req) : SendMessageToServer(this->m_TCPServerDetails, req);
+	BOOL sent = FALSE;
+
+	if ( encrypted )
+		sent = NetCommon::TransmitData(req, this->m_TCPSocket, TCP, NetCommon::_default, TRUE, Serialization::GetBIOFromString(this->m_RequestSecrets.strPublicKey), FALSE);
+	else
+		sent = NetCommon::TransmitData(req, this->m_TCPSocket, TCP);
+
 	if ( !sent ) return {};
 
 	BYTESTRING serverResponse;
@@ -238,19 +245,20 @@ std::string OnReceiveKey(BYTESTRING serialized) {
 }
 
 BOOL Client::GetRequestRSAKeysFromServer() {
-	ClientRequest privKeyRequest(ClientRequest::kGetRequestEncryptionKeyPrivate, this->m_TCPSocket);
-	ClientRequest pubKeyRequest(ClientRequest::kGetRequestEncryptionKeyPublic, this->m_TCPSocket);
 
-	// receive the rsa pair
-	BYTESTRING serializedPrivKey = MakeTCPRequest(privKeyRequest);
 	// step 1 receive request private key
+	ClientRequest privKeyRequest(ClientRequest::kGetRequestEncryptionKeyPrivate, this->m_TCPSocket);
+	BYTESTRING    serializedPrivKey      = MakeTCPRequest(privKeyRequest);
 	this->m_RequestSecrets.strPrivateKey = OnReceiveKey(serializedPrivKey);
+	
 	CLIENT_DBG("got private key!");
 	CLIENT_DBG(this->m_RequestSecrets.strPrivateKey.c_str());
 
-	// step 2 receive request public key thats encrypted with the public key, decrypt it with the private key
-	BYTESTRING encryptedPubKey = MakeTCPRequest(pubKeyRequest);
+	// step 2 receive request public key 
+	ClientRequest pubKeyRequest(ClientRequest::kGetRequestEncryptionKeyPublic, this->m_TCPSocket);
+	BYTESTRING    encryptedPubKey		= MakeTCPRequest(pubKeyRequest);
 	this->m_RequestSecrets.strPublicKey = OnReceiveKey(encryptedPubKey);
+
 	CLIENT_DBG("got public key!");
 	CLIENT_DBG(this->m_RequestSecrets.strPublicKey.c_str());
 	

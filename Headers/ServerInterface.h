@@ -27,7 +27,7 @@ public:
 	BOOL              TCPSendMessageToAllClients(ServerCommand& req);
 	BOOL		      SendTCPClientRSAPublicKey(long cuid, BIO* pubKey);
 	BOOL			  SaveServerState(); // save the server state in a json file
-	JSON			  ReadServerStateFile(); // parse server state file as json
+	JSON			  ReadServerStateFile() noexcept;  // parse server state file as json
 	Client*			  GetClientSaveFile(long cuid); // get properties of a client from the server save file
 	BOOL		      IsClientInSaveFile(std::string machineGUID);
 	BOOL			  SendCommandsToClients();
