@@ -52,6 +52,20 @@ void NetCommon::LoadWSAFunctions() {
     }
 }
 
+BYTESTRING NetCommon::MergeSplitRSAKey(std::pair<BYTESTRING, BYTESTRING> splitted) {
+    BYTESTRING top = splitted.first;
+    BYTESTRING bottom = splitted.second;
+
+    top.insert(top.end(), bottom.begin(), bottom.end());
+    return top;
+}
+
+std::pair<BYTESTRING, BYTESTRING> NetCommon::SplitRSAKey(BYTESTRING s) {
+    BYTESTRING halfOne(s.begin(), s.begin() + ( s.size() / 2 ));
+    BYTESTRING halfTwo(s.begin() + ( s.size() / 2 ), s.end());
+    return std::make_pair(halfOne, halfTwo);
+}
+
 BIO* NetCommon::BIODeepCopy(BIO* in) {
     BIO* copy = BIO_new(BIO_s_mem());
     BUF_MEM* buffer;

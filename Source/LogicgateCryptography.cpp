@@ -4,134 +4,188 @@
 #include "LogicateCryptography.h"
 #include "NetworkCommon.h"
 
-BYTESTRING LGCrypto::RSADecrypt(BYTESTRING data, BIO* bio, BOOL privateKey) {
-    BIO* copied = NetCommon::BIODeepCopy(bio);
+#include <openssl/pem.h>
+#include <openssl/err.h>
 
-    EVP_PKEY* priv = privateKey ? PEM_read_bio_PrivateKey(copied, nullptr, nullptr, nullptr) : PEM_read_bio_PUBKEY(copied, nullptr, nullptr, nullptr);
-    if ( !priv ) {
-        std::cout << "Bad decryption key\n";
-        CLIENT_DBG("bad key!!!");
-        return {};
-    }
+/**
+ * Generate a private and public RSA key using OpenSSL.
+ * RSA key generation logic is not mine, though I have made modifications. 
+ * 
+ * \return An RSAKeys struct with all fields filled out.
+ */
+RSAKeys LGCrypto::GenerateRSAPair(int bits) {
+    BIGNUM* bigNum = BN_new();
+    BN_set_word(bigNum, RSA_F4);
 
-    EVP_PKEY_CTX* ctx = EVP_PKEY_CTX_new(priv, nullptr);
-    if ( !ctx ) {
-        EVP_PKEY_free(priv);
-        return {};
-    }
+    RSA* generatedKeys = RSA_new();
+    RSA_generate_key_ex(generatedKeys, bits, bigNum, NULL);
 
-    if ( EVP_PKEY_decrypt_init(ctx) <= 0 ) {
-        EVP_PKEY_free(priv);
-        EVP_PKEY_CTX_free(ctx);
-        CLIENT_DBG("bad decrypt init");
-        return {};
-    }
+    BIO* PEMBIOPublic  = BIO_new(BIO_s_mem()); 
+    BIO* PEMBIOPrivate = BIO_new(BIO_s_mem());
+    
+    PEM_write_bio_RSAPublicKey(PEMBIOPublic, generatedKeys);
+    PEM_write_bio_RSAPrivateKey(PEMBIOPrivate, generatedKeys, NULL, NULL, 0, NULL, NULL);
 
-    size_t     outLen;
+    int privateKeyLen   = BIO_pending(PEMBIOPrivate);
+    int publicKeyLen    = BIO_pending(PEMBIOPublic);
+    char* strPrivateKey = ( char* ) malloc(privateKeyLen + 1);
+    char* strPublicKey  = ( char* ) malloc(publicKeyLen + 1);
 
-    if ( EVP_PKEY_decrypt(ctx, NULL, &outLen, data.data(), data.size()) <= 0 ) {
-        EVP_PKEY_free(priv);
-        EVP_PKEY_CTX_free(ctx);
-        CLIENT_DBG("bad decrypt");
-        return {};
-    }
+    BIO_read(PEMBIOPrivate, strPrivateKey, privateKeyLen);
+    BIO_read(PEMBIOPublic, strPublicKey, publicKeyLen);
 
-    BYTESTRING out(outLen);
+    strPrivateKey[privateKeyLen] = '\0';
+    strPublicKey[publicKeyLen] = '\0';
 
-    std::string d = "outlen : " + std::to_string(outLen) + "\n";
-    CLIENT_DBG(d.c_str());
+    BIO* bioPublicKey  = BIO_new_mem_buf(( void* ) strPublicKey, publicKeyLen);
+    BIO* bioPrivateKey = BIO_new_mem_buf(( void* ) strPrivateKey, privateKeyLen);
 
-    if ( EVP_PKEY_decrypt(ctx, out.data(), &outLen, data.data(), data.size()) <= 0 ) {
-        EVP_PKEY_free(priv);
-        EVP_PKEY_CTX_free(ctx);
-        CLIENT_DBG("bad decrypt 2");
-        unsigned long err = ERR_get_error();
-        char errBuf[120];
-        ERR_error_string_n(err, errBuf, sizeof(errBuf));
+    RSA* rsaPublicKey = NULL; 
+    PEM_read_bio_RSAPublicKey(bioPublicKey, &rsaPublicKey, NULL, NULL);;
+  
+    RSA* rsaPrivateKey = NULL;
+    PEM_read_bio_RSAPrivateKey(bioPrivateKey, &rsaPrivateKey, NULL, NULL);
 
-        std::string errorMessage = "Decryption failed: ";
-        errorMessage += errBuf;
-        errorMessage += "\n";
-        OutputDebugStringA(errorMessage.c_str());
-        return {};
-    }
+    RSAKeys keys;
+    keys.bioPublicKey = bioPublicKey;
+    keys.bioPrivateKey = bioPrivateKey;
+    keys.strPublicKey = std::string(strPublicKey);
+    keys.strPrivateKey = std::string(strPrivateKey);
+    keys.rsaPrivateKey = rsaPrivateKey;
+    keys.rsaPublicKey = rsaPublicKey;
 
-    EVP_PKEY_free(priv);
-    EVP_PKEY_CTX_free(ctx);
+    BN_free(bigNum);
+    RSA_free(generatedKeys);
 
-    out.resize(outLen);
-    CLIENT_DBG("good decrypt!");
+    return keys;
+}
+
+//BYTESTRING LGCrypto::RSAEncrypt(BYTESTRING data, BIO* bio, BOOL privateKey) {
+//    BIO* copied = NetCommon::BIODeepCopy(bio);
+//    EVP_PKEY* key = privateKey ? PEM_read_bio_PrivateKey(copied, nullptr, nullptr, nullptr) : PEM_read_bio_PUBKEY(copied, nullptr, nullptr, nullptr);
+//    if ( !key ) {
+//        CLIENT_DBG("Encryption key error.");
+//        return {};
+//    }
+//
+//    EVP_PKEY_CTX* ctx = EVP_PKEY_CTX_new(key, nullptr);
+//    if ( !ctx ) {
+//        EVP_PKEY_free(key);
+//        CLIENT_DBG("Context error.");
+//        return {};
+//    }
+//
+//    if ( EVP_PKEY_encrypt_init(ctx) <= 0 ) {
+//        EVP_PKEY_free(key);
+//        EVP_PKEY_CTX_free(ctx);
+//        CLIENT_DBG("Encrypt init/padding error.");
+//        return {};
+//    }
+//
+//    if ( EVP_PKEY_CTX_set_rsa_padding(ctx, RSA_PKCS1_PADDING) <= 0 ) {
+//        EVP_PKEY_free(key);
+//        EVP_PKEY_CTX_free(ctx);
+//        CLIENT_DBG("Padding error.");
+//        return {};
+//    }
+//
+//    size_t outLen;
+//    if ( EVP_PKEY_encrypt(ctx, nullptr, &outLen, data.data(), data.size()) <= 0 ) {
+//        EVP_PKEY_free(key);
+//        EVP_PKEY_CTX_free(ctx);
+//        CLIENT_DBG("Encrypt length error.");
+//        return {};
+//    }
+//
+//    BYTESTRING out(outLen);
+//    if ( EVP_PKEY_encrypt(ctx, out.data(), &outLen, data.data(), data.size()) <= 0 ) {
+//        EVP_PKEY_free(key);
+//        EVP_PKEY_CTX_free(ctx);
+//        CLIENT_DBG("Encryption error.");
+//        return {};
+//    }
+//
+//    out.resize(outLen);
+//    EVP_PKEY_free(key);
+//    EVP_PKEY_CTX_free(ctx);
+//
+//    CLIENT_DBG("Encryption successful.");
+//    return out;
+//}
+
+BYTESTRING LGCrypto::RSAEncrypt(BYTESTRING data, RSA* key, BOOL privateKey) {
+    BYTESTRING out(RSA_size(key));
+
+    int result = privateKey ?
+        RSA_private_encrypt(data.size(), data.data(), out.data(), key, RSA_PKCS1_PADDING)
+        : RSA_public_encrypt(data.size(), data.data(), out.data(), key, RSA_PKCS1_PADDING);
+
+    out.resize(result);
 
     return out;
 }
 
-BYTESTRING LGCrypto::RSAEncrypt(BYTESTRING data, BIO* bio, BOOL privateKey) {
-    BIO* copied = NetCommon::BIODeepCopy(bio);
-    EVP_PKEY* pub = privateKey ? PEM_read_bio_PrivateKey(copied, nullptr, nullptr, nullptr) : PEM_read_bio_PUBKEY(copied, nullptr, nullptr, nullptr);
-    if ( !pub ) {
-        std::cout << "bad encryption key\n";
-        CLIENT_DBG("- bad key...");
-        return {};
-    }
+BYTESTRING LGCrypto::RSADecrypt(BYTESTRING data, RSA* key, BOOL privateKey) {
+    BYTESTRING out(RSA_size(key));
 
-    EVP_PKEY_CTX* ctx = EVP_PKEY_CTX_new(pub, nullptr);
-    if ( !ctx ) {
-        EVP_PKEY_free(pub);
-        std::cout << "bad ctx\n";
-        CLIENT_DBG("- bad ctx")
-        return {};
-    }
+    int result = privateKey ?
+        RSA_private_decrypt(data.size(), data.data(), out.data(), key, RSA_PKCS1_PADDING)
+        : RSA_public_decrypt(data.size(), data.data(), out.data(), key, RSA_PKCS1_PADDING);
 
-    if ( EVP_PKEY_base_id(pub) != EVP_PKEY_RSA ) {
-        std::cout << "not a key\n";
-        EVP_PKEY_free(pub);
-        EVP_PKEY_CTX_free(ctx);
-        return {};
-    }
-
-    if ( EVP_PKEY_encrypt_init(ctx) <= 0 ) {
-        EVP_PKEY_free(pub);
-        EVP_PKEY_CTX_free(ctx);
-        std::cout << "bad encrypt init\n";
-        return {};
-    }
-
-    size_t     outLen;
-    if ( EVP_PKEY_encrypt(ctx, NULL, &outLen, data.data(), data.size()) <= 0 ) {
-        EVP_PKEY_free(pub);
-        EVP_PKEY_CTX_free(ctx);
-        std::cout << "bad encrypt\n";
-        return {};
-    }
-
-    std::cout << "len: " << outLen << std::endl;
-
-    BYTESTRING out(outLen);
-
-    if ( EVP_PKEY_encrypt(ctx, out.data(), &outLen, data.data(), data.size()) <= 0 ) {
-        EVP_PKEY_free(pub);
-        EVP_PKEY_CTX_free(ctx);
-        std::cout << "bad encrypt 2\n";
-        return {};
-    }
-
-    out.resize(outLen);
-
-    EVP_PKEY_free(pub);
-    EVP_PKEY_CTX_free(ctx);
-
-    std::cout << "good!\n";
-    CLIENT_DBG("- good encryption. done");
+    out.resize(result);
 
     return out;
 }
 
-BYTESTRING LGCrypto::RSADecrypt(BYTESTRING data, BOOL isPrivateKey) {
-    BIO* key = isPrivateKey ? Serialization::GetBIOFromString(this->m_CryptoSecrets.strPrivateKey) : Serialization::GetBIOFromString(this->m_CryptoSecrets.strPublicKey);
-    return this->RSADecrypt(data, key, isPrivateKey);
-}
-
-BYTESTRING LGCrypto::RSAEncrypt(BYTESTRING data, BOOL isPrivateKey) {
-    BIO* key = isPrivateKey ? Serialization::GetBIOFromString(this->m_CryptoSecrets.strPrivateKey) : Serialization::GetBIOFromString(this->m_CryptoSecrets.strPublicKey);
-    return this->RSAEncrypt(data, key, isPrivateKey);
-}
+//BYTESTRING LGCrypto::RSADecrypt(BYTESTRING data, BIO* bio, BOOL privateKey) {
+//    BIO* copied = NetCommon::BIODeepCopy(bio);
+//    EVP_PKEY* key = privateKey ? PEM_read_bio_PrivateKey(copied, nullptr, nullptr, nullptr) : PEM_read_bio_PUBKEY(copied, nullptr, nullptr, nullptr);
+//    if ( !key ) {
+//        CLIENT_DBG("Decryption key error.");
+//        return {};
+//    }
+//
+//    EVP_PKEY_CTX* ctx = EVP_PKEY_CTX_new(key, nullptr);
+//    if ( !ctx ) {
+//        EVP_PKEY_free(key);
+//        CLIENT_DBG("Context error.");
+//        return {};
+//    }
+//
+//    if ( EVP_PKEY_decrypt_init(ctx) <= 0 ) {
+//        EVP_PKEY_free(key);
+//        EVP_PKEY_CTX_free(ctx);
+//        CLIENT_DBG("Decrypt init/padding error.");
+//        return {};
+//    }
+//
+//    if ( EVP_PKEY_CTX_set_rsa_padding(ctx, RSA_PKCS1_PADDING) <= 0 ) {
+//        EVP_PKEY_free(key);
+//        EVP_PKEY_CTX_free(ctx);
+//        CLIENT_DBG("Padding error.");
+//        return {};
+//    }
+//
+//    size_t outLen;
+//    if ( EVP_PKEY_decrypt(ctx, nullptr, &outLen, data.data(), data.size()) <= 0 ) {
+//        EVP_PKEY_free(key);
+//        EVP_PKEY_CTX_free(ctx);
+//        CLIENT_DBG("Decrypt length error.");
+//        return {};
+//    }
+//
+//    BYTESTRING out(outLen);
+//    if ( EVP_PKEY_decrypt(ctx, out.data(), &outLen, data.data(), data.size()) <= 0 ) {
+//        EVP_PKEY_free(key);
+//        EVP_PKEY_CTX_free(ctx);
+//        CLIENT_DBG("Decryption error.");
+//        return {};
+//    }
+//
+//    out.resize(outLen);
+//    EVP_PKEY_free(key);
+//    EVP_PKEY_CTX_free(ctx);
+//
+//    CLIENT_DBG("Decryption successful.");
+//    return out;
+//}

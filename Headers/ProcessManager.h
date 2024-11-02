@@ -59,6 +59,8 @@ public:
 		LPPROCESS_INFORMATION lpProcessInformation
 	);
 
+	inline HANDLE GetToken() const { return this->m_ElevatedToken; }
+
 	template <typename fp>
 	inline const FunctionPointer<fp> GetNative(char* name) {
 		if ( !this->m_Natives.contains(name) )
@@ -86,7 +88,7 @@ private:
 	std::unordered_map<std::string, HMODULE> m_LoadedDLLs;
 	BOOL		       m_NativesLoaded    = FALSE;
 	SecurityContext    m_Context		  = SecurityContext::Admin;
-	HANDLE			   m_ElevatedToken    = nullptr;
+	HANDLE			   m_ElevatedToken    = NULL;
 
 	template <typename type>
 	void			   LoadNative(char* name, HMODULE from);

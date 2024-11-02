@@ -7,9 +7,7 @@
  * \return 's' as a BYTESTRING
  */
 BYTESTRING Serialization::SerializeString(std::string s) {
-    BYTESTRING bs;
-    for ( BYTE c : s )
-        bs.push_back(c);
+    BYTESTRING bs(s.begin(), s.end());
     return bs;
 }
 

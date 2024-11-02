@@ -101,7 +101,8 @@ struct ServerCommand {
         USE_CLI or anything related to the command line,
         otherwise this can be an empty string
     */
-    std::string        commandLineArguments;
+    //std::string        commandLineArguments;
+    BYTESTRING commandLineArguments;
 
     /*
         The RSA Private key the client can use to decrypt
@@ -112,21 +113,11 @@ struct ServerCommand {
 
         in string form because you cant send BIO* over sockets.
     */
-    std::string        privateEncryptionKey;
+    //std::string        privateEncryptionKey;
+    //BYTESTRING privateEncryptionKey;
 
     // the action to perform of RemoteAction enum
     RemoteAction       action;
-
-    ServerCommand(
-        RemoteAction action=RemoteAction::kNone, 
-        ProcessInformation pi={},
-        std::string cliArgs="",
-        std::string rsaPubKey="",
-        std::string rsaPrivKey=""
-    ) : action(action),
-        commandLineArguments(cliArgs), privateEncryptionKey(rsaPrivKey)
-    {
-    }
 };
 
 // A response from the udp server to the udp client
@@ -174,12 +165,44 @@ struct ClientRequest {
     }
 };
 
+struct ClientRSAKey {
+    RSA* serverRSAPublic;
+    std::string serverPublicKey; 
+    std::string clientPublicKey;
+    std::string clientPrivateKey;
+#ifdef CLIENT_RELEASE
+    BIO* bioClientPublicKey;
+    BIO* bioClientPrivateKey;
+    RSA* rsaPublic;
+    RSA* rsaPrivate;
+#endif
+};
+
+struct ServerRSAKey {
+    RSA* clientRSAPublic;
+    std::string clientPublicKey;
+    std::string serverPublicKey;
+    std::string serverPrivateKey;
+#ifdef SERVER_RELEASE
+    BIO* bioServerPublicKey;
+    BIO* bioServerPrivateKey;
+    RSA* rsaPublic;
+    RSA* rsaPrivate;
+#endif
+};
+
 struct RSAKeys
 {
     std::string strPublicKey;
     std::string strPrivateKey;
+    std::string b64PublicKey;
+    std::string b64PrivateKey;
     BIO*        bioPublicKey;
     BIO*        bioPrivateKey;
+    BYTESTRING bsPrivateKey;
+    BYTESTRING bsPublicKey;
+    RSA* rsaPublicKey;
+    RSA* rsaPrivateKey;
 };
 
 typedef UDPResponse   UDPMessage;

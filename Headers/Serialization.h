@@ -11,6 +11,10 @@ namespace Serialization {
     inline _Struct DeserializeToStruct(BYTESTRING b) {
         if constexpr ( std::is_same<BYTESTRING, _Struct>::value )
             return b;
+
+        //_Struct out;
+        //std::memcpy(&out, b.data(), sizeof(b));
+        //return out;
         return *reinterpret_cast< _Struct* >( b.data() );
     }
 
