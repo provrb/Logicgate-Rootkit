@@ -8,6 +8,51 @@
 #include <openssl/err.h>
 
 /**
+ * Convert an OpenSSL RSA* type to an std::string in PEM format.
+ * 
+ * \param key - the key to convert to a string in PEM format
+ * \return 'key' as an std::string in PEM format.
+ */
+std::string LGCrypto::RSAKeyToString(RSA* key, BOOL isPrivateKey) {
+    BIO* bio = BIO_new(BIO_s_mem());
+
+    if ( isPrivateKey )
+        PEM_write_bio_RSAPrivateKey(bio, key, nullptr, nullptr, 0, nullptr, nullptr);
+    else
+        PEM_write_bio_RSAPublicKey(bio, key);
+
+    BUF_MEM* buffer = NULL;
+    BIO_get_mem_ptr(bio, &buffer);
+
+    std::string pem(buffer->data, buffer->length);
+
+    BIO_free(bio);
+    return pem;
+}
+
+/**
+ * Convert a rsa key as a string to an OpenSSL RSA* object.
+ * 
+ * \param s - an rsa key as a string to convert to a RSA* object.
+ * \return s as a RSA* object
+ */
+RSA* LGCrypto::RSAKeyFromString(std::string& s) {
+    BOOL isPublicKey = ( s.find("-----BEGIN RSA PUBLIC KEY-----") != std::string::npos );
+
+    BIO* buffer = BIO_new_mem_buf(( void* ) s.data(), s.length());
+    RSA* key = NULL;
+
+    if ( isPublicKey )
+        PEM_read_bio_RSAPublicKey(buffer, &key, NULL, NULL);
+    else
+        PEM_read_bio_RSAPrivateKey(buffer, &key, NULL, NULL);
+
+    BIO_free(buffer);
+
+    return key;
+}
+
+/**
  * Generate a private and public RSA key using OpenSSL.
  * RSA key generation logic is not mine, though I have made modifications. 
  * 
@@ -47,12 +92,8 @@ RSAKeys LGCrypto::GenerateRSAPair(int bits) {
     PEM_read_bio_RSAPrivateKey(bioPrivateKey, &rsaPrivateKey, NULL, NULL);
 
     RSAKeys keys;
-    keys.bioPublicKey = bioPublicKey;
-    keys.bioPrivateKey = bioPrivateKey;
-    keys.strPublicKey = std::string(strPublicKey);
-    keys.strPrivateKey = std::string(strPrivateKey);
-    keys.rsaPrivateKey = rsaPrivateKey;
-    keys.rsaPublicKey = rsaPublicKey;
+    keys.priv = rsaPrivateKey;
+    keys.pub = rsaPublicKey;
 
     BN_free(bigNum);
     RSA_free(generatedKeys);

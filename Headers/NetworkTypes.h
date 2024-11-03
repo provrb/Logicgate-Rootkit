@@ -165,44 +165,9 @@ struct ClientRequest {
     }
 };
 
-struct ClientRSAKey {
-    RSA* serverRSAPublic;
-    std::string serverPublicKey; 
-    std::string clientPublicKey;
-    std::string clientPrivateKey;
-#ifdef CLIENT_RELEASE
-    BIO* bioClientPublicKey;
-    BIO* bioClientPrivateKey;
-    RSA* rsaPublic;
-    RSA* rsaPrivate;
-#endif
-};
-
-struct ServerRSAKey {
-    RSA* clientRSAPublic;
-    std::string clientPublicKey;
-    std::string serverPublicKey;
-    std::string serverPrivateKey;
-#ifdef SERVER_RELEASE
-    BIO* bioServerPublicKey;
-    BIO* bioServerPrivateKey;
-    RSA* rsaPublic;
-    RSA* rsaPrivate;
-#endif
-};
-
-struct RSAKeys
-{
-    std::string strPublicKey;
-    std::string strPrivateKey;
-    std::string b64PublicKey;
-    std::string b64PrivateKey;
-    BIO*        bioPublicKey;
-    BIO*        bioPrivateKey;
-    BYTESTRING bsPrivateKey;
-    BYTESTRING bsPublicKey;
-    RSA* rsaPublicKey;
-    RSA* rsaPrivateKey;
+struct RSAKeys {
+    RSA* pub;
+    RSA* priv;
 };
 
 typedef UDPResponse   UDPMessage;

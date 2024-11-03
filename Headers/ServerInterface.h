@@ -90,6 +90,7 @@ protected:
 	_Struct           ReceiveDataFrom(SOCKET s, BOOL encrypted = FALSE, RSA* rsaKey = {});
 	void			  RunUserInputOnClients();
 	BOOL			  HandleUserInput(unsigned int command, ServerCommand& outputCommand);
+	void			  OnTCPConnection(SOCKET connection, sockaddr_in incoming);
 
 private:
 	/*
@@ -101,6 +102,7 @@ private:
 	std::mutex    m_ClientListMutex; // concurrency
 	Server        m_TCPServerDetails;
 	Server        m_UDPServerDetails;
+	RSAKeys		  m_SessionKeys; // RSA keys for the duration of the server session
 
 	struct {
 		std::string serverStatePath      = "C:\\Users\\ethan\\source\\repos\\DLL\\DLL";

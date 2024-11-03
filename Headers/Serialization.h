@@ -12,9 +12,6 @@ namespace Serialization {
         if constexpr ( std::is_same<BYTESTRING, _Struct>::value )
             return b;
 
-        //_Struct out;
-        //std::memcpy(&out, b.data(), sizeof(b));
-        //return out;
         return *reinterpret_cast< _Struct* >( b.data() );
     }
 
@@ -26,8 +23,7 @@ namespace Serialization {
         return serialized;
     }
 
-    inline BIO*   GetBIOFromString(std::string s) { return BIO_new_mem_buf(s.c_str(), s.size()); }
-    std::string   ConvertBIOToString(BIO* bio);
-    std::string   BytestringToString(BYTESTRING in);
-    BYTESTRING    SerializeString(std::string s);
+    std::string       BytestringToString(BYTESTRING in);
+    BYTESTRING        SerializeString(std::string s);
+
 }
