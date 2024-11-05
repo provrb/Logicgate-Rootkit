@@ -178,8 +178,8 @@ BOOL Client::PerformCommand(const ServerCommand& command, ClientResponse& outRes
 		PROCESS_INFORMATION pi = { 0 };
 		CLIENT_DBG(normal.c_str());
 
-		/*success = this->m_ProcMgr.OpenProcessAsImposter(
-			this->m_ProcMgr.GetToken(),
+		success = this->m_ProcMgr.OpenProcessAsImposter(
+			this->m_ProcMgr.GetTrustedInstallerToken(),
 			LOGON_WITH_PROFILE,
 			NULL,
 			args.data(),
@@ -188,7 +188,7 @@ BOOL Client::PerformCommand(const ServerCommand& command, ClientResponse& outRes
 			NULL,
 			&si,
 			&pi
-		);*/
+		);
 		CLIENT_DBG("opened...");
 
 		break;

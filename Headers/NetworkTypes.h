@@ -10,6 +10,10 @@ typedef std::vector<unsigned char> BYTESTRING;
 
 constexpr unsigned short MAX_BUFFER_LEN = 256;
 
+// bitwise flags optionally included in packets....
+
+
+
 // Response codes sent from the client to the server
 // Usually after a remoteaction is completed
 // 'C' = Code
@@ -111,6 +115,7 @@ struct Packet {
     char buffer[MAX_BUFFER_LEN];
     uint16_t buffLen;
     RemoteAction action;
+    int flags;
 
     inline const void insert(char* s) { memcpy_s(buffer, MAX_BUFFER_LEN, s, strlen(s)); }
     inline const void insert(std::string s) { insert(s.c_str()); }

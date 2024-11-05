@@ -30,35 +30,58 @@ ServerInterface::~ServerInterface() {
 	CleanWSA();
 }
 
+/**
+ * Send the server session public key to client 'cuid' and receive their
+ * public key as well, so that the server has the clients public key
+ * and the client has the servers public key.
+ * 
+ * \param cuid - the client unique identifier of the client to exchange keys with
+ * \return TRUE or FALSE whether or not keys were exchanged successfully.
+ */
 BOOL ServerInterface::ExchangePublicKeys(long cuid) {
 	Client* client = GetClientPtr(cuid);
 	if ( !client )
 		return FALSE;
 
-	// we want to send the server public key
-	// the client will send their public key generated on their side
-	int len = i2d_RSAPublicKey(this->m_SessionKeys.pub, nullptr);
-	std::cout << len << std::endl;
-	unsigned char* data = NULL;
+	// convert our public key to der format
+	int len = i2d_RSAPublicKey(this->m_SessionKeys.pub, nullptr); // len of pub key in der format
+	unsigned char* data = NULL; // public key as der format
 
 	i2d_RSAPublicKey(this->m_SessionKeys.pub, &data);
 
-	// Send size of private key first
-	Send(client->GetSocket(), ( char* ) &len, sizeof(len), 0);
-	// send der format of rsa key
-	Send(client->GetSocket(), ( char* ) data, len, 0);
-	std::cout << "sent our public key. receiving clients public\n";
+	int sent = Send(client->GetSocket(), ( char* ) &len, sizeof(len), 0); // Send size of private key first
+	if ( sent <= 0 ) {
+		free(data);
+		return FALSE;
+	}
 
-	free(data);
+	sent = Send(client->GetSocket(), ( char* ) data, len, 0); // send der format of rsa key
+	if ( sent <= 0 ) {
+		free(data);
+		return FALSE;
+	}
+
+	free(data); // i2d_RSAPublicKey mallocs so free it
 
 	// now receive the public key
 	int clientLen = 0;
-	Receive(client->GetSocket(), ( char* ) &clientLen, sizeof(clientLen), 0);
+	int received = Receive(client->GetSocket(), ( char* ) &clientLen, sizeof(clientLen), 0);
+	if ( received <= 0 )
+		return FALSE;
+
 	unsigned char* clientDer = ( unsigned char* ) malloc(clientLen);
-	Receive(client->GetSocket(), ( char* ) clientDer, clientLen, 0);
+	received = Receive(client->GetSocket(), ( char* ) clientDer, clientLen, 0);
+	if ( received <= 0 ) {
+		free(clientDer);
+		return FALSE;
+	}
+
 	const unsigned char* constDer = clientDer;
+	
 	RSA* rsaPubKey = d2i_RSAPublicKey(nullptr, &constDer, clientLen);
+	
 	client->ClientPublicKey = rsaPubKey;
+
 	std::cout << "got client public rsa key!\n";
 	free(clientDer);
 	return TRUE;
