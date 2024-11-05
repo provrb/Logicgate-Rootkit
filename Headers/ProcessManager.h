@@ -25,8 +25,8 @@ struct FunctionPointer {
 
 enum class SecurityContext {
 	User,
-	System,
 	Admin,
+	System,
 	TrustedInstaller,
 };
 

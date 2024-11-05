@@ -8,6 +8,8 @@
 
 typedef std::vector<unsigned char> BYTESTRING;
 
+constexpr unsigned short MAX_BUFFER_LEN = 256;
+
 // Response codes sent from the client to the server
 // Usually after a remoteaction is completed
 // 'C' = Code
@@ -88,38 +90,6 @@ struct ProcessInformation {
     std::string        applicationName;       // Name of the application to start
 };
 
-// Command sent to the client from the server
-struct ServerCommand {
-    BOOL               valid;
-
-    SecurityContext    remoteContext; // the security context to try and perform the command on
-
-    //ProcessInformation pi; // Reserved in case of future use.
-
-    /*
-        The command line arguments provided if action is
-        USE_CLI or anything related to the command line,
-        otherwise this can be an empty string
-    */
-    //std::string        commandLineArguments;
-    BYTESTRING commandLineArguments;
-
-    /*
-        The RSA Private key the client can use to decrypt
-        anything encrypted with the 'publicEncryptionKey'
-
-        Usually the thing held for ransom, so a check should
-        be held if a ransom has been paid.
-
-        in string form because you cant send BIO* over sockets.
-    */
-    //std::string        privateEncryptionKey;
-    //BYTESTRING privateEncryptionKey;
-
-    // the action to perform of RemoteAction enum
-    RemoteAction       action;
-};
-
 // A response from the udp server to the udp client
 // contains information about the tcp server
 struct UDPResponse {
@@ -132,6 +102,20 @@ struct UDPResponse {
     {
     }
 };
+
+/*
+    Packet of information sent over sockets.
+*/
+#pragma pack(push, 1)
+struct Packet {
+    char buffer[MAX_BUFFER_LEN];
+    uint16_t buffLen;
+    RemoteAction action;
+
+    inline const void insert(char* s) { memcpy_s(buffer, MAX_BUFFER_LEN, s, strlen(s)); }
+    inline const void insert(std::string s) { insert(s.c_str()); }
+};
+#pragma pack(pop, 0)
 
 /*
     When a client requests the tcp server to do something
@@ -172,4 +156,4 @@ struct RSAKeys {
 
 typedef UDPResponse   UDPMessage;
 typedef ClientRequest ClientMessage;
-typedef ServerCommand ServerRequest, ServerResponse;
+typedef Packet ServerCommand, ServerRequest, ServerResponse;

