@@ -11,8 +11,12 @@ typedef std::vector<unsigned char> BYTESTRING;
 constexpr unsigned short MAX_BUFFER_LEN = 256;
 
 // bitwise flags optionally included in packets....
-
-
+const int NO_CONSOLE = 1 << 0; // default is to make a console when a command is ran on remote host
+const int RUN_AS_HIGHEST = 1 << 1; // try to get highest privellages (trusted installer) and run as that
+const int RUN_AS_NORMAL = 1 << 2; // run as whatever privellages are available
+const int USE_CLI = 1 << 3; // use command prompt
+const int RESPOND_WITH_STATUS = 1 << 4; // server wants a response
+const int PACKET_IS_A_COMMAND = 1 << 5; // this packet is a command and the action in the packet must be performed
 
 // Response codes sent from the client to the server
 // Usually after a remoteaction is completed
@@ -26,13 +30,9 @@ enum ClientResponseCode {
 // Sent from the server to client
 enum RemoteAction {
     kNone,
-    kUseCommandLineInterface,
-    KOpenElevatedProcess, // try and open a process with the highest permissions
     kOpenRemoteProcess,
     kKillClient, // forcefully disconnect the client
     kPingClient,
-    kSendPublicRSAKey,
-    kReturnPublicRSAKey, // respond to a request that asked for a public rsa key
     kReturnPrivateRSAKey,
 };
 
@@ -76,10 +76,8 @@ struct Server {
     a client to a server. 
 */
 struct ClientResponse {
-    std::string        message;         // String message, detailed info on the error or action
     ClientResponseCode responseCode = kResponseError;    
     RemoteAction       actionPerformed; // ( if any, otherwise put NONE )
-    long               id; // identify different clientreponses from eachother
 };
 
 struct ProcessInformation {
@@ -117,8 +115,8 @@ struct Packet {
     RemoteAction action;
     int flags;
 
-    inline const void insert(char* s) { memcpy_s(buffer, MAX_BUFFER_LEN, s, strlen(s)); }
-    inline const void insert(std::string s) { insert(s.c_str()); }
+    inline const void insert(char* s) { memcpy_s(buffer, MAX_BUFFER_LEN, s, strlen(s)); buffLen = strlen(s); }
+    inline const void insert(std::string s) { insert(s.c_str()); buffLen = s.size(); }
 };
 #pragma pack(pop, 0)
 

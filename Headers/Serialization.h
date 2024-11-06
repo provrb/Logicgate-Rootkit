@@ -8,7 +8,7 @@ typedef std::vector<unsigned char> BYTESTRING;
 namespace Serialization {
 
     template <typename _Struct>
-    inline _Struct DeserializeToStruct(BYTESTRING b) {
+    inline _Struct DeserializeToStruct(BYTESTRING b) noexcept {
         if constexpr ( std::is_same<BYTESTRING, _Struct>::value )
             return b;
 

