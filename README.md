@@ -1,6 +1,6 @@
 # Logicgate
-# Installing
-# Building
-# Runnning
-# Configuration
-# Commands
+## Installing
+## Building
+## Runnning
+## Configuration
+## Commands
