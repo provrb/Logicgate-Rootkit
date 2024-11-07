@@ -30,6 +30,7 @@ inline ::_inet_addr     InternetAddress    = nullptr;
 inline ::_gethostbyname GetHostByName      = nullptr;
 inline ::_htonl         HostToNetworkLong  = nullptr;
 inline ::_ntohl         NetworkToHostLong  = nullptr;
+inline ::_setsocketopt  SetSocketOptions = nullptr;
 
 #ifdef CLIENT_RELEASE 
     #define CLIENT_DBG(string) OutputDebugStringA(string);
@@ -49,6 +50,10 @@ namespace NetCommon
 
     void         LoadWSAFunctions(); // Dynamically load wsa functions
     BIO*         BIODeepCopy(BIO* in);
+    BOOL         ResetSocketTimeout(SOCKET sfd, int type);
+    BOOL         SetSocketTimeout(SOCKET sfd, int timeoutMS, int type);
+    std::pair<BYTESTRING, BYTESTRING> SplitRSAKey(BYTESTRING s);
+    BYTESTRING MergeSplitRSAKey(std::pair<BYTESTRING, BYTESTRING> splitted);
 
     template <typename _Struct>
     inline BOOL ReceiveData(
@@ -140,19 +145,6 @@ namespace NetCommon
         return ( received != SOCKET_ERROR );
     }
     
-    std::pair<BYTESTRING, BYTESTRING> SplitRSAKey(BYTESTRING s);
-    BYTESTRING MergeSplitRSAKey(std::pair<BYTESTRING, BYTESTRING> splitted);
-
-    inline std::string GetRSAKey(SOCKET s) {
-        char buffer[1024];
-        int received = Receive(s, buffer, sizeof(buffer), 0);
-        if ( received <= 0 )
-            return {};
-
-        std::string out(buffer, received);
-        return out;
-    }
-
     template <typename _Struct>
     inline BOOL TransmitData(
         _Struct message,

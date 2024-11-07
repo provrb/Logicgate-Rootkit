@@ -24,6 +24,7 @@ const int PACKET_IS_A_COMMAND = 1 << 5; // this packet is a command and the acti
 enum ClientResponseCode {
     kResponseOk    = 0,
     kResponseError = -1,
+    kTimeout = -2,
 };
 
 // Enums dictating which action to perform on the client

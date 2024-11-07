@@ -251,12 +251,12 @@ void Client::ListenForServerCommands() {
 
 		Packet receivedPacket = OnEncryptedPacket(encrypted);
 		ClientResponse responseToServer;
-		CLIENT_DBG("got packet from server");
 
 		if ( receivedPacket.flags & PACKET_IS_A_COMMAND )
 			PerformCommand(receivedPacket, responseToServer);
 
-		if ( ( receivedPacket.flags & RESPOND_WITH_STATUS ) == 0 ) // dont need to respond to server with 'responseToServer'
+		// dont need to respond to server with 'responseToServer'
+		if ( ( receivedPacket.flags & RESPOND_WITH_STATUS ) == 0 )
 			continue;
 
 		// respond to server with 'responseToServer'

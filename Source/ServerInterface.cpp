@@ -6,6 +6,7 @@
 #include <openssl/pem.h>
 
 #include <fstream>
+#include <chrono>
 
 /**
  * Create two server instances, one to represent TCP and another to represent UDP.
@@ -686,16 +687,23 @@ ClientResponse ServerInterface::WaitForClientResponse(long cuid) {
 	if ( client == nullptr ) return {};
 
 	client->ExpectingResponse = TRUE;
+	BOOL received = FALSE;
 
 	BYTESTRING encrypted;
 	BYTESTRING decrypted;
 	ClientResponse response;
 	
-	BOOL received = NetCommon::ReceiveData(encrypted, client->GetSocket(), TCP);
+	NetCommon::SetSocketTimeout(client->GetSocket(), 10000, SO_RCVTIMEO);
+	received = NetCommon::ReceiveData(encrypted, client->GetSocket(), TCP);
+	NetCommon::ResetSocketTimeout(client->GetSocket(), SO_RCVTIMEO);
+
+	if ( WSAGetLastError() == WSAETIMEDOUT ) {
+		response.responseCode = ClientResponseCode::kTimeout;
+		return response;
+	}
+
 	if ( !received )
 		return {};
-	
-	std::cout << "Received a 'ClientResponse'" << std::endl;
 
 	decrypted = LGCrypto::RSADecrypt(encrypted, this->m_SessionKeys.priv, TRUE);
 	if ( !LGCrypto::GoodDecrypt(decrypted) )
@@ -770,21 +778,36 @@ ClientResponse ServerInterface::PingClient(long cuid) {
 	if ( client->GetSocket() == INVALID_SOCKET ) // socket isnt ready so cant ping.
 		return {};
 
-	std::cout << "Pinging " << cuid << std::endl;
-
 	// send the ping to the client over tcp
 	ServerCommand pingCommand;
 	pingCommand.action = RemoteAction::kPingClient;
-	pingCommand.flags = RESPOND_WITH_STATUS;
+	pingCommand.flags = RESPOND_WITH_STATUS | PACKET_IS_A_COMMAND;
 	pingCommand.buffLen = 0;
-	
+
+	std::cout << "Pinging " << client->GetDesktopName() << " with " << sizeof(pingCommand) << " bytes of data." << std::endl;
 	BOOL sent = NetCommon::TransmitData(pingCommand, client->GetSocket(), TCP, NetCommon::_default, TRUE, client->ClientPublicKey, FALSE);
 	if ( !sent )
 		return {};
 
-	std::cout << "Sent ping. Waiting for response..." << std::endl;
+	auto start = std::chrono::high_resolution_clock::now();
+	ClientResponse response = WaitForClientResponse(cuid);
+	
+	if ( response.responseCode == ClientResponseCode::kTimeout ) {
+		std::cout << "- Request timed out." << std::endl;
+		return {};
+	} else if ( response.responseCode == ClientResponseCode::kResponseError ) {
+		std::cout << "- Request failed." << std::endl;
+		return {};
+	}
 
-	return WaitForClientResponse(cuid);
+	auto end = std::chrono::high_resolution_clock::now();
+	auto dur = end - start;
+	std::cout << "- Reply from " << client->GetDesktopName() << ". Code " << response.responseCode << ". ";
+
+	long long final = std::chrono::duration_cast<std::chrono::milliseconds>(dur).count();
+	std::cout << "Took " << final << " ms" << std::endl;
+
+	return response;
 }
 
 /**
