@@ -1,8 +1,0 @@
-﻿  Assembling src\Helpers.asm...
-  Assembling src\Syscalls.asm...
-  Generating code
-C:\Users\ethan\source\repos\DLL\DLL\Headers\NetworkTypes.h(120): warning C4717: 'Packet::insert': recursive on all control paths, function will cause runtime stack overflow
-C:\Users\ethan\source\repos\DLL\DLL\Source\ServerInterface.cpp(349): warning C4715: 'ServerInterface::PerformRequest': not all control paths return a value
-  Finished generating code
-LINK : warning LNK4039: section 'SECTION:.didat' specified with /SECTION option does not exist
-  DLL.vcxproj -> C:\Users\ethan\source\repos\DLL\x64\Server\Server.exe
