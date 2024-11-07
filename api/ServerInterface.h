@@ -20,6 +20,8 @@ class ServerInterface
 public:
 	ServerInterface() = default;
 
+	//
+
 	ServerInterface(int UDPPort, int TCPPort);
 	~ServerInterface();
 
@@ -105,10 +107,10 @@ private:
 	RSAKeys		  m_SessionKeys; // RSA keys for the duration of the server session
 
 	struct {
-		std::string serverStatePath      = "C:\\Users\\ethan\\source\\repos\\DLL\\DLL";
+		std::string serverStatePath      = ".";
 		std::string serverStateFilename  = "server_state.json";
 		std::string serverStateFullPath  = serverStatePath + "\\" + serverStateFilename;
-		std::string serverConfigPath	 = "C:\\Users\\ethan\\source\\repos\\DLL\\DLL";
+		std::string serverConfigPath	 = ".";
 		std::string serverConfigFilename = "server_conf.json";
 		std::string serverConfigFilePath = serverConfigPath + "\\" + serverConfigFilename;
 		std::string domainName           = DNS_NAME; // DNS tcp server is running on, from Client.h

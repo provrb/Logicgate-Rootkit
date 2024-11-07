@@ -140,12 +140,18 @@ BOOL ServerInterface::TCPSendMessageToAllClients(ServerCommand& req) {
  */
 JSON ServerInterface::ReadServerStateFile() noexcept {
 	JSON parsed;
-	if ( std::filesystem::file_size(ReadConfig().serverStateFullPath) == 0 ) // empty file
-		return parsed;
-	
-	std::ifstream input(ReadConfig().serverStateFullPath);
 
-	input >> parsed;  // Attempt to parse the JSON
+	if ( !std::filesystem::exists(ReadConfig().serverStateFullPath) ) {
+		std::ofstream create(ReadConfig().serverStateFullPath);
+		return parsed; // file is gonna be empty so theres no good information
+	}
+
+	std::fstream input(ReadConfig().serverStateFullPath, std::fstream::in | std::fstream::out | std::fstream::app);
+
+	if ( std::filesystem::is_empty(ReadConfig().serverStateFullPath) )
+		return parsed;
+
+	input >> parsed;
 	return parsed;
 }
 
@@ -165,6 +171,9 @@ Client* ServerInterface::GetClientSaveFile(long cuid) {
 		return {};
 
 	JSON data = ReadServerStateFile();
+	if ( data.empty() )
+		return nullptr;
+
 	if ( !data.contains("client_list") )
 		return nullptr;
 
