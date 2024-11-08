@@ -36,6 +36,7 @@ public:
 	Client*			  GetClientSaveFile(long cuid); // get properties of a client from the server save file
 	BOOL		      IsClientInSaveFile(std::string machineGUID);
 	BOOL			  SendCommandsToClients();
+	void			  OutputServerCommands();
 
 	/*
 		A thread that receives clientRequests from each client that connects.
@@ -57,7 +58,6 @@ public:
 	*/
 	ClientResponse    WaitForClientResponse(long cuid);
 	std::unordered_map<long, Client>& GetClientList();
-	BOOL              UDPSendMessageToClient(Client clientInfo, UDPMessage& message);
 	BOOL			  GetClientComputerName(long cuid);
 	BOOL			  GetClientMachineGUID(long cuid);
 	void              ListenForUDPMessages();
@@ -65,7 +65,6 @@ public:
 	ClientResponse    PingClient(long cuid);
 	BOOL              ClientIsInClientList(long cuid);
 	Client*           GetClientPtr(long cuid);
-	inline BOOL       IsServerRunning(const Server& s) const { return s.alive; }
 	inline Server     GetTCPServer()				   const { return this->m_TCPServerDetails; }
 	inline Server     GetUDPServer()				   const { return this->m_UDPServerDetails; }
 	const inline auto ReadConfig()					   const { return this->m_Config; };

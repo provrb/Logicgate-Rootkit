@@ -62,14 +62,14 @@ BOOL Client::Connect() {
 		return FALSE;  
 	OutputDebugStringA("sent");
 
-	UDPResponse response;
+	Server TCPServer;
 	sockaddr_in serverAddr;
-	BOOL received = NetCommon::ReceiveData(response, this->m_UDPSocket, UDP, serverAddr);
+	BOOL received = NetCommon::ReceiveData(TCPServer, this->m_UDPSocket, UDP, serverAddr);
 	if ( !received )
 		return FALSE;
 
 	this->m_UDPServerDetails.addr = serverAddr;
-	this->m_TCPServerDetails = response.TCPServer;
+	this->m_TCPServerDetails = TCPServer;
 
 	// connect to tcp server
 	this->m_TCPSocket = CreateSocket(AF_INET, SOCK_STREAM, 0);

