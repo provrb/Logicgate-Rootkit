@@ -89,13 +89,11 @@ struct Packet {
     int flags;
 
     inline const void insert(char* s) { 
-        strcpy_s(buffer, s); 
-        buffLen = strlen(s); 
+        errno_t copied = strcpy_s(buffer, s); 
+        buffLen = (copied == 0) ? strlen(s) : -1; 
     }
-    inline const void insert(std::string s) {
-        strcpy_s(buffer, s.c_str());
-        buffLen = s.length();
-    }
+
+    inline const void insert(std::string s) { insert(s.c_str()); }
 };
 #pragma pack(pop, 0)
 
