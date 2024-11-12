@@ -52,8 +52,6 @@ namespace NetCommon
     BIO*         BIODeepCopy(BIO* in);
     BOOL         ResetSocketTimeout(SOCKET sfd, int type);
     BOOL         SetSocketTimeout(SOCKET sfd, int timeoutMS, int type);
-    std::pair<BYTESTRING, BYTESTRING> SplitRSAKey(BYTESTRING s);
-    BYTESTRING MergeSplitRSAKey(std::pair<BYTESTRING, BYTESTRING> splitted);
 
     template <typename _Struct>
     inline BOOL ReceiveData(
