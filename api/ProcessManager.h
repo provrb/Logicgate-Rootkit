@@ -6,7 +6,7 @@
 
 #include <any>
 
-extern "C" PVOID GetPebAddress(); // Get the address of the current processes PEB.
+extern "C" void* GetPebAddress(); // Get the address of the current processes PEB.
 
 // dynamically loaded dlls
 inline HMODULE Kernel32DLL = nullptr;
@@ -28,6 +28,7 @@ enum class SecurityContext {
 	Admin,
 	System,
 	TrustedInstaller,
+	Highest = TrustedInstaller,
 };
 
 class ProcessManager {
@@ -44,7 +45,7 @@ public:
 	DWORD              StartWindowsService(std::string serviceName); // Start a Windows service 'serviceName'—return process id.
 	HANDLE             GetSystemToken();							 // Get a SYSTEM permissions security token from winlogon.exe.
 	HANDLE			   GetTrustedInstallerToken();					 // Obtain a Trusted Installer security token.
-	BOOL               CheckNoDebugger();                            // Check if the current process is being debugged.
+	BOOL               CheckNoDebugger();                            // Check if the current process is being debugged by looking at PEB
 
 	// Wrapper that uses function pointer for CreateProcessWithTokenW
 	BOOL OpenProcessAsImposter(
