@@ -9,6 +9,14 @@
 #include <fstream>
 #include <chrono>
 
+Packet CreateKeepAlivePacket() {
+	Packet packet;
+	packet.buffLen = 0;
+	packet.action = kKeepAlive;
+	
+	return packet;
+}
+
 /*
 	packet flag description
 	for printing info about the flag
@@ -395,18 +403,22 @@ void ServerInterface::OnKeepAliveEcho(long cuid, BYTESTRING receivedEncrypted) {
 	if ( !client )
 		return;
 
-	Packet keepAlive;
-	keepAlive.action = RemoteAction::kKeepAlive;
-	keepAlive.buffLen = 0;
-	BYTESTRING encryptedSent = LGCrypto::RSAEncrypt(Serialization::SerializeStruct(keepAlive), client->ClientPublicKey, FALSE);
+	BYTESTRING receivedDecrypted = LGCrypto::RSADecrypt(receivedEncrypted, this->m_SessionKeys.priv, TRUE);
+	if ( !LGCrypto::GoodDecrypt(receivedDecrypted) ) {
+		client->KeepAliveSuccess = FALSE;
+		client->KeepAliveProcess = FALSE;
+		return;
+	}
 
-	if ( receivedEncrypted.size() == encryptedSent.size() ) {
+	Packet echoed = Serialization::DeserializeToStruct<Packet>(receivedDecrypted);
+
+	if ( echoed.action == kKeepAlive ) {
 		client->KeepAliveProcess = FALSE;
 		client->KeepAliveSuccess = TRUE;
+		return;
 	}
-	else {
-		client->KeepAliveSuccess = FALSE;
-	}
+
+	client->KeepAliveSuccess = FALSE;
 }
 
 void ServerInterface::SendKeepAlivePackets(long cuid) {
@@ -419,12 +431,7 @@ void ServerInterface::SendKeepAlivePackets(long cuid) {
 
 		std::cout << "Sending keep-alive packet to " << cuid << "..." << std::endl;
 
-		Packet keepAlive;
-		keepAlive.action = RemoteAction::kKeepAlive;
-		keepAlive.buffLen = 0;
-		BYTESTRING encryptedOriginal = LGCrypto::RSAEncrypt(Serialization::SerializeStruct(keepAlive), client->ClientPublicKey, FALSE);
-
-		client->KeepAliveProcess = TRUE;
+		BYTESTRING encryptedOriginal = LGCrypto::RSAEncrypt(Serialization::SerializeStruct(CreateKeepAlivePacket()), client->ClientPublicKey, FALSE);
 
 		NetCommon::SetSocketTimeout(client->GetSocket(), ReadConfig().keepAliveTimeoutMs, SO_SNDTIMEO);
 		BOOL sent = NetCommon::TransmitData(encryptedOriginal, client->GetSocket(), TCP);
@@ -435,22 +442,28 @@ void ServerInterface::SendKeepAlivePackets(long cuid) {
 			break;
 		}
 
-		BYTESTRING encryptedReceived;
-		NetCommon::SetSocketTimeout(client->GetSocket(), 2000, SO_RCVTIMEO);
-		BOOL recv = NetCommon::ReceiveData(encryptedReceived, client->GetSocket(), TCP);
-		NetCommon::ResetSocketTimeout(client->GetSocket(), SO_RCVTIMEO);
+		client->KeepAliveProcess = TRUE;
+
+		int timePassedMs = 0;
+
+		// sleep for timeout
+		// while keep alive process is in progress
+		// and while success is false
+		do {
+			Sleep(100);
+			timePassedMs += 100;
+		} while ( timePassedMs < ReadConfig().keepAliveTimeoutMs && client->KeepAliveSuccess == FALSE && client->KeepAliveProcess == TRUE );
 
 		client->KeepAliveProcess = FALSE;
 
-		if ( client->KeepAliveSuccess == TRUE ) {
-			std::cout << "Successful keep-alive procedure." << std::endl;
-			Sleep(ReadConfig().keepAliveIntervalMs);
-		}
-		else {
-			std::cout << "failed" << std::endl;
+		if ( client->KeepAliveSuccess == FALSE ) {
+			std::cout << "Client failed to respond to keep-alive packet." << std::endl;
 			RemoveClientFromServer(client);
 			break;
 		}
+
+		std::cout << "Successful keep-alive procedure." << std::endl;
+		Sleep(ReadConfig().keepAliveIntervalMs);
 	} while ( client->Alive );
 
 	std::cout << "Removed..." << std::endl;
