@@ -58,7 +58,7 @@ BOOL NetCommon::ResetSocketTimeout(SOCKET sfd, int type) {
 }
 
 BOOL NetCommon::SetSocketTimeout(SOCKET sfd, int timeoutMS, int type) {
-    int result = SetSocketOptions(sfd, SOL_SOCKET, type, ( char* ) timeoutMS, sizeof(timeoutMS));
+    int result = SetSocketOptions(sfd, SOL_SOCKET, type, ( char* ) &timeoutMS, sizeof(timeoutMS));
     if ( result == SOCKET_ERROR ) 
         return FALSE;
     

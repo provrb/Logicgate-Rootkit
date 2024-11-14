@@ -74,7 +74,6 @@ namespace NetCommon
             responseBuffer = data;
 
         if ( type == SocketTypes::TCP ) {
-            CLIENT_DBG("recv on tcp");
             received = Receive(
                 s,
                 reinterpret_cast< char* >( &dataSize ),
@@ -84,15 +83,8 @@ namespace NetCommon
 
             dataSize = NetworkToHostLong(dataSize);
 
-            if ( received == 0 ) {
+            if ( received <= 0 )
                 return FALSE;
-            }
-            else if ( received < 0 ) {
-                return FALSE;
-            }
-
-            std::string dbg = "receiving " + std::to_string(dataSize) + " bytes \n";
-            CLIENT_DBG(dbg.c_str());
 
             responseBuffer.resize(dataSize);
             received = Receive(
@@ -101,7 +93,9 @@ namespace NetCommon
                 responseBuffer.size(),
                 0
             );
-            CLIENT_DBG("recv fully");
+
+            if ( received <= 0 )
+                return FALSE;
         }
         else if ( type == SocketTypes::UDP ) {
             int addrSize = sizeof(receivedAddr);
@@ -216,3 +210,6 @@ namespace NetCommon
         return ( sent != SOCKET_ERROR );
     }
 }
+
+
+// class NetworkManager...

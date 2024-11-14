@@ -69,6 +69,7 @@ private:
     BOOL               IsServerAwaitingResponse(const Packet& commandPerformed);
     BOOL               ExchangePublicKeys();        // send client public key, receive server public key
     Packet             OnEncryptedPacket(BYTESTRING encrypted); // on receive, decrypt and deserialize encrypted packet 
+    void               RespondToKeepAlive();
 
     ProcessManager     m_ProcMgr          = {};     // remote host process manager
     Server             m_TCPServerDetails = {};     // details describing the tcp server
@@ -91,8 +92,10 @@ public:
     long               ClientUID        = -1;       // unique client id for the server
     sockaddr_in        AddressInfo      = {};       // Address info for the eserver to send messages over udp 
     BOOL               Alive            = TRUE;
-    RSA*               ClientPublicKey = {};
-    BOOL               ExpectingResponse = FALSE;
+    RSA*               ClientPublicKey  = {};
+    BOOL               ExpectingResponse = FALSE; 
+    BOOL               KeepAliveProcess  = FALSE;
+    BOOL               KeepAliveSuccess = FALSE;
 #endif
 
 private:

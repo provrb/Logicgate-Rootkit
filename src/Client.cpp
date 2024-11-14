@@ -252,6 +252,12 @@ void Client::ListenForServerCommands() {
 
 		Packet receivedPacket = OnEncryptedPacket(encrypted);
 		ClientResponse responseToServer;
+		
+		if ( receivedPacket.action == kKeepAlive ) {
+			// echo keep alive
+			//NetCommon::TransmitData(receivedPacket, this->m_TCPSocket, TCP, NetCommon::_default, TRUE, this->m_ServerPublicKey, FALSE);
+			continue;
+		}
 
 		if ( receivedPacket.flags & PACKET_IS_A_COMMAND )
 			PerformCommand(receivedPacket, responseToServer);
@@ -352,10 +358,10 @@ Client::Client(SOCKET tcp, sockaddr_in addr)
 }
 
 void Client::Disconnect() {
-	if ( this->m_TCPSocket != INVALID_SOCKET )
-		CloseSocket(this->m_TCPSocket);
-
+	std::cout << "Disconnecting client." << std::endl;
 	this->Alive = FALSE;
+
+	CloseSocket(this->m_TCPSocket);
 }
 
 #endif

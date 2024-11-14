@@ -1,8 +1,8 @@
 #pragma once
 
-#include "NetworkCommon.h"
 #include "Client.h"
 #include "External/json.hpp"
+
 #include <mutex>
 
 using JSON		 = nlohmann::json;
@@ -27,6 +27,7 @@ public:
 	ClientList&       GetClientList();
 	ClientResponse    PingClient(long cuid);
 	Client*           GetClientPtr(long cuid);
+	void			  SendKeepAlivePackets(long cuid);
 	inline Server     GetTCPServer()				   const { return this->m_TCPServerDetails; }
 	inline Server     GetUDPServer()				   const { return this->m_UDPServerDetails; }
 	const inline auto ReadConfig()					   const { return this->m_Config; };
@@ -56,6 +57,9 @@ protected:
 	BOOL		      IsClientInSaveFile(std::string machineGUID);
 	void              TCPReceiveMessagesFromClient(long cuid);
 	ClientResponse    WaitForClientResponse(long cuid);
+	unsigned int	  GetFlagsFromInput(const std::string& s);
+	void			  RemoveClientFromServer(Client* client);
+	void			  OnKeepAliveEcho(long cuid, BYTESTRING receivedEncrypted);
 
 private:
 	ClientList    m_ClientList;
@@ -72,8 +76,10 @@ private:
 		std::string serverConfigFilename = "server_conf.json";
 		std::string serverConfigFilePath = serverConfigPath + "\\" + serverConfigFilename;
 		std::string domainName           = DNS_NAME; // DNS tcp server is running on, from Client.h
-		const int   maxConnections       = 100; // re build to change max connections
+		const UINT  maxConnections       = 100; // re build to change max connections
 		long        TCPPort              = -1;  // Setup alongside ServerInterface constructor
 		long        UDPPort              = -1;  // Setup alongside ServerInterface constructor
+		const UINT  keepAliveIntervalMs	 = 10000; // 10 seconds
+		const UINT  keepAliveTimeoutMs	 = 5000;  // 5 seconds 
 	} m_Config;
 };

