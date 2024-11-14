@@ -255,7 +255,7 @@ void Client::ListenForServerCommands() {
 		
 		if ( receivedPacket.action == kKeepAlive ) {
 			// echo keep alive
-			//NetCommon::TransmitData(receivedPacket, this->m_TCPSocket, TCP, NetCommon::_default, TRUE, this->m_ServerPublicKey, FALSE);
+			NetCommon::TransmitData(receivedPacket, this->m_TCPSocket, TCP, NetCommon::_default, TRUE, this->m_ServerPublicKey, FALSE);
 			continue;
 		}
 
