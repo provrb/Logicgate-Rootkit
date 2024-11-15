@@ -1,23 +1,8 @@
 #pragma once
 
 #include "ProcessManager.h"
-#include "Framework.h"
 #include "NetworkTypes.h"
-#include "NetworkCommon.h"
-#include "Win32Natives.h"
-#include "Syscalls.h"
-#include "LogicateCryptography.h"
-
 #include "External/obfuscate.h"
-#include "External/base64.h"
-
-#include <memory>
-#include <algorithm>
-#include <thread>
-#include <random>
-#include <filesystem>
-
-#define WIN32_LEAN_AND_MEAN
 
 const unsigned int UDP_PORT = 0x154E;
 const std::string  DNS_NAME = std::string(HIDE("logicgate-test.ddns.net"));

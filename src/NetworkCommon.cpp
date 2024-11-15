@@ -64,13 +64,3 @@ BOOL NetCommon::SetSocketTimeout(SOCKET sfd, int timeoutMS, int type) {
     
     return TRUE;
 }
-
-BIO* NetCommon::BIODeepCopy(BIO* in) {
-    BIO* copy = BIO_new(BIO_s_mem());
-    BUF_MEM* buffer;
-
-    BIO_get_mem_ptr(in, &buffer); // get everything used in 'in' bio
-    BIO_write(copy, buffer->data, buffer->length); // copy all the memory from 'in' to 'copy'
-
-    return copy;
-}

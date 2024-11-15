@@ -38,6 +38,40 @@ inline ::_setsocketopt  SetSocketOptions = nullptr;
     #define CLIENT_DBG(string)
 #endif
 
+//class NetworkManager {
+//public:
+//    NetworkManager();
+//    ~NetworkManager();
+//
+//    void SetSocketTimeout(SOCKET s, int timeoutMS, int type);
+//    void ResetSocketTimeout(SOCKET s, int type);
+//
+//    template <typename _Struct>
+//    bool TransmitData(
+//        _Struct message,
+//        SOCKET s,
+//        SocketTypes type,
+//        sockaddr_in* addr = nullptr,
+//        bool encrypted = false,
+//        RSA* rsaKey = nullptr,
+//        bool privateKey = false
+//    );
+//
+//    template <typename _Struct>
+//    bool ReceiveData(
+//        _Struct& data, 
+//        SOCKET s, 
+//        SocketTypes type,
+//        sockaddr_in* addr = nullptr, 
+//        bool encrypted    = false,
+//        RSA* rsaKey       = nullptr,
+//        bool privateKey   = false
+//    );
+//
+//private:
+//    static inline bool WSAInitialized = false;
+//};
+
 /*
     Functions that will be used by both server and
     client, usually relevant to sending and receiving
@@ -49,7 +83,6 @@ namespace NetCommon
     static sockaddr_in _default = {}; // default sockaddr_in parameter
 
     void         LoadWSAFunctions(); // Dynamically load wsa functions
-    BIO*         BIODeepCopy(BIO* in);
     BOOL         ResetSocketTimeout(SOCKET sfd, int type);
     BOOL         SetSocketTimeout(SOCKET sfd, int timeoutMS, int type);
 
@@ -119,8 +152,6 @@ namespace NetCommon
                 reinterpret_cast< sockaddr* >( &receivedAddr ),
                 &addrSize
             );
-
-            CLIENT_DBG("received data");
         }
 
         // when this is true, you are responsible for decrypting after this function call if it is encrypted
@@ -148,10 +179,8 @@ namespace NetCommon
         BOOL privateKey = FALSE
     )
     {
-        if ( !WSAInitialized ) {
-            CLIENT_DBG("wsa not initialiized");
+        if ( !WSAInitialized )
             return FALSE;
-        }
 
         BYTESTRING serialized = Serialization::SerializeStruct(message);
         int        sent = -1;
@@ -183,7 +212,6 @@ namespace NetCommon
                 serialized.size(),
                 0
             );
-            std::cout << "sent " << sent << " bytes fully\n";
         }
         else if ( type == SocketTypes::UDP ) {
             sent = SendTo(
@@ -205,11 +233,6 @@ namespace NetCommon
             );
         }
 
-        CLIENT_DBG("sent message");
-
         return ( sent != SOCKET_ERROR );
     }
 }
-
-
-// class NetworkManager...
