@@ -17,4 +17,4 @@ Instructions for running the client DLL and the server executable
 ## Configuration
 Instructions on configuring the server, and commands such as TCP port, TCP ddns to use, etc..
 ## Commands
-Descriptions on commands you can perform on remote hosts.
+DEscriptions on commands you can perform on remote hosts.
