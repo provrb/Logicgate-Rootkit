@@ -162,25 +162,6 @@ void ServerInterface::ListenForUDPMessages() {
 }
 
 /**
- * Send a message to all clients in the servers client list.
- * 
- * \param req - a 'ServerCommand' struct to tell the clients which action to perform
- * \return TRUE or FALSE depending on if the last message sent failed.
- */
-BOOL ServerInterface::TCPSendMessageToAllClients(Packet& req) {
-	BOOL success = FALSE;
-
-	m_ClientListMutex.lock();
-
-	for ( auto& [ id, client ] : this->m_ClientList )
-		success = TCPSendMessageToClient(id, req);
-
-	m_ClientListMutex.unlock();
-
-	return success;
-}
-
-/**
  * Read the server state file as json and return the file contents.
  * 
  * \return File contents as a JSON type
@@ -887,18 +868,6 @@ BOOL ServerInterface::StartServer(Server& server) {
 	std::cout << "Done!" << std::endl;
 
 	return TRUE;
-}
-
-/**
- * Send a message to a client over TCP.
- * 
- * \param cuid - the cuid of the client to send a message to
- * \param req - the 'ServerCommand' structure to send over the socket
- * \return TRUE or FALSE depending if the message was sent or not
- */
-BOOL ServerInterface::TCPSendMessageToClient(long cuid, Packet& req) {
-	Client* c = GetClientPtr(cuid);
-	return NetCommon::TransmitData(req, c->GetSocket(), TCP);
 }
 
 /**

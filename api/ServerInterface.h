@@ -17,8 +17,6 @@ public:
 	BOOL		      StartServer(Server& server);
 	void			  ShutdownServer(BOOL confirm);
 	Server            NewServerInstance(SocketTypes serverType, int port);
-	BOOL              TCPSendMessageToClient(long cuid, Packet& req);
-	BOOL              TCPSendMessageToAllClients(Packet& req);
 	BOOL			  SaveServerState();					// save the server state in a json file
 	JSON			  ReadServerStateFile() noexcept;		// parse server state file as json
 	Client*			  GetClientSaveFile(long cuid);			// get properties of a client from the server save file
