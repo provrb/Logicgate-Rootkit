@@ -26,9 +26,9 @@ public:
     ClientResponse    PingClient(long cuid);
     Client*           GetClientPtr(long cuid);
     void              SendKeepAlivePackets(long cuid);
-    inline Server     GetTCPServer()                   const { return this->m_TCPServerDetails; }
-    inline Server     GetUDPServer()                   const { return this->m_UDPServerDetails; }
-    const inline auto ReadConfig()                       const { return this->m_Config; };
+    inline Server     GetTCPServer() const { return this->m_TCPServerDetails; }
+    inline Server     GetUDPServer() const { return this->m_UDPServerDetails; }
+    const inline auto ReadConfig()   const { return this->m_Config; };
 
 protected:
     /*
@@ -43,7 +43,7 @@ protected:
     void              RunUserInputOnClients();
     BOOL              HandleUserInput(unsigned int command, Packet& outputCommand);
     void              OnTCPConnection(SOCKET connection, sockaddr_in incoming);
-    BOOL              PerformRequest(ClientRequest req, Server on, long cuid = -1, sockaddr_in incoming = NetCommon::_default);
+    BOOL              PerformRequest(ClientRequest req, Server on, long cuid = -1, sockaddr_in incoming = NULL_ADDR);
     BOOL              ExchangePublicKeys(long cuid);
     BOOL              IsServerCommand(long command);
     BOOL              AddToClientList(Client client);
@@ -65,6 +65,7 @@ private:
     Server            m_TCPServerDetails;
     Server            m_UDPServerDetails;
     RSAKeys           m_SessionKeys; // RSA keys for the duration of the server session. public key is shared with clients
+    NetworkManager    m_NetworkManager;
 
     struct {
         std::string   serverStatePath      = ".";

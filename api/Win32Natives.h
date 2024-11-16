@@ -1,6 +1,7 @@
 #pragma once
 
-#include "Framework.h"
+#include <Windows.h>
+#include <tlhelp32.h>
 
 #define RTL_MAX_DRIVE_LETTERS 32
 #define GDI_HANDLE_BUFFER_SIZE32 34
@@ -740,6 +741,8 @@ typedef struct _LDR_DATA_TABLE_ENTRY
     PVOID ActivePatchImageBase;
     LDR_HOT_PATCH_STATE HotPatchState;
 } LDR_DATA_TABLE_ENTRY, * PLDR_DATA_TABLE_ENTRY;
+
+
 
 // Function pointer types
 namespace

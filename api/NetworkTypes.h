@@ -1,10 +1,10 @@
 #pragma once
 
-#include <openssl/bio.h>
-#include <vector>
-
 #include "Win32Natives.h"
-#include "ProcessManager.h"
+#include "openssl/rsa.h"
+
+#include <vector>
+#include <string>
 
 typedef std::vector<unsigned char> BYTESTRING;
 
@@ -73,8 +73,8 @@ struct Server {
     a client to a server. 
 */
 struct ClientResponse {
-    ClientResponseCode responseCode = kResponseError;    
-    RemoteAction       actionPerformed; // ( if any, otherwise put NONE )
+    ClientResponseCode responseCode    = kResponseError;
+    RemoteAction       actionPerformed = kNone;
 };
 
 /*

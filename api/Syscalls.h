@@ -1,5 +1,4 @@
 #pragma once
-#include "Framework.h"
 
 extern "C" NTSTATUS SysNtOpenProcess(
     PHANDLE            ProcessHandle,
@@ -36,7 +35,7 @@ extern "C" NTSTATUS SysNtDuplicateToken(
     PHANDLE NewTokenHandle
 );
 
-extern "C" NTSTATUS    SysNtOpenProcessTokenEx(
+extern "C" NTSTATUS SysNtOpenProcessTokenEx(
     HANDLE processHandle,
     ACCESS_MASK desiredAccess,
     ULONG handleAttributes,

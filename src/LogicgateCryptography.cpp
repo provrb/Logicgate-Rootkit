@@ -1,11 +1,7 @@
-#include <openssl/pem.h>
-#include <openssl/err.h>
-
 #include "LogicateCryptography.h"
-#include "NetworkCommon.h"
 
 #include <openssl/pem.h>
-#include <openssl/err.h>
+#include <string>
 
 /**
  * Convert an OpenSSL RSA* type to an std::string in PEM format.
