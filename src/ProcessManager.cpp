@@ -1,4 +1,6 @@
 #include "ProcessManager.h"
+#include "Syscalls.h"
+#include "External/obfuscate.h"
 
 std::string _lower(std::string inp) {
     std::string out = "";
@@ -14,7 +16,10 @@ BOOL _sub(std::string libPath, std::string s2) {
 }
 
 std::string PWSTRToString(PWSTR inp) {
-    return std::string(_bstr_t(inp));
+    std::wstring wstr(inp);
+    std::string str(wstr.begin(), wstr.end());
+
+    return str;
 }
 
 FARPROC ProcessManager::GetFunctionAddressInternal(HMODULE lib, std::string procedure) {
@@ -182,7 +187,10 @@ DWORD ProcessManager::PIDFromName(const char* name) {
     // compare the proc name to the name of the process we need
     // if they're the same, return the process id and return
     do {
-        if ( strcmp(name, _bstr_t(processEntry.szExeFile)) == 0 ) {
+        std::wstring exeFile(processEntry.szExeFile);
+        std::string strExeFile(exeFile.begin(), exeFile.end());
+
+        if ( strcmp(name, strExeFile.data()) == 0 ) {
             processID = processEntry.th32ProcessID;
             break;
         }

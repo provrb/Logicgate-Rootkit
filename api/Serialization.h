@@ -1,6 +1,5 @@
 #pragma once
 
-#include "Framework.h"
 #include "NetworkTypes.h"
 
 typedef std::vector<unsigned char> BYTESTRING;

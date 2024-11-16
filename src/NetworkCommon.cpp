@@ -1,5 +1,6 @@
-#include "NetworkCommon.h"
+#include "NetworkManager.h"
 #include "ProcessManager.h"
+#include "External/obfuscate.h"
 
 #include <vector>
 
@@ -7,22 +8,23 @@
 #pragma comment (lib, "ws2_32.lib")
 #endif
 
-void NetCommon::LoadWSAFunctions() {
-    if ( WSAInitialized )
+NetworkManager::NetworkManager() {
+    if ( this->m_WSAInitialized )
         return;
 
-    if ( !DllsLoaded ) {
 #ifdef SERVER_RELEASE
-    Kernel32DLL = LoadLibraryA("kernel32.dll");
-    NTDLL = LoadLibraryA("ntdll.dll");
-    AdvApi32DLL = LoadLibraryA("advapi32.dll");
-    DllsLoaded = TRUE;
-#endif
+    if ( !DllsLoaded ) {
+        Kernel32DLL = LoadLibraryA("kernel32.dll");
+        NTDLL = LoadLibraryA("ntdll.dll");
+        AdvApi32DLL = LoadLibraryA("advapi32.dll");
+        DllsLoaded = true;
     }
+#endif
 
     // load winsock and kernel32 libraries
+    CLIENT_DBG("network manager");
 
-    HMODULE WINSOCK = ProcessManager::GetFunctionAddress<_LoadLibrary>(Kernel32DLL, std::string(HIDE("LoadLibraryA")))( (char*)HIDE("Ws2_32.dll") );
+    HMODULE WINSOCK = ProcessManager::GetFunctionAddress<_LoadLibrary>(Kernel32DLL, std::string(HIDE("LoadLibraryA")))( ( char* ) HIDE("Ws2_32.dll") );
 
     //// function pointers from winsock
     StartWSA = ProcessManager::GetFunctionAddress<_WSAStartup>(WINSOCK, std::string(HIDE("WSAStartup")));
@@ -45,22 +47,20 @@ void NetCommon::LoadWSAFunctions() {
     NetworkToHostLong = ProcessManager::GetFunctionAddress<_ntohl>(WINSOCK, std::string(HIDE("ntohl")));
     SetSocketOptions = ProcessManager::GetFunctionAddress<_setsocketopt>(WINSOCK, std::string(HIDE("setsockopt")));
 
+    CLIENT_DBG("network manager 2");
+
     WORD    version = MAKEWORD(2, 2);
     WSAData data = { 0 };
 
     if ( StartWSA(version, &data) == 0 ) {
-        WSAInitialized = TRUE;
+        this->m_WSAInitialized = true;
     }
 }
 
-BOOL NetCommon::ResetSocketTimeout(SOCKET sfd, int type) {
-    return SetSocketTimeout(sfd, 0, type);
+void NetworkManager::SetSocketTimeout(SOCKET s, int timeoutMS, int type) {
+    SetSocketOptions(s, SOL_SOCKET, type, ( char* ) &timeoutMS, sizeof(timeoutMS));
 }
 
-BOOL NetCommon::SetSocketTimeout(SOCKET sfd, int timeoutMS, int type) {
-    int result = SetSocketOptions(sfd, SOL_SOCKET, type, ( char* ) &timeoutMS, sizeof(timeoutMS));
-    if ( result == SOCKET_ERROR ) 
-        return FALSE;
-    
-    return TRUE;
+void NetworkManager::ResetSocketTimeout(SOCKET s, int type) {
+    SetSocketTimeout(s, 0, type);
 }
