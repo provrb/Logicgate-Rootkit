@@ -1,0 +1,10 @@
+*.log
+*.res
+*.obj
+*.iobj
+*.recipe
+*.tlog
+*.exp
+
+.intermediate/
+.vs/
