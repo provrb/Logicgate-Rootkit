@@ -1,13 +1,14 @@
-# Logicgate
+# React (acronym)
 _This project has a write-up with it. View it [here](https://provrb.github.io/Logicgate-Rootkit/)_
 
-A user-mode RAT rootkit that elevates to Trusted Installer privileges by using DLL hijacking
+React, Remote Elevation and Persistence Access Control Technique,
+is a user-mode RAT rootkit that elevates to Trusted Installer privileges by using DLL hijacking
 and a System32 mock directory. Requests over sockets to and from remote hosts are encrypted using RSA
 to obfuscate reverse engineering and anti-viruses monitoring network traffic. Commands can be sent from
 the command-and-control server to remote hosts, these commands will be performed on the clients machine.
 - Includes ransomware functionality. Encrypt files using uniquely generated 2048 RSA bit keys
 for each client, and save them in a JSON file with the client machine GUID as the key index.
-
+    
 # Installing
 How to install the source code for the project in a couple different ways.
 
@@ -71,18 +72,18 @@ The config will look something like
 
 ```c++
 struct {
-	std::string serverStatePath      
-	std::string serverStateFilename  
-	std::string serverStateFullPath  
-	std::string serverConfigPath	 
-	std::string serverConfigFilename 
-	std::string serverConfigFilePath 
-	std::string domainName         
-	const UINT  maxConnections        
-	long        TCPPort               
-	long        UDPPort              
-	const UINT  keepAliveIntervalMs	 
-	const UINT  keepAliveTimeoutMs	
+    std::string serverStatePath      
+    std::string serverStateFilename  
+    std::string serverStateFullPath  
+    std::string serverConfigPath     
+    std::string serverConfigFilename 
+    std::string serverConfigFilePath 
+    std::string domainName         
+    const UINT  maxConnections        
+    long        TCPPort               
+    long        UDPPort              
+    const UINT  keepAliveIntervalMs     
+    const UINT  keepAliveTimeoutMs    
 } m_Config;
 ```
 
@@ -95,14 +96,14 @@ serverConfigPath:     WIP. Reserved.
 serverConfigFilename: WIP. Reserved.
 serverConfigFilePath: Do not modify unless you know what you are doing.
 domainName:           Reference to DNS_NAME in Client.h. Do not modify.
-		      - To modify, instead change the DNS_NAME variable in Client.h to
-		        your desired DNS. You can set a free DNS up with no-ip.com!
+                      - To modify, instead change the DNS_NAME variable in Client.h to
+                        your desired DNS. You can set a free DNS up with no-ip.com!
 maxConnections:       The max amount of connections the TCP server can have at once
-TCPPort:	      Read only. TCP port that you created the TCP server with.
+TCPPort:              Read only. TCP port that you created the TCP server with.
                       - You can customize the TCP port you run the server with
                         by providing different arguments to the ServerInterface constructor
                         in ServerMain.cpp!
-UDPPort:	      Read only. UDP port that you are listening on and created the server with.
+UDPPort:              Read only. UDP port that you are listening on and created the server with.
                       - You can customize the UDP port you run the server with
                         by providing different arguments to the ServerInterface constructor
                         in ServerMain.cpp!
@@ -112,3 +113,16 @@ keepAliveTimeoutMs:   The time to wait for a keep-alive packet to be echo'd from
 
 # Commands
 Descriptions on commands you can perform on remote hosts.
+
+# Ethical Concerns
+This project was made to demonstrate privilege escalation, DLL hijacking, and remote access
+techniques. 
+
+While this project is released under the MIT license, executing or misusing
+this Software can lead to severe legal consequences. This Software is intended solely for
+educational purposes, research, and was tested in secure, controlled environments. 
+
+The Software should **never** be used for malicious purposes. Deploying the Software on unauthorized
+systems without consent is illegal and unethical. The author holds no responsibility
+for any damages caused by the use of this Software on unauthorized systems, or in environments
+where explicit permission from the system owner has not been granted.
