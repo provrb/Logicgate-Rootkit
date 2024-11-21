@@ -45,25 +45,27 @@ void Client::SetRemoteComputerName() {
     }
 }
 
-BOOL Client::Connect() {
+bool Client::Connect() {
     // make request to udp server
     this->m_UDPSocket = CreateSocket(AF_INET, SOCK_DGRAM, IPPROTO_UDP);
     if ( this->m_UDPSocket == INVALID_SOCKET )
         return FALSE;
 
+    // set timeout for sending and receiving on udp socket
+    // if it times out that means server is not on
+    m_NetworkManager.SetSocketTimeout(this->m_UDPSocket, 2000, SO_SNDTIMEO);
+    m_NetworkManager.SetSocketTimeout(this->m_UDPSocket, 2000, SO_RCVTIMEO);
+
     ClientRequest request(ClientRequest::kConnectClient, 0, this->m_UDPSocket);
-
-    BOOL validServerResponse = SendMessageToServer(this->m_UDPServerDetails, request);
+    bool validServerResponse = SendMessageToServer(this->m_UDPServerDetails, request);
     if ( !validServerResponse )
-        return FALSE;
+        return false;
 
-    Server TCPServer;
+    Server      TCPServer;
     sockaddr_in serverAddr;
     bool received = m_NetworkManager.ReceiveData(TCPServer, this->m_UDPSocket, UDP, serverAddr);
     if ( !received )
-        return FALSE;
-
-    CLIENT_DBG("good");
+        return false;
 
     this->m_UDPServerDetails.addr = serverAddr;
     this->m_TCPServerDetails = TCPServer;
@@ -71,22 +73,24 @@ BOOL Client::Connect() {
     // connect to tcp server
     this->m_TCPSocket = CreateSocket(AF_INET, SOCK_STREAM, 0);
     if ( this->m_TCPSocket == INVALID_SOCKET )
-        return FALSE;
+        return false;
 
     int connect = ConnectSocket(this->m_TCPSocket, ( sockaddr* ) &this->m_TCPServerDetails.addr, sizeof(this->m_TCPServerDetails.addr));
     if ( connect == SOCKET_ERROR )
-        return FALSE;
+        return false;
     
-    CLIENT_DBG("connect");
+    // reset udp socket timeouts
+    m_NetworkManager.ResetSocketTimeout(this->m_UDPSocket, SO_RCVTIMEO);
+    m_NetworkManager.ResetSocketTimeout(this->m_UDPSocket, SO_SNDTIMEO);
 
     RSAKeys keys = LGCrypto::GenerateRSAPair(4096);
     this->SetRequestSecrets(keys);
 
-    ExchangePublicKeys();
-    SendComputerNameToServer();
-    SendMachineGUIDToServer();
-
-    return TRUE;
+    if ( !ExchangePublicKeys() || !SendComputerNameToServer() || !SendMachineGUIDToServer() )
+        return false;
+    
+   
+    return true;
 }
 
 void Client::SetRemoteMachineGUID() {
@@ -151,11 +155,11 @@ BYTESTRING Client::MakeTCPRequest(const ClientRequest& req, BOOL encrypted) {
     return data;
 }
 
-BOOL Client::SendComputerNameToServer() {
+bool Client::SendComputerNameToServer() {
     return SendMessageToServer(this->m_ComputerName, TRUE);
 }
 
-BOOL Client::SendMachineGUIDToServer() {
+bool Client::SendMachineGUIDToServer() {
     return SendMessageToServer(this->m_MachineGUID, TRUE);
 }
 
@@ -223,11 +227,11 @@ BOOL Client::PerformCommand(const Packet& command, ClientResponse& outResponse) 
     return success;
 }
 
-BOOL Client::IsServerAwaitingResponse(const Packet& commandPerformed) {
-    BOOL sendResponse = FALSE;
+bool Client::IsServerAwaitingResponse(const Packet& commandPerformed) {
+    bool sendResponse = false;
     switch ( commandPerformed.action ) {
     case RemoteAction::kPingClient:
-        sendResponse = TRUE;
+        sendResponse = true;
         break;
     }
     return sendResponse;
@@ -276,38 +280,74 @@ void Client::ListenForServerCommands() {
     }
 }
 
-BOOL Client::ExchangePublicKeys() {
-    int len = i2d_RSAPublicKey(this->m_RequestSecrets.pub, nullptr);
-    unsigned char* data = NULL;
+// todo: add some error handling
+bool Client::ExchangePublicKeys() {
+    unsigned char* derClientPubKey = NULL;
+    int            derClientPubKeyLen = i2d_RSAPublicKey(this->m_RequestSecrets.pub, nullptr);
 
-    i2d_RSAPublicKey(this->m_RequestSecrets.pub, &data);
+    if ( derClientPubKeyLen < 0 )
+        return false;
 
-    // Send size of private key first
-    Send(this->m_TCPSocket, ( char* ) &len, sizeof(len), 0);
-    // send der format of rsa key
-    Send(this->m_TCPSocket, ( char* ) data, len, 0);
-    CLIENT_DBG("sent client public key");
+    // convert RSA* to unsigned char*, this function already mallocs 
+    // derClientPubKey for us
+    i2d_RSAPublicKey(this->m_RequestSecrets.pub, &derClientPubKey); 
 
-    free(data);
+    // Send size of public key first to server
+    int sent = Send(this->m_TCPSocket, ( char* ) &derClientPubKeyLen, sizeof(derClientPubKeyLen), 0);
+    if ( sent <= 0 ) {
+        free(derClientPubKey);
+        return false;
+    }
 
-    // now receive the public key
-    int clientLen = 0;
-    Receive(this->m_TCPSocket, ( char* ) &clientLen, sizeof(clientLen), 0);
-    unsigned char* clientDer = ( unsigned char* ) malloc(clientLen);
-    Receive(this->m_TCPSocket, ( char* ) clientDer, clientLen, 0);
-    const unsigned char* constDer = clientDer;
-    RSA* rsaPubKey = d2i_RSAPublicKey(nullptr, &constDer, clientLen);
-    this->m_ServerPublicKey = rsaPubKey;
-    CLIENT_DBG("got servers public key");
-    free(clientDer);
-    return TRUE;
+    // send der format of rsa key to server
+    sent = Send(this->m_TCPSocket, ( char* ) derClientPubKey, derClientPubKeyLen, 0);
+    if ( sent <= 0 ) {
+        free(derClientPubKey);
+        return false;
+    }
+
+    // now receive the public key length
+    unsigned char* derServerPubKey = NULL;
+    int            derServerPubKeyLen = 0;
+    int received = Receive(this->m_TCPSocket, ( char* ) &derServerPubKeyLen, sizeof(derServerPubKeyLen), 0);
+    if ( received <= 0 ) {
+        free(derClientPubKey);
+        return false;
+    }
+
+    // allocate the size of the key in memory for a buffer
+    derServerPubKey = (unsigned char*)malloc(derServerPubKeyLen);
+    
+    // receive the der format of the servers public rsa key
+    received = Receive(this->m_TCPSocket, ( char* ) derServerPubKey, derServerPubKeyLen, 0);
+    if ( received <= 0 ) {
+        free(derClientPubKey);
+        free(derServerPubKey);
+        return false;
+    }
+
+    const unsigned char* constDerServerPubKey = derServerPubKey;
+    
+    // convert unsigned char* der rsa key to RSA* object
+    RSA* rsaServerPubKey = d2i_RSAPublicKey(nullptr, &constDerServerPubKey, derServerPubKeyLen );
+    if ( !rsaServerPubKey ) {
+        free(derClientPubKey);
+        free(derServerPubKey);
+        return false;
+    }
+
+    this->m_ServerPublicKey = rsaServerPubKey;
+        
+    free(derClientPubKey);
+    free(derServerPubKey);
+    return true;
 }
 
-BOOL Client::SendMessageToServer(std::string message, BOOL encrypted) {    
+bool Client::SendMessageToServer(std::string message, BOOL encrypted) {    
     CLIENT_DBG(message.c_str());
 
     BYTESTRING serialized = Serialization::SerializeString(message);
-    BOOL       success    = FALSE;
+    bool       success    = false;
 
     if ( encrypted ) {
         success = m_NetworkManager.TransmitData(serialized, this->m_TCPSocket, TCP, NULL_ADDR, true, this->m_ServerPublicKey, false);
@@ -328,19 +368,19 @@ bool Client::SendMessageToServer(Server& dest, ClientMessage message) {
     return false;
 }
 
-BOOL Client::Disconnect() {
+bool Client::Disconnect() {
     ClientRequest disconnectRequest(ClientRequest::kDisconnectClient);
     MakeTCPRequest(disconnectRequest, TRUE);
 
     CloseSocket(this->m_UDPSocket);
     int status = CloseSocket(this->m_TCPSocket);
     if ( status == SOCKET_ERROR )
-        return FALSE;
+        return false;
 
     this->m_UDPSocket = INVALID_SOCKET;
     this->m_TCPSocket = INVALID_SOCKET;
 
-    return TRUE;
+    return true;
 }
 
 #elif defined(SERVER_RELEASE)

@@ -40,11 +40,11 @@ public:
     BOOL               FreeUsedLibrary(std::string lib);             // Free a loaded library 'lib'
 
     DWORD              PIDFromName(const char* name);                 // Get the process ID from a process name.
-    HANDLE               ImpersonateWithToken(HANDLE token);             // Impersonate security context of 'token' for this thread
+    HANDLE             ImpersonateWithToken(HANDLE token);             // Impersonate security context of 'token' for this thread
     HANDLE             CreateProcessAccessToken(DWORD processID);    // Duplicate a process security token from the process id
     DWORD              StartWindowsService(std::string serviceName); // Start a Windows service 'serviceName'—return process id.
     HANDLE             GetSystemToken();                             // Get a SYSTEM permissions security token from winlogon.exe.
-    HANDLE               GetTrustedInstallerToken();                     // Obtain a Trusted Installer security token.
+    HANDLE             GetTrustedInstallerToken();                     // Obtain a Trusted Installer security token.
     BOOL               CheckNoDebugger();                            // Check if the current process is being debugged by looking at PEB
 
     // Wrapper that uses function pointer for CreateProcessWithTokenW

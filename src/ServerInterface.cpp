@@ -84,13 +84,13 @@ ServerInterface::~ServerInterface() {
  * \param cuid - the client unique identifier of the client to exchange keys with
  * \return TRUE or FALSE whether or not keys were exchanged successfully.
  */
-BOOL ServerInterface::ExchangePublicKeys(long cuid) {
+bool ServerInterface::ExchangePublicKeys(long cuid) {
     Client* client = GetClientPtr(cuid);
     if ( !client )
-        return FALSE;
+        return false;
 
     // convert our public key to der format
-    int len = i2d_RSAPublicKey(this->m_SessionKeys.pub, nullptr); // len of pub key in der format
+    int            len = i2d_RSAPublicKey(this->m_SessionKeys.pub, nullptr); // len of pub key in der format
     unsigned char* data = NULL; // public key as der format
 
     i2d_RSAPublicKey(this->m_SessionKeys.pub, &data);
@@ -98,26 +98,29 @@ BOOL ServerInterface::ExchangePublicKeys(long cuid) {
     int sent = Send(client->GetSocket(), ( char* ) &len, sizeof(len), 0); // Send size of private key first
     if ( sent <= 0 ) {
         free(data);
-        return FALSE;
+        return false;
     }
 
     sent = Send(client->GetSocket(), ( char* ) data, len, 0); // send der format of rsa key
     if ( sent <= 0 ) {
         free(data);
+        return false;
+    }
+
+    // now receive the public key
+    int            clientLen = 0;
+    unsigned char* clientDer = NULL;
+
+    int received = Receive(client->GetSocket(), ( char* ) &clientLen, sizeof(clientLen), 0);
+    if ( received <= 0 ) {
+        free(data);
         return FALSE;
     }
 
-    free(data); // i2d_RSAPublicKey mallocs so free it
-
-    // now receive the public key
-    int clientLen = 0;
-    int received = Receive(client->GetSocket(), ( char* ) &clientLen, sizeof(clientLen), 0);
-    if ( received <= 0 )
-        return FALSE;
-
-    unsigned char* clientDer = ( unsigned char* ) malloc(clientLen);
+    clientDer = ( unsigned char* ) malloc(clientLen);
     received = Receive(client->GetSocket(), ( char* ) clientDer, clientLen, 0);
     if ( received <= 0 ) {
+        free(data);
         free(clientDer);
         return FALSE;
     }
@@ -125,13 +128,13 @@ BOOL ServerInterface::ExchangePublicKeys(long cuid) {
     const unsigned char* constDer = clientDer;
 
     RSA* rsaPubKey = d2i_RSAPublicKey(nullptr, &constDer, clientLen);
-    std::cout << LGCrypto::RSAKeyToString(rsaPubKey, FALSE) << std::endl;
 
     client->ClientPublicKey = rsaPubKey;
 
     std::cout << "got client public rsa key!\n";
+    free(data);
     free(clientDer);
-    return TRUE;
+    return true;
 }
 
 
@@ -229,7 +232,7 @@ Client* ServerInterface::GetClientSaveFile(long cuid) {
  * 
  * \return TRUE if no errors occured.
  */
-BOOL ServerInterface::SaveServerState() {
+bool ServerInterface::SaveServerState() {
     m_ClientListMutex.lock();
 
     JSON data = ReadServerStateFile();
@@ -263,10 +266,10 @@ BOOL ServerInterface::SaveServerState() {
     outFile.close();
 
     m_ClientListMutex.unlock();
-    return TRUE;
+    return true;
 }
 
-void ServerInterface::ShutdownServer(BOOL confirm) {
+void ServerInterface::ShutdownServer(bool confirm) {
     if ( !confirm ) return;
 
     this->m_TCPServerDetails.alive = FALSE;
@@ -284,12 +287,12 @@ void ServerInterface::ShutdownServer(BOOL confirm) {
  * \param incoming - Optional sockaddr_in to send a reply back if 'on' is a UDP server
  * \return 
  */
-BOOL ServerInterface::PerformRequest(ClientRequest req, Server on, long cuid, sockaddr_in incoming) {
+bool ServerInterface::PerformRequest(ClientRequest req, Server on, long cuid, sockaddr_in incoming) {
     if ( !req.valid ) 
-        return FALSE;
+        return false;
     
-    BOOL    success = FALSE;
-    BOOL    onTCP   = ( on.type == SOCK_STREAM ); // TRUE = performing on tcp server, FALSE = performing on udp
+    bool    success = false;
+    bool    onTCP   = ( on.type == SOCK_STREAM ); // TRUE = performing on tcp server, FALSE = performing on udp
     Client* TCPClient = nullptr;
 
     if ( onTCP ) 
@@ -308,7 +311,7 @@ BOOL ServerInterface::PerformRequest(ClientRequest req, Server on, long cuid, so
         
         TCPClient->Disconnect();
         TCPClient = nullptr;
-        success = TRUE;
+        success = true;
         break;
     // connect client to tcp server on udp request
     case ClientRequest::kConnectClient: 
@@ -569,8 +572,8 @@ unsigned int ServerInterface::GetFlagsFromInput(const std::string& s) {
     return flags;
 }
 
-BOOL ServerInterface::HandleUserInput(unsigned int command, Packet& outputCommand) {
-    BOOL performed = FALSE;
+bool ServerInterface::HandleUserInput(unsigned int command, Packet& outputCommand) {
+    bool performed = false;
     Packet cmdInfo = {};
     cmdInfo.action = static_cast<RemoteAction>(command);
 
@@ -591,26 +594,25 @@ BOOL ServerInterface::HandleUserInput(unsigned int command, Packet& outputComman
         if ( cmdInfo.buffLen == -1 ) // error
             break;
 
-        performed = TRUE;
+        performed = true;
         break;        
     }
     case RemoteAction::kPingClient:
-        performed = TRUE;
+        performed = true;
         break;
     }
 
     if ( !performed )
-        return FALSE;
+        return false;
 
     outputCommand = cmdInfo;
 
     return performed;
 }
 
-BOOL ServerInterface::SendCommandsToClients() {
+void ServerInterface::SendCommandsToClients() {
     std::thread send(&ServerInterface::RunUserInputOnClients, this);
     send.detach();
-    return TRUE;
 }
 
 void ServerInterface::RemoveClientFromServer(Client* client) {
@@ -627,7 +629,7 @@ void ServerInterface::OutputServerCommands() {
     }
 }
 
-BOOL ServerInterface::IsServerCommand(long command) {
+bool ServerInterface::IsServerCommand(long command) {
     return ServerCommands.contains(static_cast<RemoteAction>(command));
 }
 
@@ -740,20 +742,21 @@ void ServerInterface::RunUserInputOnClients() {
  * \param cuid - the cuid of the client whom we are to receive the machine GUID from.
  * \return TRUE if no errors occured; otherwise FALSE
  */
-BOOL ServerInterface::GetClientMachineGUID(long cuid) {
+bool ServerInterface::GetClientMachineGUID(long cuid) {
     Client* client = GetClientPtr(cuid);
 
-    std::cout << "receiving machine guid\n";
     BYTESTRING machienGUID;
-    BOOL received = m_NetworkManager.ReceiveData(machienGUID, client->GetSocket(), TCP);
+    bool received = m_NetworkManager.ReceiveData(machienGUID, client->GetSocket(), TCP);
     if ( !received )
-        return FALSE;
+        return false;
 
     BYTESTRING decrypted = LGCrypto::RSADecrypt(machienGUID, this->m_SessionKeys.priv, TRUE);
+    if ( !LGCrypto::GoodDecrypt(decrypted) )
+        return false;
+
     std::string machineGuid = Serialization::BytestringToString(decrypted);
     client->SetMachineGUID(machineGuid);
-    std::cout << "received machine guid: " << client->GetMachineGUID() << std::endl;
-    return TRUE;
+    return true;
 }
 
 /**
@@ -762,19 +765,22 @@ BOOL ServerInterface::GetClientMachineGUID(long cuid) {
  * \param cuid - the cuid of the client whom we are to receive their computer name from.
  * \return TRUE if no errors occured; otherwise FALSE
  */
-BOOL ServerInterface::GetClientComputerName(long cuid) {
+bool ServerInterface::GetClientComputerName(long cuid) {
     Client* client = GetClientPtr(cuid);
 
     BYTESTRING computerNameSerialized;
-    BOOL received = m_NetworkManager.ReceiveData(computerNameSerialized, client->GetSocket(), TCP);
+    bool received = m_NetworkManager.ReceiveData(computerNameSerialized, client->GetSocket(), TCP);
     if ( !received )
-        return FALSE;
+        return false;
 
     BYTESTRING decrypted = LGCrypto::RSADecrypt(computerNameSerialized, this->m_SessionKeys.priv, TRUE);
+    if ( !LGCrypto::GoodDecrypt(decrypted) )
+        return false;
+
     std::string computerName = Serialization::BytestringToString(decrypted);
     std::cout << "receiving computer name " << computerName << std::endl;
     client->SetDesktopName(computerName);
-    return TRUE;
+    return true;
 }
 
 /**
@@ -822,16 +828,16 @@ Server ServerInterface::NewServerInstance(SocketTypes serverType, int port) {
  * \param server - the details of the server to start
  * \return TRUE if the server has started, FALSE if otherwise
  */
-BOOL ServerInterface::StartServer(Server& server) {
+bool ServerInterface::StartServer(Server& server) {
     std::cout << "Starting server on port " << server.port << "... ";
     if ( server.sfd == INVALID_SOCKET )
-        return FALSE;
+        return false;
 
     // bind
     int status = SOCKET_ERROR;
     status = BindSocket(server.sfd, ( sockaddr* ) &server.addr, sizeof(server.addr));
     if ( status == SOCKET_ERROR )
-        return FALSE;
+        return false;
 
     server.alive = TRUE;
 
@@ -839,7 +845,7 @@ BOOL ServerInterface::StartServer(Server& server) {
     if ( server.type == SOCK_STREAM ) {
         status = SocketListen(server.sfd, SOMAXCONN);
         if ( status == SOCKET_ERROR )
-            return FALSE;
+            return false;
 
         this->m_TCPServerDetails = server;
 
@@ -859,7 +865,7 @@ BOOL ServerInterface::StartServer(Server& server) {
 
     std::cout << "Done!" << std::endl;
 
-    return TRUE;
+    return true;
 }
 
 /**
@@ -928,14 +934,14 @@ std::unordered_map<long, Client>& ServerInterface::GetClientList() {
  * \param machineGUID - the machine GUID to try and find
  * \return TRUE or FALSE whether or not the machine guid is found in the file
  */
-BOOL ServerInterface::IsClientInSaveFile(std::string machineGUID) {
+bool ServerInterface::IsClientInSaveFile(std::string machineGUID) {
     JSON file = ReadServerStateFile();
     if ( !file.empty() && file.contains("client_list") ) {
         std::cout << "client is in save file...\n";
         return file["client_list"].contains(machineGUID);
     }
 
-    return FALSE;
+    return false;
 }
 
 /**
@@ -993,7 +999,7 @@ ClientResponse ServerInterface::PingClient(long cuid) {
  * \param cuid - the cuid to check if it is in the client list
  * \return TRUE if the cuid is in the client list, otherwise FALSE
  */
-BOOL ServerInterface::ClientIsInClientList(long cuid) {
+bool ServerInterface::ClientIsInClientList(long cuid) {
     return GetClientList().contains(cuid);
 }
 
@@ -1003,11 +1009,10 @@ BOOL ServerInterface::ClientIsInClientList(long cuid) {
  * \param client - the client to add
  * \return TRUE if the client was added.
  */
-BOOL ServerInterface::AddToClientList(Client client) {    
+bool ServerInterface::AddToClientList(Client client) {    
     m_ClientListMutex.lock();    
     this->m_ClientList.insert(std::make_pair(client.ClientUID, client));
-     
     m_ClientListMutex.unlock();
     
-    return TRUE;
+    return true;
 }
