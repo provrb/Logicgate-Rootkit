@@ -2,46 +2,64 @@
     _SSN DWORD 0
 
 .code
+    InsertSyscall PROC
+        mov [_SSN], ecx
+        ret
+    InsertSyscall ENDP
+
     SysNtOpenProcess PROC
-        mov r10, rcx  ; syscall arguments
-        mov eax, 26h        
-        syscall       ; invoke
+        mov r10, rcx
+        mov eax, [_SSN]        
+        syscall       
         ret
     SysNtOpenProcess ENDP
 
     SysNtDuplicateToken PROC
         mov r10, rcx
-        mov eax, 42h
+        mov eax, [_SSN]
         syscall
         ret
     SysNtDuplicateToken ENDP
     
     SysNtClose PROC
         mov r10, rcx
-        mov eax, 0Fh
+        mov eax, [_SSN]
         syscall
         ret
     SysNtClose ENDP
 
     SysNtQueryValueKey PROC
         mov r10, rcx
-        mov eax, 17h
+        mov eax, [_SSN]
         syscall
         ret
     SysNtQueryValueKey ENDP
 
     SysNtOpenKey PROC
         mov r10, rcx
-        mov eax, 12h
+        mov eax, [_SSN]
         syscall
         ret
     SysNtOpenKey ENDP
 
     SysNtOpenProcessTokenEx PROC
         mov r10, rcx
-        mov eax, 30h
+        mov eax, [_SSN]
         syscall
         ret
     SysNtOpenProcessTokenEx ENDP
 
+    SysRtlAdjustPrivilege PROC
+        mov r10, rcx
+        mov eax, [_SSN]
+        syscall
+        ret
+    SysRtlAdjustPrivilege ENDP
+
+    SysNtRaiseHardError PROC
+        mov r10, rcx
+        mov eax, [_SSN]
+        syscall
+        ret
+    SysNtRaiseHardError ENDP
 end

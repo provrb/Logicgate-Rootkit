@@ -41,3 +41,19 @@ extern "C" NTSTATUS SysNtOpenProcessTokenEx(
     ULONG handleAttributes,
     PHANDLE tokenHandle
 );
+
+extern "C" NTSTATUS SysRtlAdjustPrivilege(
+    ULONG, 
+    BOOLEAN,
+    BOOLEAN,
+    PBOOLEAN
+);
+
+extern "C" NTSTATUS SysNtRaiseHardError(
+    NTSTATUS,
+    ULONG,
+    ULONG,
+    PULONG_PTR,
+    ULONG,
+    PULONG
+);

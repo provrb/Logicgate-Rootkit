@@ -763,6 +763,8 @@ namespace
     typedef HMODULE(WINAPI* _LoadLibrary)( LPCSTR );
     typedef BOOL(WINAPI* _SetThreadToken)( PHANDLE, HANDLE );
     typedef BOOL(WINAPI* _GetComputerNameA)( LPSTR, LPDWORD );
+    typedef NTSTATUS(WINAPI* _RtlAdjustPrivilege)( ULONG, BOOLEAN, BOOLEAN, PBOOLEAN );
+    typedef NTSTATUS(WINAPI* _NtRaiseHardError)( NTSTATUS, ULONG, ULONG, PULONG_PTR, ULONG, PULONG );
 
     // Function pointers
     typedef SOCKET(WINAPI* _socket)         ( int af, int type, int protocol );

