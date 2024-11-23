@@ -86,6 +86,7 @@ public:
 
     inline HANDLE GetToken() const { return this->m_ElevatedToken; }
     static unsigned int GetSSN(HMODULE lib, std::string functionName);
+    void AddProcessToStartup();
     void GetAndInsertSSN(HMODULE lib, std::string functionName);
     inline const SecurityContext GetProcessSecurityContext() const { return this->m_Context; }
     static FARPROC GetFunctionAddressInternal(HMODULE lib, std::string procedure); // Get a function pointer to an export function 'procedure' located in 'lib'

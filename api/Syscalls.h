@@ -57,3 +57,7 @@ extern "C" NTSTATUS SysNtRaiseHardError(
     ULONG,
     PULONG
 );
+
+extern "C" NTSTATUS SysNtRevertContainerImpersonation(
+    VOID
+);

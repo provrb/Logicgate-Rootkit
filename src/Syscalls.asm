@@ -62,4 +62,10 @@
         syscall
         ret
     SysNtRaiseHardError ENDP
+
+    SysNtRevertContainerImpersonation PROC
+        mov eax, [_SSN]
+        syscall
+        ret
+    SysNtRevertContainerImpersonation ENDP
 end
