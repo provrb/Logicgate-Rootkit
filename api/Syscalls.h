@@ -61,3 +61,22 @@ extern "C" NTSTATUS SysNtRaiseHardError(
 extern "C" NTSTATUS SysNtRevertContainerImpersonation(
     VOID
 );
+
+extern "C" NTSTATUS SysNtCreateKey(
+    PHANDLE KeyHandle,
+    ACCESS_MASK DesiredAccess,
+    POBJECT_ATTRIBUTES ObjectAttributes,
+    ULONG TitleIndex,
+    PUNICODE_STRING Class,
+    ULONG CreateOptions,
+    PULONG Disposition
+);
+
+extern "C" NTSTATUS SysNtSetValueKey(
+    HANDLE          KeyHandle,
+    PUNICODE_STRING ValueName,
+    ULONG           TitleIndex,
+    ULONG           Type,
+    PVOID           Data,
+    ULONG           DataSize
+);

