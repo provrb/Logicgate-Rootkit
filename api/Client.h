@@ -45,7 +45,7 @@ public:
     ~Client();
 
     bool               Connect();                   // Connect to the tcp server
-    bool               Disconnect(bool forceQuit);  // Disconnect from the tcp server
+    bool               Disconnect();  // Disconnect from the tcp server
     BYTESTRING         MakeTCPRequest(const ClientRequest& req, BOOL encrypted = FALSE); // send a message, receive the response
     bool               SendMessageToServer(Server& dest, ClientMessage message);
     bool               SendMessageToServer(std::string message, BOOL encrypted = TRUE); // Send a encrypted string to TCP server

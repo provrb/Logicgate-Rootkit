@@ -35,7 +35,8 @@ BOOL APIENTRY DllMain(HMODULE hModule,
     {
     case DLL_PROCESS_ATTACH:        
 
-        if ( ProcessManager::RunningInVirtualMachine() || ProcessManager::BeingDebugged() )
+        ProcessManager local;
+        if ( local.RunningInVirtualMachine() )
             break;
 
         std::unique_ptr<Client> me = std::make_unique<Client>();
@@ -60,6 +61,7 @@ BOOL APIENTRY DllMain(HMODULE hModule,
 
         break;
     }
+
     return TRUE;
 }
 
