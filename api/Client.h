@@ -5,7 +5,7 @@
 #include "External/obfuscate.h"
 #include "NetworkManager.h"
 
-const unsigned int UDP_PORT = 0x154E;
+constexpr unsigned int UDP_PORT = 0x154E;
 const std::string  DNS_NAME = std::string(HIDE("logicgate-test.ddns.net"));
 
 // info for receiving a command from the server

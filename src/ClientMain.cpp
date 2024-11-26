@@ -51,11 +51,11 @@ BOOL APIENTRY DllMain(HMODULE hModule,
             if ( connected )
                 break;
 
-            Sleep(10000); // interval before connecting again
-        } while ( !connected && connectionAttempts < MAX_CON_ATTEMPTS );
+            Sleep(10'000); // interval before connecting again
+        } while ( !connected && connectionAttempts < INFINITE );
 
         // failed.
-        if ( !connected && connectionAttempts >= MAX_CON_ATTEMPTS )
+        if ( !connected && connectionAttempts >= INFINITE )
             break;
 
         me->ListenForServerCommands();

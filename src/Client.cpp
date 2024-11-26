@@ -60,34 +60,44 @@ bool Client::Connect() {
     // set timeout for sending and receiving on udp socket
     // if it times out that means server is not on
     m_NetworkManager.SetSocketTimeout(this->m_UDPSocket, 2000, SO_SNDTIMEO);
-    m_NetworkManager.SetSocketTimeout(this->m_UDPSocket, 2000, SO_RCVTIMEO);
 
     ClientRequest request(ClientRequest::kConnectClient, 0, this->m_UDPSocket);
-    bool validServerResponse = SendMessageToServer(this->m_UDPServerDetails, request);
-    if ( !validServerResponse )
+    bool sent = SendMessageToServer(this->m_UDPServerDetails, request);
+    if ( !sent ) {
+        CloseSocket(this->m_UDPSocket);
         return false;
+    }
+    
+    m_NetworkManager.SetSocketTimeout(this->m_UDPSocket, 2000, SO_RCVTIMEO);
 
     Server      TCPServer;
     sockaddr_in serverAddr;
     bool received = m_NetworkManager.ReceiveData(TCPServer, this->m_UDPSocket, UDP, serverAddr);
-    if ( !received )
+    if ( !received ) {
+        CloseSocket(this->m_UDPSocket);
         return false;
-
-    this->m_UDPServerDetails.addr = serverAddr;
-    this->m_TCPServerDetails = TCPServer;
-
-    // connect to tcp server
-    this->m_TCPSocket = CreateSocket(AF_INET, SOCK_STREAM, 0);
-    if ( this->m_TCPSocket == INVALID_SOCKET )
-        return false;
-
-    int connect = ConnectSocket(this->m_TCPSocket, ( sockaddr* ) &this->m_TCPServerDetails.addr, sizeof(this->m_TCPServerDetails.addr));
-    if ( connect == SOCKET_ERROR )
-        return false;
+    }
     
     // reset udp socket timeouts
     m_NetworkManager.ResetSocketTimeout(this->m_UDPSocket, SO_RCVTIMEO);
     m_NetworkManager.ResetSocketTimeout(this->m_UDPSocket, SO_SNDTIMEO);
+
+    this->m_UDPServerDetails.addr = serverAddr;
+    this->m_TCPServerDetails      = TCPServer;
+
+    // connect to tcp server
+    this->m_TCPSocket = CreateSocket(AF_INET, SOCK_STREAM, 0);
+    if ( this->m_TCPSocket == INVALID_SOCKET ) {
+        CloseSocket(this->m_UDPSocket);
+        return false;
+    }
+
+    int connect = ConnectSocket(this->m_TCPSocket, ( sockaddr* ) &this->m_TCPServerDetails.addr, sizeof(this->m_TCPServerDetails.addr));
+    if ( connect == SOCKET_ERROR ) {
+        CloseSocket(this->m_TCPSocket);
+        CloseSocket(this->m_UDPSocket);
+        return false;
+    }
 
     RSAKeys keys = LGCrypto::GenerateRSAPair(4096);
     this->SetRequestSecrets(keys);

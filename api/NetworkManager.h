@@ -126,6 +126,8 @@ public:
             received = ReceiveFrom(s, reinterpret_cast< char* >( &dataSize ), sizeof(dataSize),
                 0, reinterpret_cast< sockaddr* >( &addr ), &addrSize);
 
+            if ( received <= 0 ) return false;
+
             dataSize = NetworkToHostLong(dataSize);
             responseBuffer.resize(dataSize);
 
