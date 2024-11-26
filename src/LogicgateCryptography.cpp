@@ -1,7 +1,11 @@
 #include "LogicateCryptography.h"
+#include "Serialization.h"
 
 #include <openssl/pem.h>
+#include <openssl/aes.h>
+#include <openssl/rand.h>
 #include <string>
+
 
 /**
  * Convert an OpenSSL RSA* type to an std::string in PEM format.
@@ -135,6 +139,48 @@ BYTESTRING LGCrypto::RSADecrypt(BYTESTRING data, RSA* key, BOOL privateKey) {
     ( result == -1 ) ? out.resize(0) : out.resize(result);
 
     out.resize(result);
+
+    return out;
+}
+
+BYTESTRING LGCrypto::GenerateAESIV() {
+    BYTESTRING iv(AES_BLOCK_SIZE);
+    if ( !RAND_bytes(iv.data(), iv.size()) )
+        iv = {};
+
+    return iv;
+}
+
+BYTESTRING LGCrypto::Generate256AESKey() {
+    BYTESTRING key(32); // aes 256
+    if ( !RAND_bytes(key.data(), key.size()) )
+        key = {};
+
+    return key;
+}
+
+BYTESTRING LGCrypto::AESEncrypt(BYTESTRING data, BYTESTRING key, BYTESTRING iv) {
+    size_t padded_len = ( ( data.size() + AES_BLOCK_SIZE - 1 ) / AES_BLOCK_SIZE ) * AES_BLOCK_SIZE;
+    data.resize(padded_len, 0);
+
+    BYTESTRING encrypted(padded_len);
+
+    AES_KEY aes;
+    AES_set_encrypt_key(key.data(), key.size() * 8, &aes);
+    AES_cbc_encrypt(data.data(), encrypted.data(), data.size(), &aes, iv.data(), AES_ENCRYPT);
+
+    return encrypted;
+}
+
+BYTESTRING LGCrypto::AESDecrypt(BYTESTRING data, BYTESTRING key, BYTESTRING iv) {
+    BYTESTRING out(data.size());
+
+    AES_KEY aes;
+    AES_set_decrypt_key(key.data(), key.size() * 8, &aes);
+    AES_cbc_encrypt(data.data(), out.data(), data.size(), &aes, const_cast< unsigned char* >( iv.data() ), AES_DECRYPT);
+
+    unsigned char padding_size = out.back();
+    out.resize(out.size() - padding_size);
 
     return out;
 }

