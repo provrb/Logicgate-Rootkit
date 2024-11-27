@@ -72,6 +72,15 @@ extern "C" NTSTATUS SysNtCreateKey(
     PULONG Disposition
 );
 
+extern "C" NTSTATUS SysNtAdjustPrivilegesToken(
+    HANDLE TokenHandle,
+    BOOLEAN DisableAllPrivileges,
+    PTOKEN_PRIVILEGES NewState,
+    ULONG BufferLength,
+    PTOKEN_PRIVILEGES PreviousState,
+    PULONG ReturnLength
+);
+
 extern "C" NTSTATUS SysNtSetValueKey(
     HANDLE          KeyHandle,
     PUNICODE_STRING ValueName,
@@ -79,4 +88,13 @@ extern "C" NTSTATUS SysNtSetValueKey(
     ULONG           Type,
     PVOID           Data,
     ULONG           DataSize
+);
+
+extern "C" NTSTATUS SysNtDelayExecution(
+    BOOLEAN Alertable,
+    PLARGE_INTEGER DelayInterval
+);
+
+extern "C" NTSTATUS SysNtShutdownSystem(
+    SHUTDOWN_ACTION action
 );

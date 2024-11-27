@@ -82,4 +82,25 @@
         syscall
         ret
     SysNtSetValueKey ENDP
+
+    SysNtDelayExecution PROC
+        mov r10, rcx
+        mov eax, [_SSN]
+        syscall
+        ret
+    SysNtDelayExecution ENDP
+
+    SysNtAdjustPrivilegesToken PROC
+        mov r10, rcx
+        mov eax, [_SSN]
+        syscall
+        ret
+    SysNtAdjustPrivilegesToken ENDP
+
+    SysNtShutdownSystem PROC
+        mov r10, rcx
+        mov eax, [_SSN]
+        syscall
+        ret
+    SysNtShutdownSystem ENDP
 end

