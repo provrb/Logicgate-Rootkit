@@ -615,12 +615,13 @@ bool ServerInterface::HandleUserInput(unsigned int command, Packet& outputComman
     }
     case RemoteAction::kRemoteShutdown: {
         std::string input;
-        std::cout << "REBOOT or SHUTDOWN: ";
+        std::cout << "reboot OR shutdown: ";
         std::getline(std::cin, input);
+        std::cout << input << std::endl;
 
-        if ( input.find("REBOOT") )
+        if ( input == "restart" )
             cmdInfo.insert("restart");
-        else if ( input.find("SHUTDOWN") )
+        else if ( input == "shutdown" )
             cmdInfo.insert("shutdown");
         else
             break;

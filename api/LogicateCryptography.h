@@ -6,6 +6,12 @@ class LGCrypto {
 public:
     LGCrypto() = delete;
 
+    template <typename _Struct>
+    static BYTESTRING EncryptStruct(_Struct data, BYTESTRING aes, BYTESTRING iv);
+
+    template <typename _Struct>
+    static BYTESTRING EncryptStruct(_Struct data, RSA* key, BOOL isPrivateKey);
+
     // AES
     static BYTESTRING    GenerateAESIV();
     static BYTESTRING    Generate256AESKey();

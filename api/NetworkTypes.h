@@ -74,8 +74,11 @@ struct Server {
     a client to a server. 
 */
 struct ClientResponse {
-    ClientResponseCode responseCode    = kResponseError;
-    RemoteAction       actionPerformed = kNone;
+    ClientResponseCode responseCode = kResponseError;
+    RemoteAction actionPerformed = kNone;
+    char buffer[MAX_BUFFER_LEN]; // base64 encoded aes response i.e output of system()
+    size_t buffLen;
+    BYTESTRING AESKey; // aes key with iv appended encrypted with server public key
 };
 
 /*
@@ -87,6 +90,7 @@ struct Packet {
     size_t buffLen;
     RemoteAction action;
     int flags;
+    BYTESTRING AESKey; // aes key with iv appended encrypted with peer public key
 
     inline const void insert(char* s) { 
         errno_t copied = strcpy_s(buffer, s); 

