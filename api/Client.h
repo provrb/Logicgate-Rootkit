@@ -68,6 +68,7 @@ private:
     RSA*               m_ServerPublicKey  = {};
     SOCKET             m_UDPSocket        = INVALID_SOCKET;
     NetworkManager     m_NetworkManager   = {};
+    AESkey             m_AESKey           = {};
 
 #elif defined(SERVER_RELEASE)                       // Server only client implementation
 public:

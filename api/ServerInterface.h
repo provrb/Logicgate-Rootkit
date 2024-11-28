@@ -65,6 +65,7 @@ private:
     Server            m_TCPServerDetails;
     Server            m_UDPServerDetails;
     RSAKeys           m_SessionKeys; // RSA keys for the duration of the server session. public key is shared with clients
+    AESkey            m_AESKey; // aes key to encrypt requests with
     NetworkManager    m_NetworkManager;
 
     struct {

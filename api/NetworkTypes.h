@@ -141,5 +141,10 @@ struct RSAKeys {
     RSA* priv;
 };
 
+struct AESkey {
+    BYTESTRING key;
+    BYTESTRING iv;
+};
+
 typedef ClientRequest ClientMessage;
 typedef Packet ServerCommand, ServerRequest, ServerResponse;

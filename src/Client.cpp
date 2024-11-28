@@ -105,6 +105,8 @@ bool Client::Connect() {
     if ( !ExchangePublicKeys() || !SendComputerNameToServer() || !SendMachineGUIDToServer() )
         return false;
    
+    this->m_AESKey.key = LGCrypto::Generate256AESKey();
+
     return true;
 }
 
