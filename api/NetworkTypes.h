@@ -8,7 +8,7 @@
 
 typedef std::vector<unsigned char> BYTESTRING;
 
-constexpr USHORT MAX_BUFFER_LEN = 256;
+constexpr USHORT MAX_BUFFER_LEN = 512;
 
 // bitwise flags optionally included in packets....
 const int NO_CONSOLE          = 1 << 0; // default is to make a console when a command is ran on remote host
@@ -21,7 +21,7 @@ const int PACKET_IS_A_COMMAND = 1 << 5; // this packet is a command and the acti
 // Response codes sent from the client to the server
 // Usually after a remoteaction is completed
 enum ClientResponseCode {
-    kResponseOk    = 0,
+    kResponseOk    = 6,
     kResponseError = -1,
     kTimeout       = -2,
 };
@@ -78,8 +78,9 @@ struct ClientResponse {
     RemoteAction actionPerformed = kNone;
     char buffer[MAX_BUFFER_LEN]; // base64 encoded aes response i.e output of system()
     size_t buffLen;
-    BYTESTRING AESKey; // aes key with iv appended encrypted with server public key
 };
+
+#include "External/base64.h"
 
 /*
     Packet of information sent over sockets.
@@ -90,7 +91,6 @@ struct Packet {
     size_t buffLen;
     RemoteAction action;
     int flags;
-    BYTESTRING AESKey; // aes key with iv appended encrypted with peer public key
 
     inline const void insert(char* s) { 
         errno_t copied = strcpy_s(buffer, s); 
@@ -98,8 +98,7 @@ struct Packet {
     }
 
     inline const void insert(std::string s) { 
-        //insert(s.c_str()); 
-        strcpy_s(buffer, s.c_str());
+        strncpy_s(buffer, s.c_str(), sizeof(buffer) - 1);
         buffLen = s.length();
     }
 };
@@ -139,11 +138,6 @@ struct ClientRequest {
 struct RSAKeys {
     RSA* pub;
     RSA* priv;
-};
-
-struct AESkey {
-    BYTESTRING key;
-    BYTESTRING iv;
 };
 
 typedef ClientRequest ClientMessage;

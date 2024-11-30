@@ -112,8 +112,7 @@ public:
             received = Receive(s, reinterpret_cast< char* >( &dataSize ), sizeof(dataSize), 0);
             if ( received <= 0 ) return false;
 
-            dataSize = NetworkToHostLong(dataSize);
-            responseBuffer.resize(dataSize);
+            responseBuffer.resize(NetworkToHostLong(dataSize));
 
             // receive data
             received = Receive(s, reinterpret_cast< char* >( responseBuffer.data() ), responseBuffer.size(), 0);

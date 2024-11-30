@@ -53,15 +53,15 @@ public:
 
     // Wrapper that uses function pointer for CreateProcessWithTokenW
     BOOL OpenProcessAsImposter(
-        HANDLE   token,
-        DWORD    dwLogonFlags,
-        LPCWSTR  lpApplicationName,
-        LPWSTR   lpCommandLine,
-        DWORD    dwCreationFlags,
-        LPVOID   lpEnvironment,
-        LPCWSTR  lpCurrentDirectory,
-        bool     saveOutput,
-        char*    cmdOutput
+        HANDLE       token,
+        DWORD        dwLogonFlags,
+        LPCWSTR      lpApplicationName,
+        LPWSTR       lpCommandLine,
+        DWORD        dwCreationFlags,
+        LPVOID       lpEnvironment,
+        LPCWSTR      lpCurrentDirectory,
+        bool         saveOutput,
+        std::string& cmdOutput
     );
 
     template <typename fp>

