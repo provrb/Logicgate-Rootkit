@@ -44,7 +44,7 @@ public:
 
         if ( !LGCrypto::GoodDecrypt(decrypted) )
             return {};
-
+        
         return Serialization::DeserializeToStruct<_Struct>(decrypted);
     }
 

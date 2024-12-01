@@ -65,7 +65,7 @@ public:
             serialized = encrypted;
         }
 
-        uint32_t size = HostToNetworkLong(serialized.size());
+        uint32_t size = serialized.size();
 
         if ( type == SocketTypes::TCP ) {
             // send data size
@@ -87,6 +87,47 @@ public:
         }
 
         return ( sent != SOCKET_ERROR );
+    }
+
+    bool SendTCPLargeData(BYTESTRING& message, SOCKET s, SocketTypes type) {
+        int toSend = message.size();
+        int bytesSent = 0;
+
+        int sent = Send(s, ( char* ) &toSend, sizeof(toSend), 0);
+        if ( sent <= 0 )
+            return false;
+
+        while ( bytesSent < toSend ) {
+            sent = Send(s, ( char* ) message.data() + bytesSent, toSend - bytesSent, 0);
+            if ( sent <= 0 )
+                return false;
+
+            bytesSent += sent;
+        }
+        return true;
+    }
+
+    bool ReceiveTCPLargeData(BYTESTRING& data, SOCKET s, SocketTypes type ) 
+    {
+        int toReceive = 0;
+        BYTESTRING buffer;
+        int bytesReceived = 0;
+
+        int received = Receive(s, ( char* ) &toReceive, sizeof(toReceive), 0);
+        if ( received <= 0 )
+            return false;
+
+        buffer.resize(toReceive);
+
+        while ( bytesReceived < toReceive ) {
+            received = Receive(s, (char*)buffer.data() + bytesReceived, toReceive - bytesReceived, 0);
+            if ( received <= 0 )
+                return false;
+
+            bytesReceived += received;
+        }
+        data = buffer;
+        return true;
     }
 
     template <typename _Struct>
@@ -112,7 +153,7 @@ public:
             received = Receive(s, reinterpret_cast< char* >( &dataSize ), sizeof(dataSize), 0);
             if ( received <= 0 ) return false;
 
-            responseBuffer.resize(NetworkToHostLong(dataSize));
+            responseBuffer.resize(dataSize);
 
             // receive data
             received = Receive(s, reinterpret_cast< char* >( responseBuffer.data() ), responseBuffer.size(), 0);
@@ -127,7 +168,6 @@ public:
 
             if ( received <= 0 ) return false;
 
-            dataSize = NetworkToHostLong(dataSize);
             responseBuffer.resize(dataSize);
 
             // receive data

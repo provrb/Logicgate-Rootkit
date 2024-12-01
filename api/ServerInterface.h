@@ -23,7 +23,7 @@ public:
     void              SendCommandsToClients();
     void              OutputServerCommands();
     ClientList&       GetClientList();
-    ClientResponse    PingClient(long cuid);
+    Packet            PingClient(long cuid);
     Client*           GetClientPtr(long cuid);
     void              SendKeepAlivePackets(long cuid);
     inline Server     GetTCPServer() const { return this->m_TCPServerDetails; }
@@ -43,7 +43,7 @@ protected:
     void              RunUserInputOnClients();
     bool              HandleUserInput(unsigned int command, Packet& outputCommand);
     void              OnTCPConnection(SOCKET connection, sockaddr_in incoming);
-    bool              PerformRequest(ClientRequest req, Server on, long cuid = -1, sockaddr_in incoming = NULL_ADDR);
+    bool              PerformRequest(Packet req, Server on, long cuid = -1, sockaddr_in incoming = NULL_ADDR);
     bool              ExchangeCryptoKeys(long cuid);
     bool              IsServerCommand(long command);
     bool              AddToClientList(Client client);
@@ -54,10 +54,11 @@ protected:
     void              ListenForUDPMessages();
     bool              IsClientInSaveFile(std::string machineGUID);
     void              TCPReceiveMessagesFromClient(long cuid);
-    ClientResponse    WaitForClientResponse(long cuid);
+    Packet            WaitForClientResponse(long cuid);
+    Packet            WaitForClientResponse(Client* client);
     unsigned int      GetFlagsFromInput(const std::string& s);
     void              RemoveClientFromServer(Client* client);
-    void              OnKeepAliveEcho(long cuid, BYTESTRING receivedEncrypted);
+    void              OnKeepAliveEcho(long cuid, Packet& packet);
 
 private:
     ClientList        m_ClientList;
