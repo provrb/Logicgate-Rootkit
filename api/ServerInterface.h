@@ -5,8 +5,8 @@
 
 #include <mutex>
 
-using JSON         = nlohmann::json;
-using ClientList   = std::unordered_map<long, Client>;
+using JSON       = nlohmann::json;
+using ClientList = std::unordered_map<long, Client>;
 
 class ServerInterface
 {
@@ -29,21 +29,15 @@ public:
     inline Server     GetTCPServer() const { return this->m_TCPServerDetails; }
     inline Server     GetUDPServer() const { return this->m_UDPServerDetails; }
     const inline auto ReadConfig()   const { return this->m_Config; };
+    bool              IsClientInSaveFile(const std::string& machineGUID);
+    void              RemoveClientFromServer(Client* client);
 
 protected:
-    /*
-        Not actually adding a ransomware, especially since this
-        code is open-source. Though, I would approach this by using
-        some sort of BTC wallet api and assigning every client a unique
-        wallet address or message to send, check if that is in the wallet transaction history.
-
-        May be implemented someday...
-    */
     inline bool       IsRansomPaid(Client client) { return true; } // return true always. 
     void              RunUserInputOnClients();
     bool              HandleUserInput(unsigned int command, Packet& outputCommand);
     void              OnTCPConnection(SOCKET connection, sockaddr_in incoming);
-    bool              PerformRequest(Packet req, Server on, long cuid = -1, sockaddr_in incoming = NULL_ADDR);
+    bool              PerformRequest(const Packet& req, Server on, long cuid = -1, sockaddr_in incoming = NULL_ADDR);
     bool              ExchangeCryptoKeys(long cuid);
     bool              IsServerCommand(long command);
     bool              AddToClientList(Client client);
@@ -52,12 +46,10 @@ protected:
     bool              GetClientComputerName(long cuid);
     bool              GetClientMachineGUID(long cuid);
     void              ListenForUDPMessages();
-    bool              IsClientInSaveFile(std::string machineGUID);
     void              TCPReceiveMessagesFromClient(long cuid);
     Packet            WaitForClientResponse(long cuid);
     Packet            WaitForClientResponse(Client* client);
     unsigned int      GetFlagsFromInput(const std::string& s);
-    void              RemoveClientFromServer(Client* client);
     void              OnKeepAliveEcho(long cuid, Packet& packet);
 
 private:

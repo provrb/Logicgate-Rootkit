@@ -295,7 +295,7 @@ void ServerInterface::ShutdownServer(bool confirm) {
  * \param incoming - Optional sockaddr_in to send a reply back if 'on' is a UDP server
  * \return 
  */
-bool ServerInterface::PerformRequest(Packet req, Server on, long cuid, sockaddr_in incoming) {
+bool ServerInterface::PerformRequest(const Packet& req, Server on, long cuid, sockaddr_in incoming) {
     if ( !req.valid ) 
         return false;
     
@@ -627,11 +627,13 @@ void ServerInterface::SendCommandsToClients() {
 }
 
 void ServerInterface::RemoveClientFromServer(Client* client) {
-    if ( client->Alive == FALSE )
+    if ( client->Alive == FALSE || !ClientIsInClientList(client->ClientUID) )
         return;
 
     client->Alive = FALSE;
     client->Disconnect();
+
+    this->m_ClientList.erase(client->ClientUID);
 }
 
 void ServerInterface::OutputServerCommands() {
@@ -962,7 +964,7 @@ std::unordered_map<long, Client>& ServerInterface::GetClientList() {
  * \param machineGUID - the machine GUID to try and find
  * \return TRUE or FALSE whether or not the machine guid is found in the file
  */
-bool ServerInterface::IsClientInSaveFile(std::string machineGUID) {
+bool ServerInterface::IsClientInSaveFile(const std::string& machineGUID) {
     JSON file = ReadServerStateFile();
     if ( !file.empty() && file.contains("client_list") ) {
         return file["client_list"].contains(machineGUID);

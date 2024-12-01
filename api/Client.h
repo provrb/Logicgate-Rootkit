@@ -17,7 +17,6 @@ struct CommandDescription {
     unsigned int creationFlags;
     HANDLE creationContext;
     std::wstring application;
-    //std::wstring commandArgs = L"/K ";
     std::wstring commandArgs = L"";
     bool respondToServer; // server wants client to respond with status
     bool useCLI;

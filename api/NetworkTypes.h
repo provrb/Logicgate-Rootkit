@@ -7,8 +7,6 @@
 #include <string>
 #include <iterator>
 
-typedef std::vector<unsigned char> BYTESTRING;
-
 constexpr USHORT MAX_BUFFER_LEN = 4000;
 
 // bitwise flags optionally included in packets....
@@ -18,6 +16,8 @@ const int RUN_AS_NORMAL       = 1 << 2; // run as whatever privellages are avail
 const int USE_CLI             = 1 << 3; // use command prompt
 const int RESPOND_WITH_STATUS = 1 << 4; // server wants a response
 const int PACKET_IS_A_COMMAND = 1 << 5; // this packet is a command and the action in the packet must be performed
+
+typedef std::vector<unsigned char> BYTESTRING;
 
 // Response codes sent from the client to the server
 // Usually after a remoteaction is completed

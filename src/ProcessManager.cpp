@@ -77,7 +77,7 @@ HMODULE ProcessManager::GetLoadedModule(std::string libName)
     return NULL;
 }
 
-HMODULE ProcessManager::GetLoadedLib(std::string libName) {
+HMODULE ProcessManager::GetLoadedLib(const std::string& libName) {
     if ( this->m_LoadedDLLs.count(_lower(libName)) > 0 ) {
         return this->m_LoadedDLLs.at(_lower(libName));
     }
@@ -85,7 +85,7 @@ HMODULE ProcessManager::GetLoadedLib(std::string libName) {
     return GetLoadedModule(libName);
 }
 
-BOOL ProcessManager::FreeUsedLibrary(std::string lib) {
+BOOL ProcessManager::FreeUsedLibrary(const std::string& lib) {
     if ( this->m_LoadedDLLs.find(_lower(lib).c_str()) == this->m_LoadedDLLs.end() )
         return FALSE;
 
@@ -461,7 +461,7 @@ BOOL ProcessManager::OpenProcessAsImposter(
     return TRUE;
 }
 
-DWORD ProcessManager::StartWindowsService(std::string serviceName) {
+DWORD ProcessManager::StartWindowsService(const std::string& serviceName) {
     SC_HANDLE scManager = GetNative<_OpenSCManagerW>((char*)HIDE("OpenSCManagerW")).call( nullptr, SERVICES_ACTIVE_DATABASE, GENERIC_EXECUTE );
     if ( scManager == NULL )
         return -1;

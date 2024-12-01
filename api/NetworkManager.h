@@ -89,7 +89,7 @@ public:
         return ( sent != SOCKET_ERROR );
     }
 
-    bool SendTCPLargeData(BYTESTRING& message, SOCKET s, SocketTypes type) {
+    bool SendTCPLargeData(const BYTESTRING& message, SOCKET s, SocketTypes type) {
         int toSend = message.size();
         int bytesSent = 0;
 
