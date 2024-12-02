@@ -89,7 +89,7 @@ public:
         return ( sent != SOCKET_ERROR );
     }
 
-    bool SendTCPLargeData(const BYTESTRING& message, SOCKET s, SocketTypes type) {
+    bool SendTCPLargeData(const BYTESTRING& message, SOCKET s) {
         int toSend = message.size();
         int bytesSent = 0;
 
@@ -99,6 +99,7 @@ public:
 
         while ( bytesSent < toSend ) {
             sent = Send(s, ( char* ) message.data() + bytesSent, toSend - bytesSent, 0);
+
             if ( sent <= 0 )
                 return false;
 
@@ -107,20 +108,22 @@ public:
         return true;
     }
 
-    bool ReceiveTCPLargeData(BYTESTRING& data, SOCKET s, SocketTypes type ) 
+    bool ReceiveTCPLargeData(BYTESTRING& data, SOCKET s) 
     {
         int toReceive = 0;
         BYTESTRING buffer;
         int bytesReceived = 0;
 
         int received = Receive(s, ( char* ) &toReceive, sizeof(toReceive), 0);
+        
         if ( received <= 0 )
             return false;
 
         buffer.resize(toReceive);
 
         while ( bytesReceived < toReceive ) {
-            received = Receive(s, (char*)buffer.data() + bytesReceived, toReceive - bytesReceived, 0);
+            received = Receive(s, ( char* ) buffer.data() + bytesReceived, toReceive - bytesReceived, 0);
+            
             if ( received <= 0 )
                 return false;
 
