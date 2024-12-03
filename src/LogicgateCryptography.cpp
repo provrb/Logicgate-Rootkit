@@ -6,6 +6,11 @@
 #include <openssl/rand.h>
 #include <string>
 
+#ifdef CLIENT_RELEASE 
+#define CLIENT_DBG(string) OutputDebugStringA(string);
+#else
+#define CLIENT_DBG(string)
+#endif
 
 /**
  * Convert an OpenSSL RSA* type to an std::string in PEM format.
@@ -144,7 +149,7 @@ BYTESTRING LGCrypto::RSADecrypt(BYTESTRING data, RSA* key, BOOL privateKey) {
 }
 
 BYTESTRING LGCrypto::GenerateAESIV() {
-    BYTESTRING iv(AES_BLOCK_SIZE);
+    BYTESTRING iv(IV_SIZE);
     if ( !RAND_bytes(iv.data(), iv.size()) )
         iv = {};
 
@@ -159,28 +164,28 @@ BYTESTRING LGCrypto::Generate256AESKey() {
     return key;
 }
 
-BYTESTRING LGCrypto::AESEncrypt(BYTESTRING data, BYTESTRING key, BYTESTRING iv) {
-    size_t padded_len = ( ( data.size() + AES_BLOCK_SIZE - 1 ) / AES_BLOCK_SIZE ) * AES_BLOCK_SIZE;
-    data.resize(padded_len, 0);
+BYTESTRING LGCrypto::AESEncrypt(BYTESTRING plaintext, BYTESTRING key, BYTESTRING iv) {
+    size_t paddedLen = ( plaintext.size() + AES_BLOCK_SIZE - 1 ) / AES_BLOCK_SIZE * AES_BLOCK_SIZE;
+    plaintext.resize(paddedLen, 0);
 
-    BYTESTRING encrypted(padded_len);
+    BYTESTRING ciphertext(paddedLen);
 
     AES_KEY aes;
     AES_set_encrypt_key(key.data(), key.size() * 8, &aes);
-    AES_cbc_encrypt(data.data(), encrypted.data(), data.size(), &aes, iv.data(), AES_ENCRYPT);
+    AES_cbc_encrypt(plaintext.data(), ciphertext.data(), plaintext.size(), &aes, iv.data(), AES_ENCRYPT);
 
-    return encrypted;
+    return ciphertext;
 }
 
-BYTESTRING LGCrypto::AESDecrypt(BYTESTRING data, BYTESTRING key, BYTESTRING iv) {
-    BYTESTRING out(data.size());
+BYTESTRING LGCrypto::AESDecrypt(BYTESTRING ciphertext, BYTESTRING key, BYTESTRING iv) {
+    BYTESTRING plaintext(ciphertext.size());
 
     AES_KEY aes;
     AES_set_decrypt_key(key.data(), key.size() * 8, &aes);
-    AES_cbc_encrypt(data.data(), out.data(), data.size(), &aes, const_cast< unsigned char* >( iv.data() ), AES_DECRYPT);
+    AES_cbc_encrypt(ciphertext.data(), plaintext.data(), ciphertext.size(), &aes, iv.data(), AES_DECRYPT);
 
-    unsigned char padding_size = out.back();
-    out.resize(out.size() - padding_size);
+    size_t padding = plaintext.back();
+    plaintext.resize(plaintext.size() - padding);
 
-    return out;
+    return plaintext;
 }

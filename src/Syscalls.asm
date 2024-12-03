@@ -103,4 +103,11 @@
         syscall
         ret
     SysNtShutdownSystem ENDP
+
+    SysNtReadFile PROC
+        mov r10, rcx
+        mov eax, [_SSN]
+        syscall
+        ret
+    SysNtReadFile ENDP
 end

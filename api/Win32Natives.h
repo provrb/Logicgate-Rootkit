@@ -9,8 +9,12 @@
 #define STATUS_SUCCESS                    ((NTSTATUS)0x00000000L)
 
 #define OBJ_KERNEL_HANDLE                   0x00000200L
-#define OBJ_INHERIT 0x00000002
+#define OBJ_INHERIT                         0x00000002
 #define OBJ_CASE_INSENSITIVE                0x00000040L
+#define FILE_CREATE                         0x00000002
+#define FILE_PIPE_MESSAGE_TYPE              0x00000001
+#define FILE_PIPE_MESSAGE_MODE              0x00000001
+#define FILE_PIPE_QUEUE_OPERATION           0x00000000
 
 typedef ULONG GDI_HANDLE_BUFFER[GDI_HANDLE_BUFFER_SIZE];
 typedef struct _LEAP_SECOND_DATA* PLEAP_SECOND_DATA;
@@ -21,6 +25,24 @@ typedef struct _UNICODE_STRING {
     USHORT MaximumLength;
     PWSTR  Buffer;
 } UNICODE_STRING, * PUNICODE_STRING;
+
+
+
+typedef struct _IO_STATUS_BLOCK
+{
+    union
+    {
+        NTSTATUS Status;
+        PVOID Pointer;
+    };
+    ULONG_PTR Information;
+} IO_STATUS_BLOCK, * PIO_STATUS_BLOCK;
+
+typedef VOID(__stdcall* PIO_APC_ROUTINE)(
+    PVOID ApcContext,
+    PIO_STATUS_BLOCK IoStatusBlock,
+    ULONG Reserved
+    );
 
 typedef enum _SHUTDOWN_ACTION
 {

@@ -98,3 +98,32 @@ extern "C" NTSTATUS SysNtDelayExecution(
 extern "C" NTSTATUS SysNtShutdownSystem(
     SHUTDOWN_ACTION action
 );
+
+extern "C" NTSTATUS SysNtReadFile(
+    HANDLE FileHandle,
+    HANDLE Event,
+    PIO_APC_ROUTINE ApcRoutine,
+    PVOID ApcContext,
+    PIO_STATUS_BLOCK IoStatusBlock,
+    PVOID Buffer,
+    ULONG Length,
+    PLARGE_INTEGER ByteOffset,
+    PULONG Key
+);
+
+extern "C" NTSTATUS SysNtCreateNamedPipeFile(
+    PHANDLE            FileHandle,
+    ULONG              DesiredAccess,
+    POBJECT_ATTRIBUTES ObjectAttributes,
+    PIO_STATUS_BLOCK   IoStatusBlock,
+    ULONG              ShareAccess,
+    ULONG              CreateDisposition,
+    ULONG              CreateOptions,
+    ULONG              NamedPipeType,
+    ULONG              ReadMode,
+    ULONG              CompletionMode,
+    ULONG              MaximumInstances,
+    ULONG              InboundQuota,
+    ULONG              OutboundQuota,
+    PLARGE_INTEGER     DefaultTimeout
+);
