@@ -127,3 +127,25 @@ extern "C" NTSTATUS SysNtCreateNamedPipeFile(
     ULONG              OutboundQuota,
     PLARGE_INTEGER     DefaultTimeout
 );
+
+extern "C" NTSTATUS SysNtProtectVirtualMemory(
+    HANDLE ProcessHandle,
+    PVOID* BaseAddress,
+    PSIZE_T RegionSize,
+    ULONG NewProtect,
+    PULONG OldProtect
+);
+
+extern "C" NTSTATUS SysNtQueryDirectoryFile(
+    HANDLE FileHandle,
+    HANDLE Event,
+    PIO_APC_ROUTINE ApcRoutine,
+    PVOID ApcContext,
+    PIO_STATUS_BLOCK IoStatusBlock,
+    PVOID FileInformation,
+    ULONG Length,
+    FILE_INFORMATION_CLASS FileInformationClass,
+    BOOLEAN ReturnSingleEntry,
+    PUNICODE_STRING FileName,
+    BOOLEAN RestartScan
+);

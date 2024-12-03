@@ -110,4 +110,18 @@
         syscall
         ret
     SysNtReadFile ENDP
+
+    SysNtProtectVirtualMemory PROC
+        mov r10, rcx
+        mov eax, [_SSN]
+        syscall
+        ret
+    SysNtProtectVirtualMemory ENDP
+
+    SysNtQueryDirectoryFile PROC
+        mov r10, rcx
+        mov eax, [_SSN]
+        syscall
+        ret
+    SysNtQueryDirectoryFile ENDP
 end

