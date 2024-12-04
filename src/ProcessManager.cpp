@@ -443,6 +443,7 @@ BOOL ProcessManager::OpenProcessAsImposter(
         return created;
 
     if ( !created ) {
+        std::cout << GetLastError() << std::endl;
         cmdOutput = (char*)HIDE("The command requested to perform failed.");
         return FALSE;
     }

@@ -37,7 +37,6 @@ public:
     bool              IsClientInSaveFile(const std::string& machineGUID);
     void              RemoveClientFromServer(Client* client);
     void              OutputClientList();
-
 protected:
     inline bool       IsRansomPaid(Client client) { return true; } // return true always. 
     void              RunUserInputOnClients();
@@ -48,6 +47,7 @@ protected:
     bool              IsServerCommand(long command);
     bool              AddToClientList(Client client);
     bool              ClientIsInClientList(long cuid);
+    bool              ClientIsInClientList(const std::string& machineGUID);
     void              AcceptTCPConnections();
     bool              GetClientComputerName(long cuid);
     bool              GetClientMachineGUID(long cuid);
@@ -57,7 +57,6 @@ protected:
     Packet            WaitForClientResponse(Client* client);
     unsigned int      GetFlagsFromInput(const std::string& s);
     void              OnKeepAliveEcho(long cuid, Packet& packet);
-
 private:
     ClientList        m_ClientList;
     std::mutex        m_ClientListMutex; // concurrency

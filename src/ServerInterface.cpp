@@ -65,6 +65,8 @@ const std::map<std::string, PacketFlagInfo> ServerCommandFlags =
  */
 ServerInterface::ServerInterface(int UDPPort, int TCPPort) {
     this->m_ServerLogs.CreateLog(this->m_Config.serverLogPath, "server_log");
+    this->m_ServerLogs.Log("------------ SERVER SESSION STARTED ------------");
+
     this->m_TCPServerDetails = NewServerInstance(TCP, TCPPort);    
     this->m_UDPServerDetails = NewServerInstance(UDP, UDPPort);
     this->m_ServerLogs.Log("Server interfaces created (TCP and UDP)");
@@ -77,9 +79,11 @@ ServerInterface::ServerInterface(int UDPPort, int TCPPort) {
  */
 ServerInterface::~ServerInterface() {
     if ( this->m_TCPServerDetails.alive )
-        ShutdownServer(TRUE);
+        ShutdownServer(true);
 
     CleanWSA();
+    this->m_ServerLogs.Log("------------ SERVER SESSION ENDED ------------");
+    this->m_ServerLogs.CloseLog(this->m_ServerLogs.log_output_path, this->m_ServerLogs.log_output_filename);
 }
 
 /**
@@ -515,6 +519,12 @@ void ServerInterface::OnTCPConnection(SOCKET connection, sockaddr_in incoming) {
 
     GetClientComputerName(client.ClientUID);
     GetClientMachineGUID(client.ClientUID);
+    
+    //if ( ClientIsInClientList(client.GetMachineGUID()) ) {
+    //    std::cout << "Client is already connected" << std::endl;
+    //    RemoveClientFromServer(&client);
+    //    return;
+    //}
 
     if ( IsClientInSaveFile(client.GetMachineGUID()) )
         GetClientSaveFile(client.ClientUID);
@@ -634,6 +644,7 @@ void ServerInterface::RemoveClientFromServer(Client* client) {
     client->Disconnect();
 
     this->m_ClientList.erase(client->ClientUID);
+    this->m_ServerLogs.Log("A client disconnected from the TCP server. CUID: " + client->ClientUID);
 }
 
 void ServerInterface::OutputServerCommands() {
@@ -999,8 +1010,8 @@ Packet ServerInterface::PingClient(long cuid) {
 
     // send the ping to the client over tcp
     Packet pingCommand;
-    pingCommand.action = Action::kPingClient;
-    pingCommand.flags = RESPOND_WITH_STATUS | PACKET_IS_A_COMMAND;
+    pingCommand.action  = Action::kPingClient;
+    pingCommand.flags   = RESPOND_WITH_STATUS | PACKET_IS_A_COMMAND;
     pingCommand.buffLen = 0;
 
     //std::cout << "Pinging " << client->GetDesktopName() << " with " << sizeof(pingCommand) << " bytes of data." << std::endl;
@@ -1016,13 +1027,13 @@ Packet ServerInterface::PingClient(long cuid) {
     Packet response = WaitForClientResponse(client);
     //auto end = std::chrono::high_resolution_clock::now();
     
-    if ( response.code == ClientResponseCode::kTimeout ) {
+    if ( response.code == ClientResponseCode::kTimeout )
         //std::cout << "- Request timed out." << std::endl;
         return {};
-    } else if ( response.code == ClientResponseCode::kResponseError ) {
+    else if ( response.code == ClientResponseCode::kResponseError )
         //std::cout << "- Request failed." << std::endl;
         return {};
-    }
+    
 
     //std::cout << "- Reply from " << client->GetDesktopName() << ". Code " << response.code << ". ";
 
@@ -1043,6 +1054,15 @@ Packet ServerInterface::PingClient(long cuid) {
 bool ServerInterface::ClientIsInClientList(long cuid) {
     return GetClientList().contains(cuid);
 }
+
+bool ServerInterface::ClientIsInClientList(const std::string& machineGUID) {
+    for ( auto& [cuid, host] : this->m_ClientList )
+        if ( host.GetMachineGUID() == machineGUID )
+            return true;
+    
+    return false;
+}
+
 
 /**
  * Add a client to the servers client list.

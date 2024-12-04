@@ -28,10 +28,7 @@ public:
 			if ( sLogFilePath.size() > _MAX_PATH )
 				throw std::runtime_error("ERROR: Path is longer than 260 characters: " + sLogFilePath);
 			else
-			{
 				std::ofstream LogFile(sLogFilePath, std::ios::app);
-			}
-
 		}
 		else
 			throw std::invalid_argument("ERROR1012: File or directory not found: " + Logs::log_output_path);
