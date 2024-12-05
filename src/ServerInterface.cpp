@@ -446,7 +446,6 @@ void ServerInterface::TCPReceiveMessagesFromClient(long cuid) {
         BYTESTRING encrypted;
         Packet     packet = {0};
 
-        //bool received = m_NetworkManager.ReceiveData(encrypted, client->GetSocket(), TCP);
         bool received = m_NetworkManager.ReceiveTCPLargeData(encrypted, client->GetSocket());
         if ( !received )
             continue;

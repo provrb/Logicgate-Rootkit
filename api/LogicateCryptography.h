@@ -5,6 +5,12 @@
 
 constexpr int IV_SIZE = 16;
 constexpr int KEY_SIZE = 32;
+constexpr int RSA_2048_DIGEST_BITS = 256; 
+
+struct RSAKeys {
+    RSA* pub;
+    RSA* priv;
+};
 
 class LGCrypto {
 public:

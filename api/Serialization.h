@@ -22,7 +22,7 @@ namespace Serialization {
         return serialized;
     }
 
-    std::string       BytestringToString(BYTESTRING in);
+    std::string       BytestringToString(const BYTESTRING& in);
     BYTESTRING        SerializeString(std::string s);
 
 }

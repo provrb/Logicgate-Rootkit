@@ -93,11 +93,4 @@ struct Packet {
 };
 #pragma pack(pop, 0)
 
-struct RSAKeys {
-    RSA* pub;
-    RSA* priv;
-};
-
-
-
 typedef Packet ServerCommand, ServerRequest, ServerResponse;
