@@ -4,10 +4,6 @@
 
 #include <vector>
 
-#ifdef CLIENT_RELEASE
-#pragma comment (lib, "ws2_32.lib")
-#endif
-
 NetworkManager::NetworkManager() {
     if ( this->m_WSAInitialized )
         return;

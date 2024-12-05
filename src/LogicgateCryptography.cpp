@@ -1,6 +1,9 @@
 #include "LogicateCryptography.h"
 #include "Serialization.h"
 
+#define OPENSSL_SUPPRESS_DEPRECATED
+#define OPENSSL_API_COMPAT 0x30000000L
+
 #include <openssl/pem.h>
 #include <openssl/aes.h>
 #include <openssl/rand.h>

