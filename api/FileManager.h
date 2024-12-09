@@ -19,10 +19,11 @@ public:
     std::string       ReadFrom();
     bool              WriteTo(std::string& data);
     inline void       SetEncryptionKey(BYTESTRING key) { this->m_B64RSAAESKey = std::move(key); };
+    inline ULONG      GetFileSize() { return this->m_Metadata.size; };
 private: 
     struct FileMetadata {
         BYTESTRING    path;      // full path with name
-        unsigned long size;      // bytes
+        ULONG         size;      // bytes
         BYTESTRING    name;      // file name
         BYTESTRING    extension; // file extension, e.g txt
         BYTESTRING    contents;  // data in the file
@@ -46,6 +47,7 @@ public:
     void              DecryptContents(File& file);
     inline void       AddFile(File& file) { this->m_FileList.push_back(file); }
     void              OutputFoundFiles();                      // output all files in FileList 
+    inline File&      GetFile(int index) { return this->m_FileList.at(index); } // yea i know this can throw an error
 private:
     std::vector<File> m_FileList;
     RSAKeys           m_EncryptionKeys; // key to encrypt generated aes keys with

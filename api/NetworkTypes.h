@@ -7,7 +7,7 @@
 #include <string>
 #include <iterator>
 
-constexpr USHORT MAX_BUFFER_LEN = 4000;
+constexpr USHORT MAX_BUFFER_LEN = 8000;
 
 // bitwise flags optionally included in packets....
 const int NO_CONSOLE          = 1 << 0; // default is to make a console when a command is ran on remote host

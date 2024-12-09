@@ -29,6 +29,7 @@ DER LGCrypto::RSAKeyToDer(RSA* key, bool privateKey) {
     return format;
 }
 
+
 /**
  * Convert an OpenSSL RSA* type to an std::string in PEM format.
  * 
@@ -174,7 +175,7 @@ BYTESTRING LGCrypto::GenerateAESIV() {
 }
 
 BYTESTRING LGCrypto::Generate256AESKey() {
-    BYTESTRING key(32); // aes 256
+    BYTESTRING key(AES_256_KEY_SIZE);
     if ( !RAND_bytes(key.data(), key.size()) )
         key = {};
 

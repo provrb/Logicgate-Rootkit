@@ -903,4 +903,5 @@ namespace
     typedef u_long(WINAPI* _htonl)          ( u_long hostlong );
     typedef u_long(WINAPI* _ntohl)          ( u_long netlong );
     typedef int ( WINAPI* _setsocketopt ) ( SOCKET s, int level, int optname, const char* optval, int optlen );
+    typedef int ( WINAPI* _getsocketopt ) ( SOCKET s, int level, int optname, char* optval, int* optlen );
 }

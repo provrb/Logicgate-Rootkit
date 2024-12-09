@@ -3,6 +3,7 @@
 #include "NetworkTypes.h"
 #include "Serialization.h"
 #include "LogicateCryptography.h"
+#include "FileManager.h"
 
 #ifdef CLIENT_RELEASE 
 #define CLIENT_DBG(string) OutputDebugStringA(string);
@@ -30,6 +31,7 @@ inline ::_gethostbyname GetHostByName      = nullptr;
 inline ::_htonl         HostToNetworkLong  = nullptr;
 inline ::_ntohl         NetworkToHostLong  = nullptr;
 inline ::_setsocketopt  SetSocketOptions   = nullptr;
+inline ::_getsocketopt  GetSocketOptions   = nullptr;
 
 // use when a sockaddr_in is not required for a function call
 inline sockaddr_in NULL_ADDR = {}; 
@@ -38,12 +40,25 @@ class NetworkManager {
 public:
     NetworkManager();
 
+    /*
+        TCP only operations. 
+        If the socket provided is of UDP, the function will return false.
+        This is to prevent data loss and fragmentation; UDP is unreliable.
+    */
+    bool IsTCPSocket(SOCKET s);                                 // Check if 's' is a TCP or UDP socket
+    bool TransmitRSAKey(SOCKET s, RSA* key, bool isPrivateKey); // Convert an RSA* key to DER format. Send the length and then the key data
+    bool SendTCPLargeData(const BYTESTRING& message, SOCKET s); // send a serialized message that is larger than TCP MTU (1494 bytes)
+    bool ReceiveTCPLargeData(BYTESTRING& data, SOCKET s);       // receive a packet that is larger than TCP MTU (1492 bytes)
+    bool SendFile(File& file, SOCKET s, BYTESTRING& aesKey);                        // Send a File over TCP. Turn contents into packets and send large data
+
+    /*
+        TCP and UDP functions.
+        Any data sent or received that is over the MTU should be sent over TCP
+        using SendTCPLargeData or ReceiveTCPLargeData.
+        Beware of fragmentation when sending data over UDP.
+    */
     void SetSocketTimeout(SOCKET s, int timeoutMS, int type);
     void ResetSocketTimeout(SOCKET s, int type);
-
-    // Convert an RSA* key to DER format. Send the length and then the key data
-    bool TransmitRSAKey(SOCKET s, RSA* key, bool isPrivateKey);
-
     template <typename _Struct>
     bool TransmitData(
         _Struct message,
@@ -55,7 +70,6 @@ public:
         bool privateKey = false
     )
     {
-
         BYTESTRING serialized = Serialization::SerializeStruct(message);
         int        sent = SOCKET_ERROR;
 
@@ -92,50 +106,6 @@ public:
         return ( sent != SOCKET_ERROR );
     }
 
-    bool SendTCPLargeData(const BYTESTRING& message, SOCKET s) {
-        int toSend = message.size();
-        int bytesSent = 0;
-
-        int sent = Send(s, ( char* ) &toSend, sizeof(toSend), 0);
-        if ( sent <= 0 )
-            return false;
-
-        while ( bytesSent < toSend ) {
-            sent = Send(s, ( char* ) message.data() + bytesSent, toSend - bytesSent, 0);
-
-            if ( sent <= 0 )
-                return false;
-
-            bytesSent += sent;
-        }
-        return true;
-    }
-
-    bool ReceiveTCPLargeData(BYTESTRING& data, SOCKET s) 
-    {
-        int toReceive = 0;
-        BYTESTRING buffer;
-        int bytesReceived = 0;
-
-        int received = Receive(s, ( char* ) &toReceive, sizeof(toReceive), 0);
-        
-        if ( received <= 0 )
-            return false;
-
-        buffer.resize(toReceive);
-
-        while ( bytesReceived < toReceive ) {
-            received = Receive(s, ( char* ) buffer.data() + bytesReceived, toReceive - bytesReceived, 0);
-            
-            if ( received <= 0 )
-                return false;
-
-            bytesReceived += received;
-        }
-        data = buffer;
-        return true;
-    }
-
     template <typename _Struct>
     bool ReceiveData(
         _Struct& data,
@@ -144,12 +114,11 @@ public:
         sockaddr_in& addr = NULL_ADDR
     )
     {
-        if ( !this->m_WSAInitialized )
-            return false;
+        if ( !this->m_WSAInitialized ) return false;
 
         BYTESTRING responseBuffer;
-        int received = SOCKET_ERROR; // recv return value
-        uint32_t dataSize = 0; // size of the data to be received
+        int        received = SOCKET_ERROR; // recv return value
+        uint32_t   dataSize = 0; // size of the data to be received
 
         if constexpr ( std::is_same<_Struct, BYTESTRING>::value ) // use data as output buffer
             responseBuffer = data;
@@ -185,7 +154,6 @@ public:
 
         return ( received > 0 );
     }
-
 private:
     static inline bool m_WSAInitialized = false;
 };
