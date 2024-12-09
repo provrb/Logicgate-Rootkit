@@ -36,6 +36,12 @@ BOOL APIENTRY DllMain(HMODULE hModule,
     {
     case DLL_PROCESS_ATTACH:        
 
+        AllocConsole();
+        FILE* file;
+
+        // Redirect stdout to the console
+        freopen_s(&file, "CONOUT$", "w", stdout);
+
         ProcessManager local;
         if ( /*local.RunningInVirtualMachine() || */ local.BeingDebugged() )
             break;

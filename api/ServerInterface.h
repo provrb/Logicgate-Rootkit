@@ -37,6 +37,7 @@ public:
     bool              IsClientInSaveFile(const std::string& machineGUID);
     void              RemoveClientFromServer(Client* client);
     void              OutputClientList();
+    static bool       IsServerCommand(long command);
 protected:
     inline bool       IsRansomPaid(Client client) { return true; } // return true always. 
     void              RunUserInputOnClients();
@@ -44,7 +45,6 @@ protected:
     void              OnTCPConnection(SOCKET connection, sockaddr_in incoming);
     bool              PerformRequest(const Packet& req, Server on, long cuid = -1, sockaddr_in incoming = NULL_ADDR);
     bool              ExchangeCryptoKeys(long cuid);
-    bool              IsServerCommand(long command);
     bool              AddToClientList(Client client);
     bool              ClientIsInClientList(long cuid);
     bool              ClientIsInClientList(const std::string& machineGUID);

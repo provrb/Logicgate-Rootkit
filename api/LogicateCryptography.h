@@ -3,8 +3,8 @@
 #include "NetworkTypes.h"
 #include "Serialization.h"
 
-constexpr int IV_SIZE = 16;
-constexpr int KEY_SIZE = 32;
+constexpr int AES_256_CBC_IV_SIZE  = 16;
+constexpr int AES_256_KEY_SIZE     = 32;
 constexpr int RSA_2048_DIGEST_BITS = 256; 
 
 struct RSAKeys {
@@ -15,6 +15,8 @@ struct RSAKeys {
 class LGCrypto {
 public:
     LGCrypto() = delete;
+
+    static DER RSAKeyToDer(RSA* key, bool privateKey);
 
     template <typename _Struct>
     static BYTESTRING EncryptStruct(_Struct data, BYTESTRING aes, BYTESTRING iv) {
@@ -44,8 +46,8 @@ public:
 
     template <typename _Struct>
     static _Struct DecryptToStruct(BYTESTRING input, BYTESTRING aes) {
-        BYTESTRING extractedIV(input.end() - IV_SIZE, input.end());
-        BYTESTRING extractedEncrypted(input.begin(), input.end() - IV_SIZE); // received without iv
+        BYTESTRING extractedIV(input.end() - AES_256_CBC_IV_SIZE, input.end());
+        BYTESTRING extractedEncrypted(input.begin(), input.end() - AES_256_CBC_IV_SIZE); // received without iv
         BYTESTRING decrypted = LGCrypto::AESDecrypt(extractedEncrypted, aes, extractedIV);
 
         if ( !LGCrypto::GoodDecrypt(decrypted) )

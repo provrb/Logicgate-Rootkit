@@ -41,6 +41,9 @@ public:
     void SetSocketTimeout(SOCKET s, int timeoutMS, int type);
     void ResetSocketTimeout(SOCKET s, int type);
 
+    // Convert an RSA* key to DER format. Send the length and then the key data
+    bool TransmitRSAKey(SOCKET s, RSA* key, bool isPrivateKey);
+
     template <typename _Struct>
     bool TransmitData(
         _Struct message,

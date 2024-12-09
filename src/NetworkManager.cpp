@@ -4,6 +4,20 @@
 
 #include <vector>
 
+bool NetworkManager::TransmitRSAKey(SOCKET s, RSA* key, bool isPrivateKey) {
+    if ( !key )
+        return false;
+
+    DER format = LGCrypto::RSAKeyToDer(key, isPrivateKey);
+    if ( Send(s, ( char* ) &format.len, sizeof(format.len), 0) <= 0 )
+        return false;
+    
+    if ( Send(s, ( char* ) format.data, format.len, 0) <= 0 )
+        return false;
+
+    return true;
+}
+
 NetworkManager::NetworkManager() {
     if ( this->m_WSAInitialized )
         return;

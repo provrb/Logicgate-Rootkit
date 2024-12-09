@@ -19,6 +19,12 @@ const int PACKET_IS_A_COMMAND = 1 << 5; // this packet is a command and the acti
 
 typedef std::vector<unsigned char> BYTESTRING;
 
+// RSA Der format
+struct DER {
+    unsigned char* data = NULL;
+    int len = 0;
+};
+
 // Response codes sent from the client to the server
 // Usually after a remoteaction is completed
 enum ClientResponseCode {
