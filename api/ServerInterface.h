@@ -5,7 +5,7 @@
 #endif
 
 #include "Client.h"
-#include "External/json.hpp"
+#include "ext/json.hpp"
 #include "Logging.hpp"
 
 #include <mutex>

@@ -1,6 +1,6 @@
 #include "NetworkManager.h"
 #include "ProcessManager.h"
-#include "External/obfuscate.h"
+#include "ext/obfuscate.h"
 
 #include <vector>
 

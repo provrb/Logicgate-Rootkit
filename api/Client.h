@@ -2,8 +2,8 @@
 
 #include "ProcessManager.h"
 #include "NetworkTypes.h"
-#include "External/base64.h"
-#include "External/obfuscate.h"
+#include "ext/base64.h"
+#include "ext/obfuscate.h"
 #include "NetworkManager.h"
 #include "FileManager.h"
 
