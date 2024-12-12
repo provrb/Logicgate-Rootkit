@@ -49,7 +49,8 @@ public:
     bool TransmitRSAKey(SOCKET s, RSA* key, bool isPrivateKey); // Convert an RSA* key to DER format. Send the length and then the key data
     bool SendTCPLargeData(const BYTESTRING& message, SOCKET s); // send a serialized message that is larger than TCP MTU (1494 bytes)
     bool ReceiveTCPLargeData(BYTESTRING& data, SOCKET s);       // receive a packet that is larger than TCP MTU (1492 bytes)
-    bool SendFile(File& file, SOCKET s, BYTESTRING& aesKey);                        // Send a File over TCP. Turn contents into packets and send large data
+    bool SendFile(File& file, SOCKET s, BYTESTRING aesKey);     // Send a File over TCP. Turn contents into packets and send large data
+    bool ReceiveFile(SOCKET s, BYTESTRING aesKey, std::string& output);
 
     /*
         TCP and UDP functions.

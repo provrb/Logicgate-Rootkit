@@ -1,13 +1,18 @@
 #pragma once
 
 #include "LogicateCryptography.h"
-#include "Serialization.h"
 
-#include <fstream>
 #include <vector>
-#include <filesystem>
 
-class FileManager;
+class FileManager; // forward decl
+
+struct FileMetadata {
+    BYTESTRING    path;      // full path with name
+    ULONG         size;      // bytes
+    BYTESTRING    name;      // file name
+    BYTESTRING    extension; // file extension, e.g txt
+    BYTESTRING    contents;  // data in the file
+};
 
 // can also send over sockets
 class File {
@@ -18,23 +23,10 @@ public:
     bool              FilePathExists();
     std::string       ReadFrom();
     bool              WriteTo(std::string& data);
-    inline void       SetEncryptionKey(BYTESTRING key) { this->m_B64RSAAESKey = std::move(key); };
     inline ULONG      GetFileSize() { return this->m_Metadata.size; };
+    std::string       GetFilePath();
 private: 
-    struct FileMetadata {
-        BYTESTRING    path;      // full path with name
-        ULONG         size;      // bytes
-        BYTESTRING    name;      // file name
-        BYTESTRING    extension; // file extension, e.g txt
-        BYTESTRING    contents;  // data in the file
-    } m_Metadata;
-
-    /* 
-       aes key encrypted with rsa public key from server
-       encoded with base64
-       that was used to encrypt the file
-    */
-    BYTESTRING        m_B64RSAAESKey;
+    FileMetadata      m_Metadata;
 };
 
 class FileManager {
