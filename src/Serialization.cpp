@@ -17,6 +17,6 @@ BYTESTRING Serialization::SerializeString(std::string s) {
  * \param in - the BYTESTRING to convert
  * \return 'in' as an std::string 
  */
-std::string Serialization::BytestringToString(BYTESTRING in) {
+std::string Serialization::BytestringToString(const BYTESTRING& in) {
     return std::string(in.begin(), in.end());
 }

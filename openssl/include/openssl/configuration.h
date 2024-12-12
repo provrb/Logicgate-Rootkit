@@ -30,7 +30,7 @@ extern "C" {
 # ifndef OPENSSL_SYS_WIN64A
 #  define OPENSSL_SYS_WIN64A 1
 # endif
-# define OPENSSL_CONFIGURED_API 30500
+# define OPENSSL_CONFIGURED_API 30400
 # ifndef OPENSSL_RAND_SEED_OS
 #  define OPENSSL_RAND_SEED_OS
 # endif
@@ -63,6 +63,18 @@ extern "C" {
 # endif
 # ifndef OPENSSL_NO_DEVCRYPTOENG
 #  define OPENSSL_NO_DEVCRYPTOENG
+# endif
+# ifndef OPENSSL_NO_DGRAM
+#  define OPENSSL_NO_DGRAM
+# endif
+# ifndef OPENSSL_NO_DTLS
+#  define OPENSSL_NO_DTLS
+# endif
+# ifndef OPENSSL_NO_DTLS1
+#  define OPENSSL_NO_DTLS1
+# endif
+# ifndef OPENSSL_NO_DTLS1_2
+#  define OPENSSL_NO_DTLS1_2
 # endif
 # ifndef OPENSSL_NO_EC_NISTP_64_GCC_128
 #  define OPENSSL_NO_EC_NISTP_64_GCC_128
@@ -106,11 +118,20 @@ extern "C" {
 # ifndef OPENSSL_NO_PIE
 #  define OPENSSL_NO_PIE
 # endif
+# ifndef OPENSSL_NO_QLOG
+#  define OPENSSL_NO_QLOG
+# endif
+# ifndef OPENSSL_NO_QUIC
+#  define OPENSSL_NO_QUIC
+# endif
 # ifndef OPENSSL_NO_RC5
 #  define OPENSSL_NO_RC5
 # endif
 # ifndef OPENSSL_NO_SCTP
 #  define OPENSSL_NO_SCTP
+# endif
+# ifndef OPENSSL_NO_SOCK
+#  define OPENSSL_NO_SOCK
 # endif
 # ifndef OPENSSL_NO_SSL3
 #  define OPENSSL_NO_SSL3
@@ -129,6 +150,9 @@ extern "C" {
 # endif
 # ifndef OPENSSL_NO_UNIT_TEST
 #  define OPENSSL_NO_UNIT_TEST
+# endif
+# ifndef OPENSSL_NO_UNSTABLE_QLOG
+#  define OPENSSL_NO_UNSTABLE_QLOG
 # endif
 # ifndef OPENSSL_NO_UPLINK
 #  define OPENSSL_NO_UPLINK

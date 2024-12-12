@@ -1,6 +1,6 @@
 #include "ProcessManager.h"
 #include "Syscalls.h"
-#include "External/obfuscate.h"
+#include "ext/obfuscate.h"
 
 #include <array>
 #include <random>

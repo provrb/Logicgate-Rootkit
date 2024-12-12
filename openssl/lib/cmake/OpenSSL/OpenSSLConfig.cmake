@@ -89,7 +89,7 @@ if(_ossl_use_static_libs)
   add_library(OpenSSL::SSL STATIC IMPORTED)
 
   set(OPENSSL_LIBCRYPTO_STATIC "${OPENSSL_LIBRARY_DIR}/libcrypto.lib")
-  set(OPENSSL_LIBCRYPTO_DEPENDENCIES ws2_32.lib gdi32.lib advapi32.lib crypt32.lib user32.lib)
+  set(OPENSSL_LIBCRYPTO_DEPENDENCIES gdi32.lib advapi32.lib crypt32.lib user32.lib)
   set_target_properties(OpenSSL::Crypto PROPERTIES
     IMPORTED_LINK_INTERFACE_LANGUAGES "C"
     IMPORTED_LOCATION ${OPENSSL_LIBCRYPTO_STATIC})

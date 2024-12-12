@@ -1494,46 +1494,6 @@ SKM_DEFINE_STACK_OF_INTERNAL(USERNOTICE, USERNOTICE, USERNOTICE)
 #define sk_USERNOTICE_set_cmp_func(sk, cmp) ((sk_USERNOTICE_compfunc)OPENSSL_sk_set_cmp_func(ossl_check_USERNOTICE_sk_type(sk), ossl_check_USERNOTICE_compfunc_type(cmp)))
 
 
-typedef struct OSSL_ROLE_SPEC_CERT_ID_st {
-    GENERAL_NAME *roleName;
-    GENERAL_NAME *roleCertIssuer;
-    ASN1_INTEGER *roleCertSerialNumber;
-    GENERAL_NAMES *roleCertLocator;
-} OSSL_ROLE_SPEC_CERT_ID;
-
-DECLARE_ASN1_FUNCTIONS(OSSL_ROLE_SPEC_CERT_ID)
-SKM_DEFINE_STACK_OF_INTERNAL(OSSL_ROLE_SPEC_CERT_ID, OSSL_ROLE_SPEC_CERT_ID, OSSL_ROLE_SPEC_CERT_ID)
-#define sk_OSSL_ROLE_SPEC_CERT_ID_num(sk) OPENSSL_sk_num(ossl_check_const_OSSL_ROLE_SPEC_CERT_ID_sk_type(sk))
-#define sk_OSSL_ROLE_SPEC_CERT_ID_value(sk, idx) ((OSSL_ROLE_SPEC_CERT_ID *)OPENSSL_sk_value(ossl_check_const_OSSL_ROLE_SPEC_CERT_ID_sk_type(sk), (idx)))
-#define sk_OSSL_ROLE_SPEC_CERT_ID_new(cmp) ((STACK_OF(OSSL_ROLE_SPEC_CERT_ID) *)OPENSSL_sk_new(ossl_check_OSSL_ROLE_SPEC_CERT_ID_compfunc_type(cmp)))
-#define sk_OSSL_ROLE_SPEC_CERT_ID_new_null() ((STACK_OF(OSSL_ROLE_SPEC_CERT_ID) *)OPENSSL_sk_new_null())
-#define sk_OSSL_ROLE_SPEC_CERT_ID_new_reserve(cmp, n) ((STACK_OF(OSSL_ROLE_SPEC_CERT_ID) *)OPENSSL_sk_new_reserve(ossl_check_OSSL_ROLE_SPEC_CERT_ID_compfunc_type(cmp), (n)))
-#define sk_OSSL_ROLE_SPEC_CERT_ID_reserve(sk, n) OPENSSL_sk_reserve(ossl_check_OSSL_ROLE_SPEC_CERT_ID_sk_type(sk), (n))
-#define sk_OSSL_ROLE_SPEC_CERT_ID_free(sk) OPENSSL_sk_free(ossl_check_OSSL_ROLE_SPEC_CERT_ID_sk_type(sk))
-#define sk_OSSL_ROLE_SPEC_CERT_ID_zero(sk) OPENSSL_sk_zero(ossl_check_OSSL_ROLE_SPEC_CERT_ID_sk_type(sk))
-#define sk_OSSL_ROLE_SPEC_CERT_ID_delete(sk, i) ((OSSL_ROLE_SPEC_CERT_ID *)OPENSSL_sk_delete(ossl_check_OSSL_ROLE_SPEC_CERT_ID_sk_type(sk), (i)))
-#define sk_OSSL_ROLE_SPEC_CERT_ID_delete_ptr(sk, ptr) ((OSSL_ROLE_SPEC_CERT_ID *)OPENSSL_sk_delete_ptr(ossl_check_OSSL_ROLE_SPEC_CERT_ID_sk_type(sk), ossl_check_OSSL_ROLE_SPEC_CERT_ID_type(ptr)))
-#define sk_OSSL_ROLE_SPEC_CERT_ID_push(sk, ptr) OPENSSL_sk_push(ossl_check_OSSL_ROLE_SPEC_CERT_ID_sk_type(sk), ossl_check_OSSL_ROLE_SPEC_CERT_ID_type(ptr))
-#define sk_OSSL_ROLE_SPEC_CERT_ID_unshift(sk, ptr) OPENSSL_sk_unshift(ossl_check_OSSL_ROLE_SPEC_CERT_ID_sk_type(sk), ossl_check_OSSL_ROLE_SPEC_CERT_ID_type(ptr))
-#define sk_OSSL_ROLE_SPEC_CERT_ID_pop(sk) ((OSSL_ROLE_SPEC_CERT_ID *)OPENSSL_sk_pop(ossl_check_OSSL_ROLE_SPEC_CERT_ID_sk_type(sk)))
-#define sk_OSSL_ROLE_SPEC_CERT_ID_shift(sk) ((OSSL_ROLE_SPEC_CERT_ID *)OPENSSL_sk_shift(ossl_check_OSSL_ROLE_SPEC_CERT_ID_sk_type(sk)))
-#define sk_OSSL_ROLE_SPEC_CERT_ID_pop_free(sk, freefunc) OPENSSL_sk_pop_free(ossl_check_OSSL_ROLE_SPEC_CERT_ID_sk_type(sk),ossl_check_OSSL_ROLE_SPEC_CERT_ID_freefunc_type(freefunc))
-#define sk_OSSL_ROLE_SPEC_CERT_ID_insert(sk, ptr, idx) OPENSSL_sk_insert(ossl_check_OSSL_ROLE_SPEC_CERT_ID_sk_type(sk), ossl_check_OSSL_ROLE_SPEC_CERT_ID_type(ptr), (idx))
-#define sk_OSSL_ROLE_SPEC_CERT_ID_set(sk, idx, ptr) ((OSSL_ROLE_SPEC_CERT_ID *)OPENSSL_sk_set(ossl_check_OSSL_ROLE_SPEC_CERT_ID_sk_type(sk), (idx), ossl_check_OSSL_ROLE_SPEC_CERT_ID_type(ptr)))
-#define sk_OSSL_ROLE_SPEC_CERT_ID_find(sk, ptr) OPENSSL_sk_find(ossl_check_OSSL_ROLE_SPEC_CERT_ID_sk_type(sk), ossl_check_OSSL_ROLE_SPEC_CERT_ID_type(ptr))
-#define sk_OSSL_ROLE_SPEC_CERT_ID_find_ex(sk, ptr) OPENSSL_sk_find_ex(ossl_check_OSSL_ROLE_SPEC_CERT_ID_sk_type(sk), ossl_check_OSSL_ROLE_SPEC_CERT_ID_type(ptr))
-#define sk_OSSL_ROLE_SPEC_CERT_ID_find_all(sk, ptr, pnum) OPENSSL_sk_find_all(ossl_check_OSSL_ROLE_SPEC_CERT_ID_sk_type(sk), ossl_check_OSSL_ROLE_SPEC_CERT_ID_type(ptr), pnum)
-#define sk_OSSL_ROLE_SPEC_CERT_ID_sort(sk) OPENSSL_sk_sort(ossl_check_OSSL_ROLE_SPEC_CERT_ID_sk_type(sk))
-#define sk_OSSL_ROLE_SPEC_CERT_ID_is_sorted(sk) OPENSSL_sk_is_sorted(ossl_check_const_OSSL_ROLE_SPEC_CERT_ID_sk_type(sk))
-#define sk_OSSL_ROLE_SPEC_CERT_ID_dup(sk) ((STACK_OF(OSSL_ROLE_SPEC_CERT_ID) *)OPENSSL_sk_dup(ossl_check_const_OSSL_ROLE_SPEC_CERT_ID_sk_type(sk)))
-#define sk_OSSL_ROLE_SPEC_CERT_ID_deep_copy(sk, copyfunc, freefunc) ((STACK_OF(OSSL_ROLE_SPEC_CERT_ID) *)OPENSSL_sk_deep_copy(ossl_check_const_OSSL_ROLE_SPEC_CERT_ID_sk_type(sk), ossl_check_OSSL_ROLE_SPEC_CERT_ID_copyfunc_type(copyfunc), ossl_check_OSSL_ROLE_SPEC_CERT_ID_freefunc_type(freefunc)))
-#define sk_OSSL_ROLE_SPEC_CERT_ID_set_cmp_func(sk, cmp) ((sk_OSSL_ROLE_SPEC_CERT_ID_compfunc)OPENSSL_sk_set_cmp_func(ossl_check_OSSL_ROLE_SPEC_CERT_ID_sk_type(sk), ossl_check_OSSL_ROLE_SPEC_CERT_ID_compfunc_type(cmp)))
-
-
-typedef STACK_OF(OSSL_ROLE_SPEC_CERT_ID) OSSL_ROLE_SPEC_CERT_ID_SYNTAX;
-
-DECLARE_ASN1_FUNCTIONS(OSSL_ROLE_SPEC_CERT_ID_SYNTAX)
-
 # ifdef  __cplusplus
 }
 # endif

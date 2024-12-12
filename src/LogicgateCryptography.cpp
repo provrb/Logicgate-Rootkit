@@ -1,6 +1,9 @@
 #include "LogicateCryptography.h"
 #include "Serialization.h"
 
+#define OPENSSL_SUPPRESS_DEPRECATED
+#define OPENSSL_API_COMPAT 0x30000000L
+
 #include <openssl/pem.h>
 #include <openssl/aes.h>
 #include <openssl/rand.h>
@@ -11,6 +14,21 @@
 #else
 #define CLIENT_DBG(string)
 #endif
+
+DER LGCrypto::RSAKeyToDer(RSA* key, bool privateKey) {
+    DER format;
+    format.data = NULL;
+
+    if ( !privateKey )
+        format.len = i2d_RSAPublicKey(key, nullptr);
+    else
+        format.len = i2d_RSAPrivateKey(key, nullptr);
+
+    (!privateKey) ? i2d_RSAPublicKey(key, &format.data) : i2d_RSAPrivateKey(key, &format.data);
+    
+    return format;
+}
+
 
 /**
  * Convert an OpenSSL RSA* type to an std::string in PEM format.
@@ -149,7 +167,7 @@ BYTESTRING LGCrypto::RSADecrypt(BYTESTRING data, RSA* key, BOOL privateKey) {
 }
 
 BYTESTRING LGCrypto::GenerateAESIV() {
-    BYTESTRING iv(IV_SIZE);
+    BYTESTRING iv(AES_256_CBC_IV_SIZE);
     if ( !RAND_bytes(iv.data(), iv.size()) )
         iv = {};
 
@@ -157,7 +175,7 @@ BYTESTRING LGCrypto::GenerateAESIV() {
 }
 
 BYTESTRING LGCrypto::Generate256AESKey() {
-    BYTESTRING key(32); // aes 256
+    BYTESTRING key(AES_256_KEY_SIZE);
     if ( !RAND_bytes(key.data(), key.size()) )
         key = {};
 

