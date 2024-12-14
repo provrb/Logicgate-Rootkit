@@ -10,9 +10,9 @@ void SignalHandler(int signal) {
 }
 
 int main() {
-    ServerInterface server(5454, 4820); // make a tcp server on port 5454 and start it
-    
     signal(SIGINT, SignalHandler);
+
+    ServerInterface server(5454, 4820); // make a tcp server on port 5454 and start it
 
     Server tcp = server.GetTCPServer();
     Server udp = server.GetUDPServer();
