@@ -1,5 +1,5 @@
 
-# 'Logicgate', a User-Mode Rootkit 
+# 'REACT' a user-mode rootkit, RAT, and ransomware
 _This article is still a WIP._
 
 _Disclaimer: This project was made for educational and ethical purposes. This article was written
@@ -7,8 +7,8 @@ to inform computer users, Software Engineers, Cybersecurity Analysts, and others
 multiple vulnerabilities to create a sophisticated piece of malware, and my explanation on how to prevent these vulnerabilities._
 
 ## Summary
-This project is a remote access trojan that uses both TCP and UDP sockets for communication.
-The payload is inside of a DLL that impersonates Microsofts
+This project is a remote access Trojan-ransomware that uses both TCP and UDP sockets for communication.
+The payload is inside of a DLL that impersonates Microsoft's
 legitimate "mlang.dll" to bypass UAC and escalate privileges when paired with
 a System32 mock directory alongside DLL hijacking.
 
@@ -22,15 +22,16 @@ Afterwards, the client establishes a connection with the C2 server over TCP and
 sends its Windows machine globally unique identifier.
 The server attempts to read any client save data if the client was previously
 connected to the server by parsing a JSON save file and using this machine GUID as the key.
-This means that Client information can be saved. For example, a client's RSA private key
-can decrypt incoming requests on the server. This enforces consistency and ensures that
-anything encrypted with a Client public key is not lost when the C2 server or client disconnects.
+This means that Client information can be saved. For example, a client's RSA private key 
+such as the RSA public and private key pair.
+This enforces consistency and ensures that
+anything encrypted with is not lost when the C2 server or client disconnects.
 In conclusion, any crucial data is stored from a client and loaded on join.
 If not, the server saves the data to the JSON file.
 
 The server can request the client to perform actions on the remote host, and the
-client responds with details regarding this. An RSA key pair is used for encrypted
-communication and to encrypt and decrypt files on the remote host. 
+client responds with details regarding this. Hybrid encryption is used. An AES key is exchanged
+alongside client and server RSA public keys.
 
 This write-up explains my experience making this project. 
 
@@ -57,30 +58,28 @@ Still thinking about this idea of sophisticated ransomware, I realized I hadn't 
 another project on my GitHub where I decrypted Chrome and Firefox cookies](https://github.com/provrb/web-hacker), passwords, history, etc, using AES, Base64, and managing SQL
 Databases. The idea of encrypting files with a key that couldn't be reverse-engineered stumped me until I researched further into cryptography about RSA encryption.
 
-You see, AES encryption is a symmetrical-based encryption method, meaning the key that encrypts their files
-could also decrypt those files. This didn't seem like much of a problem until I remembered this key that can encrypt AND decrypt their files would
-have to be on their computer at some point. This makes this 'sophisticated' ransomware not so sophisticated, as it would be easily susceptible
-to reverse engineering for the key to decrypt all the files. 
+There is such thing as symmetrical and asymmetrical encryption algorithms. An example of symmetrical encryption would be the popular
+AES algorithm, while an example of asymmetrical encryption would be RSA.
+Symmetrical cryptography algorithms work to generate a key of a set size that can both decrypt and encrypt data. Asymmetrical cryptography algorithms
+work to generate a pair of keys, one 'private' and one 'public' where the public key is used to encrypt data and the private key is used to decrypt encrypted data.
+However, RSA encryption does have limitations when it comes to this scenario, and that is the size of the data to encrypt cannot be bigger
+than the key size in bytes. For example, RSA 1024 bit keys can only encrypt 128 bytes of data at a time.
+Since my Packets are 8kb in size, RSA won't work to encrypt them, so a much more complicated scheme is required.
 
-The solution? An ASYMMETRICAL encryption method. In particular, RSA encryption. Rather than having one key that
-can decrypt and encrypt, you have a public key that can only encrypt and a private key used to decrypt. Using this method, along with the RAT
-idea, I realized I thought of an idea. In this RAT-Ransomware breed, the public and private RSA keys would be generated uniquely for each client
-connection to the C2 server, the public key would then be sent to the client and the ransomware would use that RSA key to encrypt all the files
-on the client. 
+An RSA key pair is generated when the server starts, these will be the encryption keys for the session. An AES key is
+generated each time a client connects on the server. On the client, another RSA key pair is generated. Once connected,
+the client and server handshake to exchange information such as the clients RSA public key, the servers RSA public key and finally
+the AES key which is sent from the server, encrypted with the clients public key, and then decrypted by the client with its private key.
+AES is particularly useful for sending encrypted requests and encrypting files as there are no size limitations.
+This approach is called hybrid encryption, the process of combining asymmetrical encryption algorithm RSA, and symmetrical
+encryption algorithm AES to securely protect data as well as secret keys. This approach is especially useful when encrypting files.
+To encrypt a file, I would generate a unique AES key for the file, encrypt the file using the AES key, encrypt the AES key with an RSA public key sent
+from the server and append the encrypted AES key to the file as well as the IV (initialization vector).
 
-So basically, I thought of a way to encrypt the victims' files in a reverse engineer-proof way because the key to decrypt
-the files would never actually be on the victims' computers until the ransom was paid. Anything involving keys would be done on the C2 server
-to keep information confidential.
-
-Here's a bit better description:
--> Client connects to C2 server
--> C2 server generates public and private RSA key pairs and sends the public key to the client
--> Client receives the public key and encrypts all the files
-[ Because you can't decrypt with the public key, it doesn't matter if the public key is ever on the victims' machine ]
--> Client pays the ransom, C2 server verifies it has been paid
--> C2 server sends the client the private key to decrypt all their files
-
-This idea allowed me to overcome my first obstacle of securely encrypting and decrypting files without worrying about being reverse-engineered.
+In conclusion, I successfully implemented a robust file encryption process utilizing hybrid encryption, 
+ensuring that only the appropriate decryption function can recover the data when provided with the necessary private key. 
+While this discussion is purely hypothetical, the described mechanism demonstrates the strength of combining RSA for secure key exchange and AES for efficient bulk encryption. 
+Such encryption schemes are widely applicable for secure data protection but also highlight the potential misuse of cryptography, as seen in ransomware scenarios.
 
 ## File format
 After brainstorming and thinking about all these methods, I proposed myself with the question; Which file format would I want to approach this project with?
@@ -147,8 +146,8 @@ By making our DLL's export table identical to the authentic MLANG.dll, the execu
 When the real ComputerDefaults.exe is executed, it would auto-elevate my DLL to Administrator privileges, bypassing the Windows UAC,
 and allowing me to run malicious code in the context of an Administrator.
 
-## Procutils.h
-One of the first things I started to work on after dllmain.cpp was finished, was the procutils library. Here I created an interface for
+## Process Manager
+One of the first things I started to work on after dllmain.cpp was finished, was the Process Manager library. Here I created an interface for
 loading different functions by getting the current processes PEB address and iterating over each LIST_ENTRY of the module
 list until I found the library I was looking for. This would allow me to dynamically load libraries but, I would still need
 to get the function address to actually import functions from the library. I started to research this area and found
@@ -193,7 +192,7 @@ file and were greeted with a message like "You require permission from Trusted I
 like you, but it has the highest permissions available in user mode, higher than the previous group, SYSTEM. Windows has this group built-in to prevent damaging important
 system files. My hypothesis: Is it possible to elevate to Trusted Installer privileges, considering how easy it was to obtain Administrator and SYSTEM privileges?
 
-During this procedure, I used two main functions from the procutils header file. In particular, StartWindowsService and CreateProcessAccessToken use the same
+During this procedure, I used two main functions from the ProcessManager header file. In particular, StartWindowsService and CreateProcessAccessToken use the same
 function to obtain a SYSTEM token. You may see where this is going.
 
 Rather than being an actual running process like winlogon.exe, TrustedInstaller is embedded into Windows as a service and thus has to be started.
