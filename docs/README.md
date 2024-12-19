@@ -7,7 +7,7 @@ to inform computer users, Software Engineers, Cybersecurity Analysts, and others
 multiple vulnerabilities to create a sophisticated piece of malware, and my explanation on how to prevent these vulnerabilities._
 
 ## Summary
-This project is a remote access Trojan-ransomware that uses both TCP and UDP sockets for communication.
+This project is a remote access Trojan-Ransomware that uses both TCP and UDP sockets for communication.
 The payload is inside of a DLL that impersonates Microsoft's
 legitimate "mlang.dll" to bypass UAC and escalate privileges when paired with
 a System32 mock directory alongside DLL hijacking.
@@ -35,25 +35,27 @@ alongside client and server RSA public keys.
 
 This write-up explains my experience making this project. 
 
-During this project, I finally decided to document my experience. This includes the triumphs, roadblocks, ideas I thought of, 
+During this project, I decided to document my experience. This includes the triumphs, roadblocks, ideas I thought of, 
 and more that happened during the creation of this project.
 
 ## Backstory
-Before I started this project, [I had previously made a chat room entirely implemented in C for Linux for my Computer Engineering Technology class final](https://github.com/provrb/AMS), 
-a basic reverse shell written in C++ for Windows, I also have been programming in C and C++ while also using the Windows API for over 2 years.
+Before I started this project, 
+[I had previously made a chat room entirely implemented in C for Linux for my Computer Engineering Technology class final](https://github.com/provrb/AMS); 
+a basic reverse shell written in C++ for Windows.
+I also have been programming in C and C++ while also using the Windows API for over 2 years.
 
-As you can infer, I went into this project with a good understanding of POSIX threads and sockets and the WinSock API.
+As you may infer, I went into this project with a good understanding of POSIX threads and sockets and the WinSock API.
 However, the basic reverse shell I wrote in a month wouldn't even pass an anti-virus heuristic analysis. After researching
 the behaviour of anti-viruses, I understood how viruses could evade anti-virus software. One of these was the use of function
 pointers, and this is why they will be prevalent throughout the code instead of making direct WinSock API calls. Furthermore,
 undocumented Windows API functions that invoke syscalls are also used to further evade detection.
 
-With all this information, I wanted to construct a sophisticated piece of malware for educational purposes and, of course, for fun.
-I thought simple ransomware would be pretty boring and easy to crack. I did like the idea of ransomware
-but I also liked the idea of a RAT. So I compromised by creating a RAT which could also invoke a Ransomware attack, among other
-functions for Windows.
+With all this information, I wanted to construct a sophisticated piece of malware for educational purposes 
+unlike my previous projects. 
+I preferred the idea of ransomware but also the idea of a RAT. 
+So I compromised. A RAT to invoke a Ransomware attack with rootkit capabilities and privilege escalation.
 
-### My first roadblock
+### My First Roadblock
 Still thinking about this idea of sophisticated ransomware, I realized I hadn't worked with much cryptography, [apart from 'web hacker',
 another project on my GitHub where I decrypted Chrome and Firefox cookies](https://github.com/provrb/web-hacker), passwords, history, etc, using AES, Base64, and managing SQL
 Databases. The idea of encrypting files with a key that couldn't be reverse-engineered stumped me until I researched further into cryptography about RSA encryption.
@@ -64,7 +66,7 @@ Symmetrical cryptography algorithms work to generate a key of a set size that ca
 work to generate a pair of keys, one 'private' and one 'public' where the public key is used to encrypt data and the private key is used to decrypt encrypted data.
 However, RSA encryption does have limitations when it comes to this scenario, and that is the size of the data to encrypt cannot be bigger
 than the key size in bytes. For example, RSA 1024 bit keys can only encrypt 128 bytes of data at a time.
-Since my Packets are 8kb in size, RSA won't work to encrypt them, so a much more complicated scheme is required.
+Since my packets are 8kb in size, RSA won't work to encrypt them, so a much more complicated scheme is required.
 
 An RSA key pair is generated when the server starts, these will be the encryption keys for the session. An AES key is
 generated each time a client connects on the server. On the client, another RSA key pair is generated. Once connected,
@@ -82,8 +84,8 @@ While this discussion is purely hypothetical, the described mechanism demonstrat
 Such encryption schemes are widely applicable for secure data protection but also highlight the potential misuse of cryptography, as seen in ransomware scenarios.
 
 ## File format
-After brainstorming and thinking about all these methods, I proposed myself with the question; Which file format would I want to approach this project with?
-A regular old EXE? An ISO file? Maybe even a .SYS file. As the days went on with this idea in my head, I started digging deeper into how DLLs work,
+After brainstorming and thinking about all these methods, I proposed myself with the question: Which file format would I want to approach this project with?
+A regular EXE? An ISO file? Maybe even a .SYS file. I started digging deeper into how DLLs work,
 how to write one in C++, and how can they be used for malicious intent. That is when I discovered a vulnerability that involved DLLs and System32.
 Both are fascinating subjects, which ultimately influenced my decision to include the payload in a DLL. 
 
@@ -91,7 +93,7 @@ Both are fascinating subjects, which ultimately influenced my decision to includ
 DLL hijacking is a vulnerability where an application loads a malicious DLL rather than the intended DLL and thus 
 can execute malicious code in the background while everything appears normal to the user. 
 
-Now why does this work is the question. 
+Now the question is why does this work?
 
 When an application loads a DLL, Windows searches four different regions in this order to find a DLL matching the requested name:
 1. The directory the application is in
@@ -121,7 +123,7 @@ New-Item "\\?\C:\Windows \System32" -ItemType Directory
 Interestingly, Windows treats this fake System32 directory just like the real Windows folder!
 Once you make that mock directory, look in your new Windows folder, it will also contain every single folder and file that's in the real Windows folder.
 
-You can't even make a text document in that folder or delete it from File Explorer, you must use PowerShell again. To
+You can't make a text document in that folder or delete it from File Explorer, you must use PowerShell again. To
 get a better understanding, I recommend that you try it for yourself, it will help when trying to 
 wrap your head around this information.
 
@@ -156,8 +158,8 @@ left was to compare function names to the export I wanted. By iterating over the
 I can check the array of all the export names to my desired function, once I found the function I wanted, I would just
 return the absolute address of the function. 
 
-After a couple of these functions, it would be a breeze to load functions I need without polluting or even adding them
-to my imports table, which is one way to attempt to evade AVs. Afterwards, I got started on trying to elevate my permissions even more.
+After a couple of these functions, loading functions would be convenient as I wouldn't need to pollute my namespace or import table,
+which is one way to attempt to evade AVs. Afterwards, I got started on trying to elevate my permissions even more.
 
 ## SYSTEM Permissions
 In Windows, there is a built-in account known as SYSTEM or LocalSystem. This account is used by the operating system and
@@ -197,7 +199,7 @@ function to obtain a SYSTEM token. You may see where this is going.
 
 Rather than being an actual running process like winlogon.exe, TrustedInstaller is embedded into Windows as a service and thus has to be started.
 To start any Windows process, we first need to obtain a handle for the Windows service control manager, a special process responsible for starting and stopping.
-Windows processes, so we can start and stop Windows processes! After, we need to obtain another handle for the service by opening it with the SC manager.
+Windows processes, so we can start and stop Windows processes. After, we need to obtain another handle for the service by opening it with the SC manager.
 Though, we do not know if this service is running, or pending start or a stop, so we must query the status of the service. Once the service is running, we can take the
 process ID of that service, and run it through CreateProcessAccessToken to return a security token in the context of the provided process, in this case, the Trusted
 Installer service.
@@ -207,5 +209,42 @@ with winlogon.exe. Using the handle of the security token, I can run and manipul
 implemented in the Windows operating system. Meaning this has the potential to become a User-Mode root kit as we have persistence, privilege, and stealth.
 
 ## How could this malware be avoided; as you-the user?
+Overall, there is no silver-bullet for ransomware, rootkits, or RATs. However, there are some steps you can take to prevent these types of malware from infecting your computer.
 
+1. Update software regularly 
+   - One of the main methods of remaining safe is to keep your computer up-to-date. 
+     This includes updating your operating system, software, and drivers.
+     While this is not totally convienant, this can prevent against malware that take advantage of known vulnerabilities in these
+     pieces of software, which can be detrimental to your computer or a network.
+2. Use a good antivirus program.
+   - Although the idea of whether or not an anti-virus program can be useful is a controversial topic
+     they can help protect your computer from known malware, especially as the average user.
+     
+3. Be careful browsing the internet
+   - Only download files from trusted sources and be wary of files from unknown sources.
+     Downloading unknown files is a leading cause to compromised networks and computers.
+4. Be careful when clicking on links
+   - A popular method to compromise networks when a malware cannot directly be downloaded is through phishing and social engineering.
+     Social engineering is the act of manipulating people into performing actions or divulging confidential information.
+     This can be paired with phishing, where a user is tricked into clicking on a malicious link.
+     To prevent against this, make sure you know the sender of the email and the link you are clicking on and 
+     100% sure of its legitimacy.
+
+Although these steps can help prevent malware from infecting your computer, it is important to remember that no method is foolproof.
+Sometimes theres nothing we can do, for example if a zero-day exploit is abused malware may be able to spread without any
+user interaction. It is important you try your best to prevent malware from infecting your computer.
+   
 ## Conclusion, what I learned
+From this project, I learned a lot about the Windows operating system, the Windows API, and how to exploit vulnerabilities in the Windows operating system.
+I learned how to use undocumented syscalls to elevate my permissions to SYSTEM and TrustedInstaller, and how to use DLL hijacking to bypass UAC.
+I also learned how to use hybrid encryption to securely encrypt files and data, and improved my understanding on sockets.
+
+Most importantly, through this project I was able to think like a threat actor. To know a threat-actor is to be a 
+good threat-hunter. I'm able to understand how to prevent exploitation of vulnerabilities. 
+From a more-cybersecurity oriented perspective, this would be a great experience 
+I can refer to when blue-teaming, rather than red-teaming.
+
+This project was incredibly fun to create and I hope you enjoyed reading my first write-up.
+I hope to make more projects similar to this as well as projects to go against threat-actors.
+
+Thank you for reading.
